@@ -12,25 +12,17 @@ describe("Frontend Configurations", () => {
       "react-router",
       "tanstack-start",
       "next",
-      "nuxt",
       "native-bare",
       "native-uniwind",
       "native-unistyles",
-      "svelte",
-      "solid",
-      "astro",
     ] satisfies ReadonlyArray<
       | "tanstack-router"
       | "react-router"
       | "tanstack-start"
       | "next"
-      | "nuxt"
       | "native-bare"
       | "native-uniwind"
       | "native-unistyles"
-      | "svelte"
-      | "solid"
-      | "astro"
     >;
 
     for (const frontend of singleFrontends) {
@@ -39,363 +31,20 @@ describe("Frontend Configurations", () => {
           projectName: `${frontend}-app`,
           frontend: [frontend],
           install: false,
+          backend: frontend === "next" ? "self" : "hono",
+          runtime: frontend === "next" ? "none" : "bun",
+          database: "sqlite",
+          orm: "drizzle",
+          auth: frontend === "next" ? "better-auth" : "none",
+          api: "orpc",
+          addons: ["none"],
+          examples: ["none"],
+          dbSetup: "none",
+          webDeploy: "none",
+          serverDeploy: "none",
         };
 
-        // Set compatible defaults based on frontend
-        if (frontend === "solid") {
-          // Solid is not compatible with Convex backend
-          config.backend = "hono";
-          config.runtime = "bun";
-          config.database = "sqlite";
-          config.orm = "drizzle";
-          config.auth = "none";
-          config.api = "orpc"; // tRPC not supported with solid
-          config.addons = ["none"];
-          config.examples = ["none"];
-          config.dbSetup = "none";
-          config.webDeploy = "none";
-          config.serverDeploy = "none";
-        } else if (frontend === "next") {
-          // Next.js can use self backend (fullstack)
-          config.backend = "self";
-          config.runtime = "none";
-          config.database = "sqlite";
-          config.orm = "drizzle";
-          config.auth = "better-auth";
-          config.api = "trpc";
-          config.addons = ["none"];
-          config.examples = ["none"];
-          config.dbSetup = "none";
-          config.webDeploy = "none";
-          config.serverDeploy = "none";
-        } else if (["nuxt", "svelte"].includes(frontend)) {
-          config.backend = "hono";
-          config.runtime = "bun";
-          config.database = "sqlite";
-          config.orm = "drizzle";
-          config.auth = "none";
-          config.api = "orpc"; // tRPC not supported with nuxt/svelte
-          config.addons = ["none"];
-          config.examples = ["none"];
-          config.dbSetup = "none";
-          config.webDeploy = "none";
-          config.serverDeploy = "none";
-        } else if (frontend === "astro") {
-          // Astro uses oRPC, not Convex compatible
-          config.backend = "hono";
-          config.runtime = "bun";
-          config.database = "sqlite";
-          config.orm = "drizzle";
-          config.auth = "none";
-          config.api = "orpc"; // tRPC not supported with astro
-          config.addons = ["none"];
-          config.examples = ["none"];
-          config.dbSetup = "none";
-          config.webDeploy = "none";
-          config.serverDeploy = "none";
-        } else {
-          config.backend = "hono";
-          config.runtime = "bun";
-          config.database = "sqlite";
-          config.orm = "drizzle";
-          config.auth = "none";
-          config.api = "trpc";
-          config.addons = ["none"];
-          config.examples = ["none"];
-          config.dbSetup = "none";
-          config.webDeploy = "none";
-          config.serverDeploy = "none";
-        }
-
         const result = await runTRPCTest(config);
-        expectSuccess(result);
-      });
-    }
-  });
-
-  describe("Frontend Compatibility with API", () => {
-    it("should generate the current Nuxt dependency baseline", async () => {
-      const result = await runTRPCTest({
-        projectName: "nuxt-dependency-baseline",
-        frontend: ["nuxt"],
-        api: "orpc",
-        backend: "hono",
-        runtime: "bun",
-        database: "sqlite",
-        orm: "drizzle",
-        auth: "none",
-        addons: ["none"],
-        examples: ["none"],
-        dbSetup: "none",
-        webDeploy: "none",
-        serverDeploy: "none",
-        install: false,
-      });
-
-      expectSuccess(result);
-
-      const packageJson = await fs.readJson(path.join(result.projectDir!, "apps/web/package.json"));
-      expect(packageJson.dependencies).toMatchObject({
-        "@nuxt/ui": "^4.10.0",
-        nuxt: "^4.5.1",
-        vue: "^3.5.40",
-        "vue-router": "^5.2.0",
-      });
-      expect(packageJson.devDependencies["vue-tsc"]).toBe("^3.3.8");
-      expect(packageJson.scripts["check-types"]).toBe("nuxt typecheck");
-    });
-
-    it("should work with React frontends + tRPC", async () => {
-      const result = await runTRPCTest({
-        projectName: "react-trpc",
-        frontend: ["tanstack-router"],
-        api: "trpc",
-        backend: "hono",
-        runtime: "bun",
-        database: "sqlite",
-        orm: "drizzle",
-        auth: "none",
-        addons: ["none"],
-        examples: ["none"],
-        dbSetup: "none",
-        webDeploy: "none",
-        serverDeploy: "none",
-        install: false,
-      });
-
-      expectSuccess(result);
-    });
-
-    it("should fail with Nuxt + tRPC", async () => {
-      const result = await runTRPCTest({
-        projectName: "nuxt-trpc-fail",
-        frontend: ["nuxt"],
-        api: "trpc",
-        backend: "hono",
-        runtime: "bun",
-        database: "sqlite",
-        orm: "drizzle",
-        auth: "none",
-        addons: ["none"],
-        examples: ["none"],
-        dbSetup: "none",
-        webDeploy: "none",
-        serverDeploy: "none",
-        expectError: true,
-      });
-
-      expectError(result, "tRPC API is not supported with 'nuxt' frontend");
-    });
-
-    it("should fail with Svelte + tRPC", async () => {
-      const result = await runTRPCTest({
-        projectName: "svelte-trpc-fail",
-        frontend: ["svelte"],
-        api: "trpc",
-        backend: "hono",
-        runtime: "bun",
-        database: "sqlite",
-        orm: "drizzle",
-        auth: "none",
-        addons: ["none"],
-        examples: ["none"],
-        dbSetup: "none",
-        webDeploy: "none",
-        serverDeploy: "none",
-        expectError: true,
-      });
-
-      expectError(result, "tRPC API is not supported with 'svelte' frontend");
-    });
-
-    it("should fail with Solid + tRPC", async () => {
-      const result = await runTRPCTest({
-        projectName: "solid-trpc-fail",
-        frontend: ["solid"],
-        api: "trpc",
-        backend: "hono",
-        runtime: "bun",
-        database: "sqlite",
-        orm: "drizzle",
-        auth: "none",
-        addons: ["none"],
-        examples: ["none"],
-        dbSetup: "none",
-        webDeploy: "none",
-        serverDeploy: "none",
-        expectError: true,
-      });
-
-      expectError(result, "tRPC API is not supported with 'solid' frontend");
-    });
-
-    it("should fail with Astro + tRPC", async () => {
-      const result = await runTRPCTest({
-        projectName: "astro-trpc-fail",
-        frontend: ["astro"],
-        api: "trpc",
-        backend: "hono",
-        runtime: "bun",
-        database: "sqlite",
-        orm: "drizzle",
-        auth: "none",
-        addons: ["none"],
-        examples: ["none"],
-        dbSetup: "none",
-        webDeploy: "none",
-        serverDeploy: "none",
-        expectError: true,
-      });
-
-      expectError(result, "tRPC API is not supported with 'astro' frontend");
-    });
-
-    const frontends = ["nuxt", "svelte", "solid", "astro"] as const;
-    for (const frontend of frontends) {
-      it(`should work with ${frontend} + oRPC`, async () => {
-        const result = await runTRPCTest({
-          projectName: `${frontend}-orpc`,
-          frontend: [frontend],
-          api: "orpc",
-          backend: "hono",
-          runtime: "bun",
-          database: "sqlite",
-          orm: "drizzle",
-          auth: "none",
-          addons: ["none"],
-          examples: ["none"],
-          dbSetup: "none",
-          webDeploy: "none",
-          serverDeploy: "none",
-          install: false,
-        });
-
-        expectSuccess(result);
-      });
-    }
-  });
-
-  describe("Frontend Compatibility with Backend", () => {
-    it("should fail Solid + Convex", async () => {
-      const result = await runTRPCTest({
-        projectName: "solid-convex-fail",
-        frontend: ["solid"],
-        backend: "convex",
-        runtime: "none",
-        database: "none",
-        orm: "none",
-        auth: "none",
-        api: "none",
-        addons: ["none"],
-        examples: ["none"],
-        dbSetup: "none",
-        webDeploy: "none",
-        serverDeploy: "none",
-        expectError: true,
-      });
-
-      expectError(
-        result,
-        "The following frontends are not compatible with '--backend convex': solid. Please choose a different frontend or backend.",
-      );
-    });
-
-    it("should fail Astro + Convex", async () => {
-      const result = await runTRPCTest({
-        projectName: "astro-convex-fail",
-        frontend: ["astro"],
-        backend: "convex",
-        runtime: "none",
-        database: "none",
-        orm: "none",
-        auth: "none",
-        api: "none",
-        addons: ["none"],
-        examples: ["none"],
-        dbSetup: "none",
-        webDeploy: "none",
-        serverDeploy: "none",
-        expectError: true,
-      });
-
-      expectError(
-        result,
-        "The following frontends are not compatible with '--backend convex': astro. Please choose a different frontend or backend.",
-      );
-    });
-
-    it("should work with React frontends + Convex", async () => {
-      const result = await runTRPCTest({
-        projectName: "react-convex",
-        frontend: ["tanstack-router"],
-        backend: "convex",
-        runtime: "none",
-        database: "none",
-        orm: "none",
-        auth: "clerk",
-        api: "none",
-        addons: ["none"],
-        examples: ["none"],
-        dbSetup: "none",
-        webDeploy: "none",
-        serverDeploy: "none",
-        install: false,
-      });
-
-      expectSuccess(result);
-    });
-  });
-
-  describe("Frontend Compatibility with Auth", () => {
-    const incompatibleFrontends = ["nuxt", "svelte", "solid", "astro"] as const;
-    for (const frontend of incompatibleFrontends) {
-      it(`should fail incompatible ${frontend} with Clerk`, async () => {
-        const result = await runTRPCTest({
-          projectName: `${frontend}-clerk-fail`,
-          frontend: [frontend],
-          backend: "hono",
-          runtime: "bun",
-          database: "sqlite",
-          orm: "drizzle",
-          auth: "clerk",
-          api: "orpc",
-          addons: ["none"],
-          examples: ["none"],
-          dbSetup: "none",
-          webDeploy: "none",
-          serverDeploy: "none",
-          expectError: true,
-        });
-
-        expectError(result, "Clerk authentication is not compatible");
-      });
-    }
-
-    const compatibleFrontends = [
-      "tanstack-router",
-      "react-router",
-      "tanstack-start",
-      "next",
-    ] as const;
-    for (const frontend of compatibleFrontends) {
-      it(`should work with compatible ${frontend} + Clerk`, async () => {
-        const result = await runTRPCTest({
-          projectName: `${frontend}-clerk`,
-          frontend: [frontend],
-          backend: "hono",
-          runtime: "bun",
-          database: "sqlite",
-          orm: "drizzle",
-          auth: "clerk",
-          api: "trpc",
-          addons: ["none"],
-          examples: ["none"],
-          dbSetup: "none",
-          webDeploy: "none",
-          serverDeploy: "none",
-          install: false,
-        });
-
         expectSuccess(result);
       });
     }
@@ -411,7 +60,7 @@ describe("Frontend Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         addons: ["none"],
         examples: ["none"],
         dbSetup: "none",
@@ -432,7 +81,7 @@ describe("Frontend Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         addons: ["none"],
         examples: ["none"],
         dbSetup: "none",
@@ -453,7 +102,7 @@ describe("Frontend Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         addons: ["none"],
         examples: ["none"],
         dbSetup: "none",
@@ -476,7 +125,7 @@ describe("Frontend Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         addons: ["none"],
         examples: ["none"],
         dbSetup: "none",
@@ -517,7 +166,7 @@ describe("Frontend Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         addons: ["none"],
         examples: ["none"],
         dbSetup: "none",
@@ -538,7 +187,7 @@ describe("Frontend Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         addons: ["none"],
         examples: ["none"],
         dbSetup: "none",
@@ -556,52 +205,6 @@ describe("Frontend Configurations", () => {
       const result = await runTRPCTest({
         projectName: "nextjs-self-backend",
         frontend: ["next"],
-        backend: "self",
-        runtime: "none",
-        database: "sqlite",
-        orm: "drizzle",
-        auth: "better-auth",
-        api: "trpc",
-        addons: ["none"],
-        examples: ["none"],
-        dbSetup: "none",
-        webDeploy: "none",
-        serverDeploy: "none",
-        install: false,
-      });
-
-      expectSuccess(result);
-    });
-  });
-
-  describe("Nuxt with Self Backend", () => {
-    it("should work with Nuxt and self backend", async () => {
-      const result = await runTRPCTest({
-        projectName: "nuxt-self-backend",
-        frontend: ["nuxt"],
-        backend: "self",
-        runtime: "none",
-        database: "sqlite",
-        orm: "drizzle",
-        auth: "better-auth",
-        api: "orpc",
-        addons: ["none"],
-        examples: ["none"],
-        dbSetup: "none",
-        webDeploy: "none",
-        serverDeploy: "none",
-        install: false,
-      });
-
-      expectSuccess(result);
-    });
-  });
-
-  describe("Astro with Self Backend", () => {
-    it("should work with Astro and self backend", async () => {
-      const result = await runTRPCTest({
-        projectName: "astro-self-backend",
-        frontend: ["astro"],
         backend: "self",
         runtime: "none",
         database: "sqlite",
@@ -631,7 +234,7 @@ describe("Frontend Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         addons: ["none"],
         examples: ["none"],
         dbSetup: "none",
@@ -652,7 +255,7 @@ describe("Frontend Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         addons: ["none"],
         examples: ["none"],
         dbSetup: "none",

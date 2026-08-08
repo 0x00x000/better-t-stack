@@ -32,7 +32,6 @@ export function processTurboConfig(vfs: VirtualFileSystem, config: ProjectConfig
 function generateTurboConfig(config: ProjectConfig): TurboConfig {
   const { backend, database, dbSetup, webDeploy, serverDeploy, frontend } = config;
 
-  const isConvex = backend === "convex";
   const dbSupport = getDbScriptSupport(config);
   const hasDatabase = dbSupport.hasDbScripts;
   const isDocker = dbSetup === "docker";
@@ -42,8 +41,7 @@ function generateTurboConfig(config: ProjectConfig): TurboConfig {
   const tasks: Record<string, TurboTask> = {
     ...getBaseTasks(frontend, config.addons),
     ...(config.addons.includes("electrobun") ? getElectrobunTasks() : {}),
-    ...(isConvex ? getConvexTasks() : {}),
-    ...(!isConvex && hasDatabase ? getDatabaseTasks(dbSupport) : {}),
+    ...(hasDatabase ? getDatabaseTasks(dbSupport) : {}),
     ...(isDocker ? getDockerTasks() : {}),
     ...(isSqliteLocal ? getSqliteLocalTask() : {}),
     ...(hasCloudflare ? getDeployTasks() : {}),
@@ -65,20 +63,6 @@ function getBaseTasks(frontend: string[], addons: string[]): Record<string, Turb
 
   if (frontend.includes("next")) {
     buildOutputs.push(".next/**", "!.next/cache/**");
-  }
-
-  if (frontend.includes("nuxt")) {
-    buildOutputs.push(".nuxt/**", ".output/**");
-  }
-
-  // SvelteKit outputs to .svelte-kit/** in addition to build/
-  if (frontend.includes("svelte")) {
-    buildOutputs.push(".svelte-kit/**", "build/**");
-  }
-
-  // Astro outputs to dist/**
-  if (frontend.includes("astro")) {
-    buildOutputs.push(".astro/**");
   }
 
   if (addons.includes("electrobun")) {
@@ -119,15 +103,6 @@ function getElectrobunTasks(): Record<string, TurboTask> {
       dependsOn: ["^build"],
       inputs: ["$TURBO_DEFAULT$", ".env*"],
       outputs: ["artifacts/**", "build/**"],
-    },
-  };
-}
-
-function getConvexTasks(): Record<string, TurboTask> {
-  return {
-    "dev:setup": {
-      cache: false,
-      persistent: true,
     },
   };
 }

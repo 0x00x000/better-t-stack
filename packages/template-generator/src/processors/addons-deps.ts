@@ -17,10 +17,9 @@ export function processAddonsDeps(vfs: VirtualFileSystem, config: ProjectConfig)
 
   const hasViteReactFrontend =
     config.frontend.includes("react-router") || config.frontend.includes("tanstack-router");
-  const hasSolidFrontend = config.frontend.includes("solid");
-  const hasPwaCompatibleFrontend = hasViteReactFrontend || hasSolidFrontend;
+  const hasPwaCompatibleFrontend = hasViteReactFrontend;
   const hasEvlogWebServer = config.frontend.some((frontend) =>
-    ["next", "nuxt", "svelte", "tanstack-start", "astro"].includes(frontend),
+    ["next", "tanstack-start"].includes(frontend),
   );
 
   if (config.addons.includes("turborepo")) {

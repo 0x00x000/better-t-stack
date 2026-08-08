@@ -25,14 +25,14 @@ describe("Cloudflare DB client generation", () => {
       auth: "better-auth",
       addons: ["none"],
       examples: ["todo"],
-      dbSetup: "turso",
+      dbSetup: "neon",
       webDeploy: "none",
       serverDeploy: "cloudflare",
       install: false,
       git: false,
       packageManager: "bun",
       payments: "none",
-      api: "trpc",
+      api: "orpc",
     });
     const dbFile = files.get("packages/db/src/index.ts");
     const authFile = files.get("packages/auth/src/index.ts");
@@ -69,7 +69,7 @@ describe("Cloudflare DB client generation", () => {
       git: false,
       packageManager: "bun",
       payments: "none",
-      api: "trpc",
+      api: "orpc",
     });
     const dbFile = files.get("packages/db/src/index.ts");
     const authFile = files.get("packages/auth/src/index.ts");
@@ -105,7 +105,7 @@ describe("Cloudflare DB client generation", () => {
     {
       name: "Next.js",
       frontend: "next",
-      api: "trpc",
+      api: "orpc",
       routePath: "apps/web/src/app/api/auth/[...all]/route.ts",
       routeNeedles: [
         "toNextJsHandler(createAuth()).GET(request)",
@@ -117,14 +117,14 @@ describe("Cloudflare DB client generation", () => {
     {
       name: "TanStack Start",
       frontend: "tanstack-start",
-      api: "trpc",
+      api: "orpc",
       routePath: "apps/web/src/routes/api/auth/$.ts",
       routeNeedles: ["const auth = createAuth()", "return auth.handler(request)"],
       envNeedle: 'export { env } from "cloudflare:workers";',
     },
     {
       name: "Nuxt",
-      frontend: "nuxt",
+      frontend: "tanstack-router",
       api: "orpc",
       routePath: "apps/web/server/api/auth/[...all].ts",
       routeNeedles: ["const auth = createAuth();", "return auth.handler(toWebRequest(event));"],
@@ -132,7 +132,7 @@ describe("Cloudflare DB client generation", () => {
     },
     {
       name: "Astro",
-      frontend: "astro",
+      frontend: "next",
       api: "orpc",
       routePath: "apps/web/src/pages/api/auth/[...all].ts",
       routeNeedles: ["const auth = createAuth();", "return auth.handler(ctx.request);"],
@@ -205,7 +205,7 @@ describe("Cloudflare DB client generation", () => {
       git: false,
       packageManager: "bun",
       payments: "none",
-      api: "trpc",
+      api: "orpc",
     });
 
     const dbFile = files.get("packages/db/src/index.ts");
@@ -244,7 +244,7 @@ describe("Cloudflare DB client generation", () => {
       git: false,
       packageManager: "bun",
       payments: "none",
-      api: "trpc",
+      api: "orpc",
     });
     const dbFile = files.get("packages/db/src/index.ts");
 
@@ -271,7 +271,7 @@ describe("Cloudflare DB client generation", () => {
       git: false,
       packageManager: "bun",
       payments: "none",
-      api: "trpc",
+      api: "orpc",
     });
     const authFile = files.get("packages/auth/src/index.ts");
     const routeFile = files.get("apps/web/src/app/api/auth/[...all]/route.ts");
@@ -299,7 +299,7 @@ describe("Cloudflare DB client generation", () => {
       git: false,
       packageManager: "bun",
       payments: "none",
-      api: "trpc",
+      api: "orpc",
     });
     const dbFile = files.get("packages/db/src/index.ts");
     const authFile = files.get("packages/auth/src/index.ts");
@@ -328,7 +328,7 @@ describe("Cloudflare DB client generation", () => {
       git: false,
       packageManager: "bun",
       payments: "none",
-      api: "trpc",
+      api: "orpc",
     });
     const authFile = files.get("packages/auth/src/index.ts");
     const routeFile = files.get("apps/web/src/app/api/auth/[...all]/route.ts");

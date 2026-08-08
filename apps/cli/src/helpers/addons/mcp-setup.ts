@@ -106,12 +106,6 @@ function getAllMcpServers(config: ProjectConfig): McpServerDef[] {
       transport: "sse",
     },
     {
-      key: "convex",
-      label: "Convex",
-      name: "convex",
-      target: "npx -y convex@latest mcp start",
-    },
-    {
       key: "shadcn",
       label: "shadcn/ui",
       name: "shadcn",
@@ -122,36 +116,6 @@ function getAllMcpServers(config: ProjectConfig): McpServerDef[] {
       label: "Next Devtools",
       name: "next-devtools",
       target: "npx -y next-devtools-mcp@latest",
-    },
-    {
-      key: "nuxt-docs",
-      label: "Nuxt Docs",
-      name: "nuxt",
-      target: "https://nuxt.com/mcp",
-    },
-    {
-      key: "nuxt-ui-docs",
-      label: "Nuxt UI Docs",
-      name: "nuxt-ui",
-      target: "https://ui.nuxt.com/mcp",
-    },
-    {
-      key: "svelte-docs",
-      label: "Svelte Docs",
-      name: "svelte",
-      target: "https://mcp.svelte.dev/mcp",
-    },
-    {
-      key: "astro-docs",
-      label: "Astro Docs",
-      name: "astro-docs",
-      target: "https://mcp.docs.astro.build/mcp",
-    },
-    {
-      key: "planetscale",
-      label: "PlanetScale",
-      name: "planetscale",
-      target: "https://mcp.pscale.dev/mcp/planetscale",
     },
     {
       key: "neon",
@@ -172,22 +136,10 @@ function getAllMcpServers(config: ProjectConfig): McpServerDef[] {
       target: "https://mcp.inkeep.com/better-auth/mcp",
     },
     {
-      key: "clerk",
-      label: "Clerk",
-      name: "clerk",
-      target: "https://mcp.clerk.com/mcp",
-    },
-    {
       key: "expo",
       label: "Expo",
       name: "expo-mcp",
       target: "https://mcp.expo.dev/mcp",
-    },
-    {
-      key: "polar",
-      label: "Polar",
-      name: "polar",
-      target: "https://mcp.polar.sh/mcp/polar-mcp",
     },
   ];
 }
@@ -211,32 +163,12 @@ export function getRecommendedMcpServers(
     recommendedServerKeys.push("cloudflare-docs");
   }
 
-  if (config.backend === "convex") {
-    recommendedServerKeys.push("convex");
-  }
-
   if (hasReactBasedFrontend(config.frontend)) {
     recommendedServerKeys.push("shadcn");
   }
 
   if (config.frontend.includes("next")) {
     recommendedServerKeys.push("next-devtools");
-  }
-
-  if (config.frontend.includes("nuxt")) {
-    recommendedServerKeys.push("nuxt-docs", "nuxt-ui-docs");
-  }
-
-  if (config.frontend.includes("svelte")) {
-    recommendedServerKeys.push("svelte-docs");
-  }
-
-  if (config.frontend.includes("astro")) {
-    recommendedServerKeys.push("astro-docs");
-  }
-
-  if (config.dbSetup === "planetscale") {
-    recommendedServerKeys.push("planetscale");
   }
 
   if (config.dbSetup === "neon") {
@@ -251,16 +183,8 @@ export function getRecommendedMcpServers(
     recommendedServerKeys.push("better-auth");
   }
 
-  if (config.auth === "clerk") {
-    recommendedServerKeys.push("clerk");
-  }
-
   if (hasNativeFrontend(config.frontend)) {
     recommendedServerKeys.push("expo");
-  }
-
-  if (config.payments === "polar") {
-    recommendedServerKeys.push("polar");
   }
 
   return uniqueValues(recommendedServerKeys)

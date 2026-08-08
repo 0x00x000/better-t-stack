@@ -56,18 +56,6 @@ export function processAndValidateFlags(
   providedFlags: Set<string>,
   projectName?: string,
 ): ValidationResult<Partial<ProjectConfig>> {
-  if (options.yolo) {
-    const cfg = processFlags(options, projectName);
-    const validatedProjectNameResult = extractAndValidateProjectName(
-      projectName,
-      options.projectDirectory,
-    );
-    if (validatedProjectNameResult.isOk() && validatedProjectNameResult.value) {
-      cfg.projectName = validatedProjectNameResult.value;
-    }
-    return Result.ok(cfg);
-  }
-
   const yesFlagResult = validateYesFlagCombination(options, providedFlags);
   if (yesFlagResult.isErr()) {
     return Result.err(yesFlagResult.error);
@@ -103,12 +91,10 @@ export function processProvidedFlagsWithoutValidation(
   options: CLIInput,
   projectName?: string,
 ): ValidationResult<Partial<ProjectConfig>> {
-  if (!options.yolo) {
-    const providedFlags = getProvidedFlags(options);
-    const yesFlagResult = validateYesFlagCombination(options, providedFlags);
-    if (yesFlagResult.isErr()) {
-      return Result.err(yesFlagResult.error);
-    }
+  const providedFlags = getProvidedFlags(options);
+  const yesFlagResult = validateYesFlagCombination(options, providedFlags);
+  if (yesFlagResult.isErr()) {
+    return Result.err(yesFlagResult.error);
   }
 
   const config = processFlags(options, projectName);
@@ -132,7 +118,6 @@ export function validateConfigCompatibility(
   providedFlags?: Set<string>,
   options?: CLIInput,
 ): ValidationResult<void> {
-  if (options?.yolo) return Result.ok(undefined);
   if (options && providedFlags) {
     return validateFullConfig(config, providedFlags, options);
   } else {

@@ -30,7 +30,7 @@ export async function getORMChoice(
   runtime?: Runtime,
   previousValue?: ORM,
 ) {
-  if (backend === "convex") {
+  if (backend === "none") {
     return "none";
   }
 

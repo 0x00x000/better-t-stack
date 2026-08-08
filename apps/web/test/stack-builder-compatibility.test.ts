@@ -137,109 +137,41 @@ describe("stack builder D1 compatibility", () => {
     });
 
     const firstD1Selection = applyStackUpdate(initialRawD1Stack, {});
-    const tursoSelection = applyStackUpdate(firstD1Selection.stack, {
-      dbSetup: "turso",
+    const neonSelection = applyStackUpdate(firstD1Selection.stack, {
+      dbSetup: "neon",
       webDeploy: "none",
     });
-    const secondD1Selection = applyStackUpdate(tursoSelection.stack, { dbSetup: "d1" });
+    const secondD1Selection = applyStackUpdate(neonSelection.stack, { dbSetup: "d1" });
 
     expect(firstD1Selection.stack.webDeploy).toBe("cloudflare");
-    expect(tursoSelection.stack).toMatchObject({ dbSetup: "turso", webDeploy: "none" });
+    expect(neonSelection.stack).toMatchObject({ dbSetup: "neon", webDeploy: "none" });
     expect(secondD1Selection.stack).toMatchObject({
       dbSetup: "d1",
       webDeploy: "cloudflare",
     });
   });
 
-  test("allows Polar when there is no frontend at all", () => {
-    const stack = createStack({
-      webFrontend: ["none"],
-      nativeFrontend: ["none"],
-      backend: "hono",
-      auth: "better-auth",
-    });
-
-    expect(getDisabledReason(stack, "payments", "polar")).toBeNull();
-  });
-
-  test("allows Polar for native-only stacks", () => {
-    const stack = createStack({
-      webFrontend: ["none"],
-      nativeFrontend: ["native-bare"],
-      backend: "hono",
-      auth: "better-auth",
-    });
-
-    expect(getDisabledReason(stack, "payments", "polar")).toBeNull();
-  });
-
-  test("allows Polar for mixed web and native stacks", () => {
-    const stack = createStack({
-      webFrontend: ["tanstack-router"],
-      nativeFrontend: ["native-bare"],
-      backend: "hono",
-      runtime: "bun",
-      auth: "better-auth",
-      payments: "polar",
-    });
-
-    expect(getDisabledReason(stack, "payments", "polar")).toBeNull();
-    expect(analyzeStackCompatibility(stack).adjustedStack).toBeNull();
-
-    const command = generateStackCommand(stack);
-    expect(command).toContain("--frontend tanstack-router native-bare");
-    expect(command).toContain("--payments polar");
-  });
-
-  test("allows Polar for mixed Convex Better Auth web and native stacks", () => {
-    const stack = createStack({
-      webFrontend: ["next"],
-      nativeFrontend: ["native-bare"],
-      backend: "convex",
-      runtime: "none",
-      database: "none",
-      orm: "none",
-      api: "none",
-      dbSetup: "none",
-      auth: "better-auth",
-      payments: "polar",
-    });
-
-    expect(getDisabledReason(stack, "auth", "better-auth")).toBeNull();
-    expect(getDisabledReason(stack, "payments", "polar")).toBeNull();
-    expect(analyzeStackCompatibility(stack).adjustedStack).toBeNull();
-
-    const command = generateStackCommand(stack);
-    expect(command).toContain("--frontend next native-bare");
-    expect(command).toContain("--backend convex");
-    expect(command).toContain("--payments polar");
-  });
-
-  test("keeps Expo selected when Nuxt switches the API to oRPC", () => {
-    const nuxtStack = applyStackUpdate(createStack(), (currentStack) =>
-      getTechSelectionUpdate(currentStack, "webFrontend", "nuxt"),
-    ).stack;
-    const nuxtAndExpoStack = applyStackUpdate(nuxtStack, (currentStack) =>
+  test("keeps native Expo when paired with TanStack Router", () => {
+    const stack = applyStackUpdate(createStack(), (currentStack) =>
       getTechSelectionUpdate(currentStack, "nativeFrontend", "native-bare"),
     ).stack;
 
-    expect(nuxtAndExpoStack).toMatchObject({
-      webFrontend: ["nuxt"],
+    expect(stack).toMatchObject({
+      webFrontend: ["tanstack-router"],
       nativeFrontend: ["native-bare"],
       api: "orpc",
     });
-    expect(getDisabledReason(nuxtAndExpoStack, "nativeFrontend", "native-bare")).toBeNull();
-    expect(generateStackCommand(nuxtAndExpoStack)).toContain("--frontend nuxt native-bare");
+    expect(getDisabledReason(stack, "nativeFrontend", "native-bare")).toBeNull();
+    expect(generateStackCommand(stack)).toContain("--frontend tanstack-router native-bare");
   });
 
   test("removes a compatibility-adjusted badge against the effective stack", () => {
     const rawStack = createStack({
-      webFrontend: ["nuxt"],
+      webFrontend: ["tanstack-router"],
       nativeFrontend: ["native-bare"],
-      api: "trpc",
+      api: "orpc",
     });
 
-    expect(analyzeStackCompatibility(rawStack).adjustedStack?.api).toBe("orpc");
     expect(getSelectedTechRemovalUpdate(rawStack, "api", "orpc")).toEqual({ api: "none" });
 
     const adjustedStack = applyStackUpdate(rawStack, (currentStack) =>
@@ -247,7 +179,7 @@ describe("stack builder D1 compatibility", () => {
     ).stack;
 
     expect(adjustedStack).toMatchObject({
-      webFrontend: ["nuxt"],
+      webFrontend: ["tanstack-router"],
       nativeFrontend: ["native-bare"],
       api: "none",
     });
@@ -264,16 +196,14 @@ describe("stack builder D1 compatibility", () => {
     expect(getDisabledReason(stack, "orm", "none")).toBeNull();
   });
 
-  test("blocks the AI example for Astro frontends", () => {
+  test("blocks the AI example when no backend is selected", () => {
     const stack = createStack({
-      webFrontend: ["astro"],
-      backend: "self-astro",
-      api: "orpc",
+      webFrontend: ["next"],
+      backend: "none",
+      api: "none",
     });
 
-    expect(getDisabledReason(stack, "examples", "ai")).toBe(
-      "AI example not compatible with Solid or Astro frontend",
-    );
+    expect(getDisabledReason(stack, "examples", "ai")).toBe("The 'ai' example requires a backend.");
 
     const result = analyzeStackCompatibility({
       ...stack,
@@ -283,25 +213,23 @@ describe("stack builder D1 compatibility", () => {
     expect(result.adjustedStack?.examples).toEqual(["none"]);
   });
 
-  test("blocks Evlog for Convex stacks", () => {
+  test("blocks Evlog when backend is none", () => {
     const stack = createStack({
-      webFrontend: ["tanstack-start"],
-      nativeFrontend: ["native-uniwind"],
-      backend: "convex",
+      webFrontend: ["tanstack-router"],
+      backend: "none",
       runtime: "none",
       addons: ["turborepo"],
     });
 
     expect(getDisabledReason(stack, "addons", "evlog")).toBe(
-      "evlog requires Hono, Express, Fastify, Elysia, or a fullstack backend",
+      "evlog addon supports Hono or backend self with Next.js or TanStack Start. Backend none is not supported yet.",
     );
   });
 
-  test("removes Evlog when a selected stack switches to Convex", () => {
+  test("removes Evlog when backend is none", () => {
     const stack = createStack({
-      webFrontend: ["tanstack-start"],
-      nativeFrontend: ["native-uniwind"],
-      backend: "convex",
+      webFrontend: ["tanstack-router"],
+      backend: "none",
       runtime: "none",
       addons: ["turborepo", "evlog"],
     });
@@ -328,39 +256,6 @@ describe("stack builder D1 compatibility", () => {
 
     expect(getDisabledReason(serverStack, "addons", "evlog")).toBeNull();
     expect(getDisabledReason(fullstackStack, "addons", "evlog")).toBeNull();
-  });
-
-  test("does not let a native frontend hide Clerk-incompatible web frontends", () => {
-    const stack = createStack({
-      webFrontend: ["nuxt"],
-      nativeFrontend: ["native-bare"],
-      auth: "none",
-      api: "orpc",
-    });
-
-    expect(getDisabledReason(stack, "auth", "clerk")).toBe(
-      "Clerk requires React Router, TanStack Router, TanStack Start, Next.js, or React Native",
-    );
-    expect(resolveStackCompatibility({ ...stack, auth: "clerk" }).stack.auth).toBe("none");
-  });
-
-  test("does not let a native frontend hide Convex Better Auth incompatibilities", () => {
-    const stack = createStack({
-      webFrontend: ["nuxt"],
-      nativeFrontend: ["native-uniwind"],
-      backend: "convex",
-      runtime: "none",
-      database: "none",
-      orm: "none",
-      dbSetup: "none",
-      api: "none",
-      auth: "none",
-    });
-
-    expect(getDisabledReason(stack, "auth", "better-auth")).toBe(
-      "Better-Auth with Convex requires React Router, TanStack Router, TanStack Start, Next.js, or React Native",
-    );
-    expect(resolveStackCompatibility({ ...stack, auth: "better-auth" }).stack.auth).toBe("none");
   });
 });
 
@@ -446,24 +341,6 @@ describe("stack builder Docker deployment compatibility", () => {
     expect(resolveStackCompatibility({ ...stack, webDeploy: "docker" }).stack.webDeploy).toBe(
       "none",
     );
-  });
-
-  test("keeps the CLI exception for Convex Better Auth with Next.js and Electrobun", () => {
-    const stack = createStack({
-      webFrontend: ["next"],
-      backend: "convex",
-      runtime: "none",
-      database: "none",
-      orm: "none",
-      dbSetup: "none",
-      api: "none",
-      auth: "better-auth",
-      addons: ["electrobun"],
-      webDeploy: "docker",
-    });
-
-    expect(getDisabledReason(stack, "webDeploy", "docker")).toBeNull();
-    expect(resolveStackCompatibility(stack).stack.webDeploy).toBe("docker");
   });
 });
 

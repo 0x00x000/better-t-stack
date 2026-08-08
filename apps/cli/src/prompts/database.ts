@@ -9,7 +9,7 @@ export async function getDatabaseChoice(
   runtime?: Runtime,
   previousValue?: Database,
 ) {
-  if (backend === "convex" || backend === "none") {
+  if (backend === "none") {
     return "none";
   }
 

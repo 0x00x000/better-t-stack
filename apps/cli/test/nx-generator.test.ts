@@ -21,7 +21,7 @@ const baseConfig: ProjectConfig = {
   dbSetup: "none",
   backend: "hono",
   runtime: "bun",
-  api: "trpc",
+  api: "orpc",
   webDeploy: "none",
   serverDeploy: "none",
 };
@@ -45,33 +45,18 @@ describe("Nx config generator", () => {
     expect(productionInputs).not.toContain("!{workspaceRoot}/.wrangler/**");
   });
 
-  it("excludes Prisma, Turso, and Convex generated paths only for matching stacks", () => {
-    const prismaTursoInputs = generateNxConfig(
+  it("excludes Prisma and local SQLite paths only for matching stacks", () => {
+    const prismaInputs = generateNxConfig(
       configWith({
-        dbSetup: "turso",
+        dbSetup: "neon",
         orm: "prisma",
       }),
     ).namedInputs.production;
 
-    expect(prismaTursoInputs).toContain("!{workspaceRoot}/packages/db/prisma/generated/**");
-    expect(prismaTursoInputs).toContain("!{workspaceRoot}/packages/db/prisma/**/*.db*");
-    expect(prismaTursoInputs).toContain("!{workspaceRoot}/packages/db/local.db*");
-    expect(prismaTursoInputs).not.toContain(
-      "!{workspaceRoot}/packages/backend/convex/_generated/**",
-    );
-
-    const convexInputs = generateNxConfig(
-      configWith({
-        backend: "convex",
-        database: "none",
-        orm: "none",
-      }),
-    ).namedInputs.production;
-
-    expect(convexInputs).toContain("!{workspaceRoot}/packages/backend/convex/_generated/**");
-    expect(convexInputs).not.toContain("!{workspaceRoot}/apps/server/dist/**");
-    expect(convexInputs).not.toContain("!{workspaceRoot}/packages/db/local.db*");
-    expect(convexInputs).not.toContain("!{workspaceRoot}/packages/db/prisma/generated/**");
+    expect(prismaInputs).toContain("!{workspaceRoot}/packages/db/prisma/generated/**");
+    expect(prismaInputs).toContain("!{workspaceRoot}/packages/db/prisma/**/*.db*");
+    expect(prismaInputs).toContain("!{workspaceRoot}/packages/db/local.db*");
+    expect(prismaInputs).not.toContain("!{workspaceRoot}/apps/server/dist/**");
   });
 
   it("excludes Cloudflare generated paths only for Cloudflare stacks", () => {

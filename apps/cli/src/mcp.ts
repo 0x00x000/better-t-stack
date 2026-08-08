@@ -260,7 +260,6 @@ export function createBtsMcpServer() {
         const result = await create(input.projectName, {
           ...input,
           dryRun: true,
-          disableAnalytics: true,
         });
 
         if (result.isErr()) {
@@ -306,7 +305,6 @@ export function createBtsMcpServer() {
 
         const result = await create(input.projectName, {
           ...input,
-          disableAnalytics: true,
         });
 
         if (result.isErr()) {

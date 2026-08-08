@@ -6,7 +6,7 @@ import { addPackageDependency, type AvailableDependencies } from "../utils/add-d
 export function processDatabaseDeps(vfs: VirtualFileSystem, config: ProjectConfig): void {
   const { database, orm, backend } = config;
 
-  if (backend === "convex" || database === "none") return;
+  if (database === "none") return;
 
   const dbPkgPath = "packages/db/package.json";
   const webPkgPath = "apps/web/package.json";
@@ -53,9 +53,7 @@ function processPrismaDeps(
   const deps: AvailableDependencies[] = ["@prisma/client"];
   const devDeps: AvailableDependencies[] = ["prisma"];
 
-  if (database === "mysql" && dbSetup === "planetscale") {
-    deps.push("@prisma/adapter-planetscale", "@planetscale/database");
-  } else if (database === "mysql") {
+  if (database === "mysql") {
     deps.push("@prisma/adapter-mariadb");
   } else if (database === "sqlite") {
     deps.push(dbSetup === "d1" ? "@prisma/adapter-d1" : "@prisma/adapter-libsql");
@@ -127,10 +125,7 @@ function processDrizzleDeps(
     addPackageDependency({
       vfs,
       packagePath: dbPkgPath,
-      dependencies:
-        dbSetup === "planetscale"
-          ? ["drizzle-orm", "@planetscale/database"]
-          : ["drizzle-orm", "mysql2"],
+      dependencies: ["drizzle-orm", "mysql2"],
       devDependencies: ["drizzle-kit"],
     });
   }

@@ -5,7 +5,7 @@ import { createCli, type TrpcCliMeta } from "trpc-cli";
 import z from "zod";
 
 import { historyHandler } from "./commands/history";
-import { openBuilderCommand, openDocsCommand, showSponsorsCommand } from "./commands/meta";
+import { openBuilderCommand, openDocsCommand } from "./commands/meta";
 import { addHandler, type AddResult } from "./helpers/core/add-handler";
 import { createProjectHandler, createProjectHandlerResult } from "./helpers/core/command-handlers";
 import {
@@ -141,11 +141,6 @@ export const router = t.router({
         z.object({
           template: TemplateSchema.optional().describe("Use a predefined template"),
           yes: z.boolean().optional().default(false).describe("Use default configuration"),
-          yolo: z
-            .boolean()
-            .optional()
-            .default(false)
-            .describe("(WARNING - NOT RECOMMENDED) Bypass validations and compatibility checks"),
           dryRun: z
             .boolean()
             .optional()
@@ -174,7 +169,6 @@ export const router = t.router({
           serverDeploy: ServerDeploySchema.optional(),
           directoryConflict: DirectoryConflictSchema.optional(),
           renderTitle: z.boolean().optional(),
-          disableAnalytics: z.boolean().optional().default(false).describe("Disable analytics"),
           manualDb: z
             .boolean()
             .optional()
@@ -224,9 +218,6 @@ export const router = t.router({
       }),
     )
     .query(({ input }) => getSchemaResult(input.name)),
-  sponsors: t.procedure
-    .meta({ description: "Show Better-T-Stack sponsors" })
-    .mutation(() => showSponsorsCommand()),
   docs: t.procedure
     .meta({ description: "Open Better-T-Stack documentation" })
     .mutation(() => openDocsCommand()),
@@ -366,7 +357,6 @@ export async function create(
     ...parsedInput.data,
     renderTitle: false,
     verbose: true,
-    disableAnalytics: parsedInput.data.disableAnalytics ?? true,
     directoryConflict: parsedInput.data.directoryConflict ?? "error",
   } as CreateInput & { projectName?: string };
 
@@ -389,10 +379,6 @@ export async function create(
       });
     },
   });
-}
-
-export async function sponsors() {
-  return showSponsorsCommand();
 }
 
 export async function docs() {
@@ -482,7 +468,7 @@ export async function createVirtual(
     packageManager: virtualOptions.packageManager || "bun",
     install: false,
     dbSetup: virtualOptions.dbSetup || "none",
-    api: virtualOptions.api || "trpc",
+    api: virtualOptions.api || "orpc",
     webDeploy: virtualOptions.webDeploy || "none",
     serverDeploy: virtualOptions.serverDeploy || "none",
   };

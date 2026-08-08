@@ -11,16 +11,15 @@ describe("Backend and Runtime Combinations", () => {
       { backend: "hono" as const, runtime: "node" as const },
       { backend: "hono" as const, runtime: "workers" as const },
 
-      { backend: "express" as const, runtime: "bun" as const },
-      { backend: "express" as const, runtime: "node" as const },
+      { backend: "hono" as const, runtime: "bun" as const },
+      { backend: "hono" as const, runtime: "node" as const },
 
-      { backend: "fastify" as const, runtime: "bun" as const },
-      { backend: "fastify" as const, runtime: "node" as const },
+      { backend: "hono" as const, runtime: "bun" as const },
+      { backend: "hono" as const, runtime: "node" as const },
 
-      { backend: "elysia" as const, runtime: "bun" as const },
+      { backend: "hono" as const, runtime: "bun" as const },
 
       // Special cases
-      { backend: "convex" as const, runtime: "none" as const },
       { backend: "none" as const, runtime: "none" as const },
       { backend: "self" as const, runtime: "none" as const },
     ];
@@ -41,12 +40,7 @@ describe("Backend and Runtime Combinations", () => {
         };
 
         // Set appropriate defaults based on backend
-        if (backend === "convex") {
-          config.database = "none";
-          config.orm = "none";
-          config.auth = "clerk";
-          config.api = "none";
-        } else if (backend === "none") {
+        if (backend === "none") {
           config.database = "none";
           config.orm = "none";
           config.auth = "none";
@@ -56,12 +50,12 @@ describe("Backend and Runtime Combinations", () => {
           config.database = "sqlite";
           config.orm = "drizzle";
           config.auth = "better-auth";
-          config.api = "trpc";
+          config.api = "orpc";
         } else {
           config.database = "sqlite";
           config.orm = "drizzle";
           config.auth = "none";
-          config.api = "trpc";
+          config.api = "orpc";
         }
 
         // Set server deployment for workers runtime
@@ -79,36 +73,19 @@ describe("Backend and Runtime Combinations", () => {
     const invalidCombinations = [
       // Workers runtime only works with Hono
       {
-        backend: "express" as const,
+        backend: "hono" as const,
         runtime: "workers" as const,
         error: "Cloudflare Workers runtime (--runtime workers) is only supported with Hono backend",
       },
       {
-        backend: "fastify",
+        backend: "hono",
         runtime: "workers",
         error: "Cloudflare Workers runtime (--runtime workers) is only supported with Hono backend",
       },
       {
-        backend: "elysia",
+        backend: "hono",
         runtime: "workers",
         error: "Cloudflare Workers runtime (--runtime workers) is only supported with Hono backend",
-      },
-
-      // Convex backend requires runtime none
-      {
-        backend: "convex",
-        runtime: "bun",
-        error: "Convex backend requires '--runtime none'",
-      },
-      {
-        backend: "convex",
-        runtime: "node",
-        error: "Convex backend requires '--runtime none'",
-      },
-      {
-        backend: "convex",
-        runtime: "workers",
-        error: "Convex backend requires '--runtime none'",
       },
 
       // Backend none requires runtime none
@@ -148,18 +125,11 @@ describe("Backend and Runtime Combinations", () => {
         frontend: ["next"], // Need to specify Next.js frontend for self backend
       },
 
-      // Runtime none only works with convex, none, or self backend
+      // Runtime none only works with none or self backend
       {
         backend: "hono",
         runtime: "none",
-        error:
-          "'--runtime none' is only supported with '--backend convex', '--backend none', or '--backend self'",
-      },
-      {
-        backend: "express",
-        runtime: "none",
-        error:
-          "'--runtime none' is only supported with '--backend convex', '--backend none', or '--backend self'",
+        error: "'--runtime none' is only supported with '--backend none', or '--backend self'",
       },
     ];
 
@@ -171,7 +141,7 @@ describe("Backend and Runtime Combinations", () => {
           runtime: runtime as Runtime,
           frontend: (frontend || ["tanstack-router"]) as Frontend[],
           auth: "none",
-          api: "trpc",
+          api: "orpc",
           addons: ["none"],
           examples: ["none"],
           dbSetup: "none",
@@ -181,12 +151,7 @@ describe("Backend and Runtime Combinations", () => {
         };
 
         // Set appropriate defaults based on backend
-        if (backend === "convex") {
-          config.database = "none";
-          config.orm = "none";
-          config.auth = "clerk";
-          config.api = "none";
-        } else if (backend === "none") {
+        if (backend === "none") {
           config.database = "none";
           config.orm = "none";
           config.auth = "none";
@@ -195,82 +160,18 @@ describe("Backend and Runtime Combinations", () => {
           config.database = "sqlite";
           config.orm = "drizzle";
           config.auth = "better-auth";
-          config.api = "trpc";
+          config.api = "orpc";
         } else {
           config.database = "sqlite";
           config.orm = "drizzle";
           config.auth = "none";
-          config.api = "trpc";
+          config.api = "orpc";
         }
 
         const result = await runTRPCTest(config);
         expectError(result, error);
       });
     }
-  });
-
-  describe("Convex Backend Constraints", () => {
-    it("should enforce all convex constraints", async () => {
-      const result = await runTRPCTest({
-        projectName: "convex-app",
-        backend: "convex",
-        runtime: "none",
-        database: "none",
-        orm: "none",
-        auth: "clerk",
-        api: "none",
-        frontend: ["tanstack-router"],
-        addons: ["none"],
-        examples: ["none"],
-        dbSetup: "none",
-        webDeploy: "none",
-        serverDeploy: "none",
-        install: false,
-      });
-
-      expectSuccess(result);
-    });
-
-    it("should work convex with better-auth (tanstack-router)", async () => {
-      const result = await runTRPCTest({
-        projectName: "convex-better-auth-success",
-        backend: "convex",
-        runtime: "none",
-        database: "none",
-        orm: "none",
-        auth: "better-auth",
-        api: "none",
-        frontend: ["tanstack-router"],
-        addons: ["none"],
-        examples: ["none"],
-        dbSetup: "none",
-        webDeploy: "none",
-        serverDeploy: "none",
-      });
-
-      expectSuccess(result);
-    });
-
-    it("should fail convex with database", async () => {
-      const result = await runTRPCTest({
-        projectName: "convex-with-db",
-        backend: "convex",
-        runtime: "none",
-        database: "postgres",
-        orm: "drizzle",
-        auth: "clerk",
-        api: "none",
-        frontend: ["tanstack-router"],
-        addons: ["none"],
-        examples: ["none"],
-        dbSetup: "none",
-        webDeploy: "none",
-        serverDeploy: "none",
-        expectError: true,
-      });
-
-      expectError(result, "Convex backend requires '--database none'");
-    });
   });
 
   describe("Workers Runtime Constraints", () => {
@@ -282,7 +183,7 @@ describe("Backend and Runtime Combinations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         frontend: ["tanstack-router"],
         addons: ["none"],
         examples: ["none"],
@@ -303,7 +204,7 @@ describe("Backend and Runtime Combinations", () => {
         database: "mongodb",
         orm: "prisma",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         frontend: ["tanstack-router"],
         addons: ["none"],
         examples: ["none"],
@@ -327,7 +228,7 @@ describe("Backend and Runtime Combinations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         frontend: ["tanstack-router"],
         addons: ["none"],
         examples: ["none"],
@@ -351,7 +252,7 @@ describe("Backend and Runtime Combinations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "better-auth",
-        api: "trpc",
+        api: "orpc",
         addons: ["none"],
         examples: ["none"],
         dbSetup: "none",
@@ -372,7 +273,7 @@ describe("Backend and Runtime Combinations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "better-auth",
-        api: "trpc",
+        api: "orpc",
         addons: ["none"],
         examples: ["none"],
         dbSetup: "none",
@@ -384,7 +285,7 @@ describe("Backend and Runtime Combinations", () => {
 
       expectError(
         result,
-        "Backend 'self' (fullstack) currently only supports Next.js, TanStack Start, Nuxt, SvelteKit, and Astro frontends. Please use --frontend next, --frontend tanstack-start, --frontend nuxt, --frontend svelte, or --frontend astro.",
+        "Backend 'self' (fullstack) currently only supports Next.js and TanStack Start. Please use --frontend next or --frontend tanstack-start.",
       );
     });
 
@@ -397,7 +298,7 @@ describe("Backend and Runtime Combinations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "better-auth",
-        api: "trpc",
+        api: "orpc",
         addons: ["none"],
         examples: ["none"],
         dbSetup: "none",

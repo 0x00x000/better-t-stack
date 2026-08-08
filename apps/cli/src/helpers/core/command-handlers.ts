@@ -9,7 +9,6 @@ import { getDefaultConfig } from "../../constants";
 import { gatherConfig } from "../../prompts/config-prompts";
 import { getProjectName } from "../../prompts/project-name";
 import type { CreateInput, DirectoryConflict, ProjectConfig } from "../../types";
-import { trackProjectCreation } from "../../utils/analytics";
 import { getCliSubcommandCommand } from "../../utils/cli-invocation";
 import { isSilent, runWithContextAsync } from "../../utils/context";
 import { displayConfig } from "../../utils/display-config";
@@ -184,10 +183,6 @@ async function createProjectHandlerInternal(
     }
     if (!isSilent()) intro(pc.magenta("Configure your new project"));
 
-    if (!isSilent() && input.yolo) {
-      log.warn(pc.yellow("YOLO mode enabled — compatibility checks are disabled."));
-    }
-
     // Get project name
     let currentPathInput: string;
     if (isSilent()) {
@@ -324,9 +319,7 @@ async function createProjectHandlerInternal(
       const gatherResult = yield* Result.await(
         Result.tryPromise({
           try: async () =>
-            gatherConfig(flagConfig, finalBaseName, finalResolvedPath, finalPathInput, {
-              skipCompatibilityChecks: cliInput.yolo,
-            }),
+            gatherConfig(flagConfig, finalBaseName, finalResolvedPath, finalPathInput, {}),
           catch: (e: unknown) => {
             if (e instanceof UserCancelledError) return e;
             return new CLIError({
@@ -355,14 +348,12 @@ async function createProjectHandlerInternal(
       };
     }
 
-    if (!input.yolo) {
-      const resolvedConfigValidationResult = validateResolvedConfigCompatibility(config);
-      if (resolvedConfigValidationResult.isErr()) {
-        yield* new CLIError({
-          message: resolvedConfigValidationResult.error.message,
-          cause: resolvedConfigValidationResult.error,
-        });
-      }
+    const resolvedConfigValidationResult = validateResolvedConfigCompatibility(config);
+    if (resolvedConfigValidationResult.isErr()) {
+      yield* new CLIError({
+        message: resolvedConfigValidationResult.error.message,
+        cause: resolvedConfigValidationResult.error,
+      });
     }
 
     if (!input.dryRun) {
@@ -422,8 +413,6 @@ async function createProjectHandlerInternal(
         dbSetupOptions: effectiveDbSetupOptions,
       }),
     );
-
-    await trackProjectCreation(config, input.disableAnalytics);
 
     // Track locally in history.json (non-fatal)
     const historyResult = await addToHistory(config, reproducibleCommand);

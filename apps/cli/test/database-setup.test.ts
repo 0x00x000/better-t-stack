@@ -4,28 +4,6 @@ import { expectError, expectSuccess, runTRPCTest } from "./test-utils";
 
 describe("Database Setup Configurations", () => {
   describe("SQLite Database Setups", () => {
-    it("should work with Turso + SQLite", async () => {
-      const result = await runTRPCTest({
-        projectName: "turso-sqlite",
-        database: "sqlite",
-        orm: "drizzle",
-        dbSetup: "turso",
-        backend: "hono",
-        runtime: "bun",
-        auth: "none",
-        api: "trpc",
-        frontend: ["tanstack-router"],
-        addons: ["none"],
-        examples: ["none"],
-        webDeploy: "none",
-        serverDeploy: "none",
-        manualDb: true,
-        install: false,
-      });
-
-      expectSuccess(result);
-    });
-
     it("should work with D1 + SQLite + Workers", async () => {
       const result = await runTRPCTest({
         projectName: "d1-sqlite-workers",
@@ -35,7 +13,7 @@ describe("Database Setup Configurations", () => {
         backend: "hono",
         runtime: "workers",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         frontend: ["tanstack-router"],
         addons: ["none"],
         examples: ["none"],
@@ -46,28 +24,6 @@ describe("Database Setup Configurations", () => {
       });
 
       expectSuccess(result);
-    });
-
-    it("should fail with Turso + non-SQLite database", async () => {
-      const result = await runTRPCTest({
-        projectName: "turso-postgres-fail",
-        database: "postgres",
-        orm: "drizzle",
-        dbSetup: "turso",
-        backend: "hono",
-        runtime: "bun",
-        auth: "none",
-        api: "trpc",
-        frontend: ["tanstack-router"],
-        addons: ["none"],
-        examples: ["none"],
-        webDeploy: "none",
-        serverDeploy: "none",
-        manualDb: true,
-        expectError: true,
-      });
-
-      expectError(result, "Turso setup requires SQLite database");
     });
   });
 
@@ -81,7 +37,7 @@ describe("Database Setup Configurations", () => {
         backend: "hono",
         runtime: "bun",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         frontend: ["tanstack-router"],
         addons: ["none"],
         examples: ["none"],
@@ -103,7 +59,7 @@ describe("Database Setup Configurations", () => {
         backend: "hono",
         runtime: "bun",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         frontend: ["tanstack-router"],
         addons: ["none"],
         examples: ["none"],
@@ -125,7 +81,7 @@ describe("Database Setup Configurations", () => {
         backend: "hono",
         runtime: "bun",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         frontend: ["tanstack-router"],
         addons: ["none"],
         examples: ["none"],
@@ -147,7 +103,7 @@ describe("Database Setup Configurations", () => {
         backend: "hono",
         runtime: "bun",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         frontend: ["tanstack-router"],
         addons: ["none"],
         examples: ["none"],
@@ -161,52 +117,6 @@ describe("Database Setup Configurations", () => {
     });
   });
 
-  describe("MySQL Database Setups", () => {
-    it("should work with PlanetScale + MySQL", async () => {
-      const result = await runTRPCTest({
-        projectName: "planetscale-mysql",
-        database: "mysql",
-        orm: "drizzle",
-        dbSetup: "planetscale",
-        backend: "hono",
-        runtime: "bun",
-        auth: "none",
-        api: "trpc",
-        frontend: ["tanstack-router"],
-        addons: ["none"],
-        examples: ["none"],
-        webDeploy: "none",
-        serverDeploy: "none",
-        manualDb: true,
-        install: false,
-      });
-
-      expectSuccess(result);
-    });
-
-    it("should work with PlanetScale + PostgreSQL", async () => {
-      const result = await runTRPCTest({
-        projectName: "planetscale-postgres",
-        database: "postgres",
-        orm: "drizzle",
-        dbSetup: "planetscale",
-        backend: "hono",
-        runtime: "bun",
-        auth: "none",
-        api: "trpc",
-        frontend: ["tanstack-router"],
-        addons: ["none"],
-        examples: ["none"],
-        webDeploy: "none",
-        serverDeploy: "none",
-        manualDb: true,
-        install: false,
-      });
-
-      expectSuccess(result);
-    });
-  });
-
   describe("MongoDB Database Setups", () => {
     it("should work with MongoDB Atlas + MongoDB", async () => {
       const result = await runTRPCTest({
@@ -217,7 +127,7 @@ describe("Database Setup Configurations", () => {
         backend: "hono",
         runtime: "bun",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         frontend: ["tanstack-router"],
         addons: ["none"],
         examples: ["none"],
@@ -239,7 +149,7 @@ describe("Database Setup Configurations", () => {
         backend: "hono",
         runtime: "bun",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         frontend: ["tanstack-router"],
         addons: ["none"],
         examples: ["none"],
@@ -263,7 +173,7 @@ describe("Database Setup Configurations", () => {
         backend: "hono",
         runtime: "bun",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         frontend: ["tanstack-router"],
         addons: ["none"],
         examples: ["none"],
@@ -285,7 +195,7 @@ describe("Database Setup Configurations", () => {
         backend: "hono",
         runtime: "bun",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         frontend: ["tanstack-router"],
         addons: ["none"],
         examples: ["none"],
@@ -307,7 +217,7 @@ describe("Database Setup Configurations", () => {
         backend: "hono",
         runtime: "bun",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         frontend: ["tanstack-router"],
         addons: ["none"],
         examples: ["none"],
@@ -329,7 +239,7 @@ describe("Database Setup Configurations", () => {
         backend: "hono",
         runtime: "bun",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         frontend: ["tanstack-router"],
         addons: ["none"],
         examples: ["none"],
@@ -353,7 +263,7 @@ describe("Database Setup Configurations", () => {
         backend: "hono",
         runtime: "bun",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         frontend: ["tanstack-router"],
         addons: ["none"],
         examples: ["none"],
@@ -370,11 +280,11 @@ describe("Database Setup Configurations", () => {
         projectName: "db-setup-no-db-fail",
         database: "none",
         orm: "none",
-        dbSetup: "turso",
+        dbSetup: "neon",
         backend: "hono",
         runtime: "bun",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         frontend: ["tanstack-router"],
         addons: ["none"],
         examples: ["none"],
@@ -400,7 +310,7 @@ describe("Database Setup Configurations", () => {
         backend: "self",
         runtime: "none",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         frontend: ["next"],
         addons: ["none"],
         examples: ["none"],
@@ -421,7 +331,7 @@ describe("Database Setup Configurations", () => {
         backend: "hono",
         runtime: "node",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         frontend: ["tanstack-router"],
         addons: ["none"],
         examples: ["none"],
@@ -445,7 +355,7 @@ describe("Database Setup Configurations", () => {
         backend: "self",
         runtime: "none",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         frontend: ["next"],
         addons: ["none"],
         examples: ["none"],

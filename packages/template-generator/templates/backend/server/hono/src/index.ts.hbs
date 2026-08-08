@@ -8,11 +8,7 @@ import { onError } from "@orpc/server";
 import { createContext } from "@{{projectName}}/api/context";
 import { appRouter } from "@{{projectName}}/api/routers/index";
 {{/if}}
-{{#if (eq api "trpc")}}
-import { trpcServer } from "@hono/trpc-server";
-import { createContext } from "@{{projectName}}/api/context";
-import { appRouter } from "@{{projectName}}/api/routers/index";
-{{/if}}
+
 {{#if (eq auth "better-auth")}}
 {{#if (or (eq runtime "workers") (eq serverDeploy "cloudflare") (and (eq backend "self") (eq webDeploy "cloudflare")))}}
 import { createAuth } from "@{{projectName}}/auth";
@@ -42,9 +38,7 @@ app.use(
 	cors({
 		origin: env.CORS_ORIGIN,
 		allowMethods: ["GET", "POST", "OPTIONS"],
-{{#if (or (eq auth "better-auth") (eq auth "clerk"))}}
-		allowHeaders: ["Content-Type", "Authorization"],
-{{/if}}
+
 {{#if (eq auth "better-auth")}}
 		credentials: true,
 {{/if}}
@@ -64,29 +58,6 @@ app.on(
 );
 {{/if}}
 
-{{#if (and (eq auth "better-auth") (eq payments "polar") (or (includes frontend "native-bare") (includes frontend "native-uniwind") (includes frontend "native-unistyles")))}}
-const nativeAppUrl = "{{projectName}}://";
-const allowedNativeProtocols = new Set(["exp:", new URL(nativeAppUrl).protocol]);
-
-app.get("/polar/success", (c) => {
-	const requestUrl = new URL(c.req.url);
-	const returnUrl = requestUrl.searchParams.get("returnUrl") || nativeAppUrl;
-
-	let redirectUrl: URL;
-	try {
-		redirectUrl = new URL(returnUrl);
-	} catch {
-		return c.text("Invalid return URL", 400);
-	}
-
-	if (!allowedNativeProtocols.has(redirectUrl.protocol)) {
-		return c.text("Invalid return URL", 400);
-	}
-
-	return c.redirect(redirectUrl.toString(), 302);
-});
-
-{{/if}}
 {{#if (eq api "orpc")}}
 export const apiHandler = new OpenAPIHandler(appRouter, {
 	plugins: [
@@ -132,18 +103,6 @@ app.use("/*", async (c, next) => {
 
 	await next();
 });
-{{/if}}
-
-{{#if (eq api "trpc")}}
-app.use(
-	"/trpc/*",
-	trpcServer({
-		router: appRouter,
-		createContext: (_opts, context) => {
-			return createContext({ context });
-		},
-	})
-);
 {{/if}}
 
 {{#if (and (includes examples "ai") (or (eq runtime "bun") (eq runtime "node")))}}

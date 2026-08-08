@@ -26,7 +26,6 @@
 			"!**/.svelte-kit",
 			"!**/wrangler.jsonc",
 			"!**/.source",
-			"!**/convex/_generated"
 		]
 	},
 	"formatter": {
@@ -74,24 +73,5 @@
 			"tailwindDirectives": true
 		}
 	}
-	{{#if (or (includes frontend "svelte") (includes frontend "nuxt"))}}
-	,
-	"overrides": [
-		{
-			"includes": ["**/*.svelte", "**/*.vue"],
-			"linter": {
-				"rules": {
-					"style": {
-						"useConst": "off",
-						"useImportType": "off"
-					},
-					"correctness": {
-						"noUnusedVariables": "off",
-						"noUnusedImports": "off"
-					}
-				}
-			}
-		}
-	]
-	{{/if}}
+
 }

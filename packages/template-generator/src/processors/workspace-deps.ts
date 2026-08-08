@@ -148,8 +148,6 @@ export function processWorkspaceDeps(vfs: VirtualFileSystem, config: ProjectConf
     if (backend === "self" && auth !== "none" && packages.auth) {
       webPackageDeps[`@${projectName}/auth`] = workspaceVersion;
     }
-    if (backend === "convex" && packages.backend)
-      webPackageDeps[`@${projectName}/backend`] = workspaceVersion;
 
     addPackageDependency({
       vfs,
@@ -173,8 +171,6 @@ export function processWorkspaceDeps(vfs: VirtualFileSystem, config: ProjectConf
   if (packages.native) {
     const nativeDeps: Record<string, string> = { ...envDep };
     if (api !== "none" && packages.api) nativeDeps[`@${projectName}/api`] = workspaceVersion;
-    if (backend === "convex" && packages.backend)
-      nativeDeps[`@${projectName}/backend`] = workspaceVersion;
     addPackageDependency({
       vfs,
       packagePath: "apps/native/package.json",

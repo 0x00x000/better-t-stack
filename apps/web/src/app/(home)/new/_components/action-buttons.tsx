@@ -1,13 +1,8 @@
 "use client";
 
-import { AlertTriangle, RefreshCw, Settings, Shuffle, Star } from "lucide-react";
+import { RefreshCw, Settings, Shuffle, Star } from "lucide-react";
 
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { StackState } from "@/lib/constant";
 import { cn } from "@/lib/utils";
-
-import { PresetDropdown } from "./preset-dropdown";
-import { ShareButton } from "./share-button";
 
 type ActionButtonsProps = {
   onReset: () => void;
@@ -15,11 +10,6 @@ type ActionButtonsProps = {
   onSave: () => void;
   onLoad: () => void;
   hasSavedStack: boolean;
-  onApplyPreset: (presetId: string) => void;
-  stackUrl: string;
-  stackState: StackState;
-  yolo: boolean;
-  onYoloToggle: (yolo: string) => void;
 };
 
 const mutedActionClasses =
@@ -31,11 +21,6 @@ export function ActionButtons({
   onSave,
   onLoad,
   hasSavedStack,
-  onApplyPreset,
-  stackUrl,
-  stackState,
-  yolo,
-  onYoloToggle,
 }: ActionButtonsProps) {
   return (
     <div className="space-y-2">
@@ -84,36 +69,6 @@ export function ActionButtons({
             Load
           </button>
         )}
-      </div>
-      <div className="grid grid-cols-2 gap-1.5 @xs:grid-cols-3">
-        <ShareButton stackUrl={stackUrl} stackState={stackState} />
-        <PresetDropdown onApplyPreset={onApplyPreset} />
-        <Tooltip delay={100}>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                onClick={() => onYoloToggle(yolo ? "false" : "true")}
-                aria-pressed={yolo}
-                className={cn(
-                  "builder-focus-ring pointer-coarse:min-h-8 flex items-center justify-center gap-1.5 rounded-[4px] border px-2 py-1.5 font-mono text-[10px] uppercase tracking-[0.10em] transition-colors duration-150",
-                  yolo
-                    ? "border-destructive text-destructive"
-                    : "text-fd-muted-foreground hover:text-fd-foreground",
-                )}
-              />
-            }
-          >
-            <AlertTriangle className="h-3 w-3" />
-            YOLO
-          </TooltipTrigger>
-          <TooltipContent side="top" align="end" className="max-w-xs">
-            <p className="text-xs">
-              {yolo ? "YOLO mode on — " : ""}Disables all validation and adds --yolo to the command.
-              Use at your own risk!
-            </p>
-          </TooltipContent>
-        </Tooltip>
       </div>
     </div>
   );

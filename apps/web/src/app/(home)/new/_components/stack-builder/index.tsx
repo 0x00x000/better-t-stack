@@ -25,14 +25,12 @@ import { useStackBuilder } from "./use-stack-builder";
 
 export function StackBuilder() {
   const {
-    applyPreset,
     categoryProgress,
     command,
     compatibilityAnalysis,
     copied,
     copyToClipboard,
     getRandomStack,
-    getStackUrl,
     handleTechSelect,
     lastSavedStack,
     loadSavedStack,
@@ -64,11 +62,6 @@ export function StackBuilder() {
       onSave={saveCurrentStack}
       onLoad={loadSavedStack}
       hasSavedStack={!!lastSavedStack}
-      onApplyPreset={applyPreset}
-      stackUrl={getStackUrl()}
-      stackState={effectiveStack}
-      yolo={stack.yolo === "true"}
-      onYoloToggle={(yolo) => setStack({ yolo })}
     />
   );
 

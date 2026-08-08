@@ -16,10 +16,6 @@ export default defineConfig({
     path: path.join("prisma", "migrations"),
   },
   datasource: {
-    {{#if (eq dbSetup "turso")}}
-    url: "file:./dev.db",
-    {{else}}
-    url: env("DATABASE_URL"),
-    {{/if}}
+
   },
 });

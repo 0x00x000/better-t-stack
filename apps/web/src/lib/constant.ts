@@ -16,19 +16,12 @@ export const TECH_OPTIONS: Record<
 > = {
   api: [
     {
-      id: "trpc",
-      name: "tRPC",
-      description: "End-to-end typesafe APIs",
-      icon: `${ICON_BASE_URL}/trpc.svg`,
-      color: "from-blue-500 to-blue-700",
-      default: true,
-    },
-    {
       id: "orpc",
       name: "oRPC",
       description: "Typesafe APIs Made Simple",
       icon: `${ICON_BASE_URL}/orpc.svg`,
       color: "from-indigo-400 to-indigo-600",
+      default: true,
     },
     {
       id: "none",
@@ -69,38 +62,6 @@ export const TECH_OPTIONS: Record<
       description: "React framework with hybrid rendering",
       icon: `${ICON_BASE_URL}/nextjs.svg`,
       color: "from-gray-700 to-black",
-      default: false,
-    },
-    {
-      id: "nuxt",
-      name: "Nuxt",
-      description: "Vue full-stack framework (SSR, SSG, hybrid)",
-      icon: `${ICON_BASE_URL}/nuxt.svg`,
-      color: "from-green-400 to-green-700",
-      default: false,
-    },
-    {
-      id: "svelte",
-      name: "Svelte",
-      description: "Cybernetically enhanced web apps",
-      icon: `${ICON_BASE_URL}/svelte.svg`,
-      color: "from-orange-500 to-orange-700",
-      default: false,
-    },
-    {
-      id: "solid",
-      name: "Solid",
-      description: "Simple and performant reactivity for building UIs",
-      icon: `${ICON_BASE_URL}/solid.svg`,
-      color: "from-blue-600 to-blue-800",
-      default: false,
-    },
-    {
-      id: "astro",
-      name: "Astro",
-      description: "The web framework for content-driven websites",
-      icon: `${ICON_BASE_URL}/astro.svg`,
-      color: "from-purple-500 to-orange-500",
       default: false,
     },
     {
@@ -190,34 +151,6 @@ export const TECH_OPTIONS: Record<
       default: true,
     },
     {
-      id: "elysia",
-      name: "Elysia",
-      description: "TypeScript web framework",
-      icon: `${ICON_BASE_URL}/elysia.svg`,
-      color: "from-purple-500 to-purple-700",
-    },
-    {
-      id: "express",
-      name: "Express",
-      description: "Popular Node.js framework",
-      icon: `${ICON_BASE_URL}/express.svg`,
-      color: "from-gray-500 to-gray-700",
-    },
-    {
-      id: "fastify",
-      name: "Fastify",
-      description: "Fast, low-overhead web framework for Node.js",
-      icon: `${ICON_BASE_URL}/fastify.svg`,
-      color: "from-gray-500 to-gray-700",
-    },
-    {
-      id: "convex",
-      name: "Convex",
-      description: "Reactive backend-as-a-service",
-      icon: `${ICON_BASE_URL}/convex.svg`,
-      color: "from-pink-500 to-pink-700",
-    },
-    {
       id: "self-next",
       name: "Fullstack Next.js",
       description: "Use Next.js built-in API routes",
@@ -230,27 +163,6 @@ export const TECH_OPTIONS: Record<
       description: "Use TanStack Start's built-in API routes",
       icon: `${ICON_BASE_URL}/tanstack.svg`,
       color: "from-purple-400 to-purple-600",
-    },
-    {
-      id: "self-nuxt",
-      name: "Fullstack Nuxt",
-      description: "Use Nuxt's built-in server routes",
-      icon: `${ICON_BASE_URL}/nuxt.svg`,
-      color: "from-green-400 to-green-700",
-    },
-    {
-      id: "self-svelte",
-      name: "Fullstack SvelteKit",
-      description: "Use SvelteKit's built-in server routes",
-      icon: `${ICON_BASE_URL}/svelte.svg`,
-      color: "from-orange-500 to-orange-700",
-    },
-    {
-      id: "self-astro",
-      name: "Fullstack Astro",
-      description: "Use Astro's built-in API routes",
-      icon: `${ICON_BASE_URL}/astro.svg`,
-      color: "from-purple-500 to-orange-500",
     },
     {
       id: "none",
@@ -331,13 +243,6 @@ export const TECH_OPTIONS: Record<
   ],
   dbSetup: [
     {
-      id: "turso",
-      name: "Turso",
-      description: "Distributed SQLite with edge replicas (libSQL)",
-      icon: `${ICON_BASE_URL}/turso.svg`,
-      color: "from-pink-400 to-pink-600",
-    },
-    {
       id: "d1",
       name: "Cloudflare D1",
       description: "Serverless SQLite-compatible database for Cloudflare Workers",
@@ -371,13 +276,6 @@ export const TECH_OPTIONS: Record<
       description: "Local Postgres stack via Supabase (Docker required)",
       icon: `${ICON_BASE_URL}/supabase.svg`,
       color: "from-emerald-400 to-emerald-600",
-    },
-    {
-      id: "planetscale",
-      name: "PlanetScale",
-      description: "Postgres & Vitess (MySQL) on NVMe",
-      icon: `${ICON_BASE_URL}/planetscale.svg`,
-      color: "from-orange-400 to-orange-600",
     },
     {
       id: "docker",
@@ -467,36 +365,11 @@ export const TECH_OPTIONS: Record<
       default: true,
     },
     {
-      id: "clerk",
-      name: "Clerk",
-      description: "More than authentication, Complete User Management",
-      icon: `${ICON_BASE_URL}/clerk.svg`,
-      color: "from-blue-400 to-blue-600",
-    },
-    {
       id: "none",
       name: "No Auth",
       description: "Skip authentication",
       icon: "",
       color: "from-red-400 to-red-600",
-    },
-  ],
-  payments: [
-    {
-      id: "polar",
-      name: "Polar",
-      description: "Turn your software into a business. 6 lines of code.",
-      icon: `${ICON_BASE_URL}/polar.svg`,
-      color: "from-purple-400 to-purple-600",
-      default: false,
-    },
-    {
-      id: "none",
-      name: "No Payments",
-      description: "Skip payments integration",
-      icon: "",
-      color: "from-gray-400 to-gray-600",
-      default: true,
     },
   ],
   packageManager: [
@@ -547,14 +420,6 @@ export const TECH_OPTIONS: Record<
       description: "Bundle static web apps in a lightweight desktop shell",
       icon: "",
       color: "from-orange-500 to-orange-700",
-      default: false,
-    },
-    {
-      id: "starlight",
-      name: "Starlight",
-      description: "Build stellar docs with astro",
-      icon: `${ICON_BASE_URL}/starlight.svg`,
-      color: "from-teal-500 to-teal-700",
       default: false,
     },
     {
@@ -725,113 +590,6 @@ export const TECH_OPTIONS: Record<
   ],
 };
 
-export const PRESET_TEMPLATES = [
-  {
-    id: "mern",
-    name: "MERN Stack",
-    description: "MongoDB + Express + React + Node.js - Classic MERN stack",
-    stack: {
-      projectName: "my-better-t-app",
-      webFrontend: ["react-router"],
-      nativeFrontend: ["none"],
-      runtime: "node",
-      backend: "express",
-      database: "mongodb",
-      orm: "mongoose",
-      dbSetup: "mongodb-atlas",
-      auth: "better-auth",
-      payments: "none",
-      packageManager: "bun",
-      addons: ["turborepo"],
-      examples: ["todo"],
-      git: "true",
-      install: "true",
-      api: "orpc",
-      webDeploy: "none",
-      serverDeploy: "none",
-      yolo: "false",
-    },
-  },
-  {
-    id: "pern",
-    name: "PERN Stack",
-    description: "PostgreSQL + Express + React + Node.js - Popular PERN stack",
-    stack: {
-      projectName: "my-better-t-app",
-      webFrontend: ["tanstack-router"],
-      nativeFrontend: ["none"],
-      runtime: "node",
-      backend: "express",
-      database: "postgres",
-      orm: "drizzle",
-      dbSetup: "none",
-      auth: "better-auth",
-      payments: "none",
-      packageManager: "bun",
-      addons: ["turborepo"],
-      examples: ["todo"],
-      git: "true",
-      install: "true",
-      api: "trpc",
-      webDeploy: "none",
-      serverDeploy: "none",
-      yolo: "false",
-    },
-  },
-  {
-    id: "t3",
-    name: "T3 Stack",
-    description: "Next.js + tRPC + Prisma + PostgreSQL + Better Auth",
-    stack: {
-      projectName: "my-better-t-app",
-      webFrontend: ["next"],
-      nativeFrontend: ["none"],
-      runtime: "none",
-      backend: "self-next",
-      database: "postgres",
-      orm: "prisma",
-      dbSetup: "none",
-      auth: "better-auth",
-      payments: "none",
-      packageManager: "bun",
-      addons: ["biome", "turborepo"],
-      examples: ["none"],
-      git: "true",
-      install: "true",
-      api: "trpc",
-      webDeploy: "none",
-      serverDeploy: "none",
-      yolo: "false",
-    },
-  },
-  {
-    id: "uniwind",
-    name: "Uniwind Native",
-    description: "Expo + Uniwind native app with no backend services",
-    stack: {
-      projectName: "my-better-t-app",
-      webFrontend: ["none"],
-      nativeFrontend: ["native-uniwind"],
-      runtime: "none",
-      backend: "none",
-      database: "none",
-      orm: "none",
-      dbSetup: "none",
-      auth: "none",
-      payments: "none",
-      packageManager: "bun",
-      addons: ["none"],
-      examples: ["none"],
-      git: "true",
-      install: "true",
-      api: "none",
-      webDeploy: "none",
-      serverDeploy: "none",
-      yolo: "false",
-    },
-  },
-];
-
 export type StackState = {
   projectName: string | null;
   webFrontend: string[];
@@ -851,7 +609,6 @@ export type StackState = {
   api: string;
   webDeploy: string;
   serverDeploy: string;
-  yolo: string;
 };
 
 export const DEFAULT_STACK: StackState = {
@@ -870,10 +627,9 @@ export const DEFAULT_STACK: StackState = {
   examples: ["none"],
   git: "true",
   install: "true",
-  api: "trpc",
+  api: "orpc",
   webDeploy: "none",
   serverDeploy: "none",
-  yolo: "false",
 };
 
 export const isStackDefault = <K extends keyof StackState>(
@@ -882,15 +638,6 @@ export const isStackDefault = <K extends keyof StackState>(
   value: StackState[K],
 ): boolean => {
   const defaultValue = DEFAULT_STACK[key];
-
-  if (stack.backend === "convex") {
-    if (key === "runtime" && value === "none") return true;
-    if (key === "database" && value === "none") return true;
-    if (key === "orm" && value === "none") return true;
-    if (key === "api" && value === "none") return true;
-    if (key === "auth" && value === "none") return true;
-    if (key === "dbSetup" && value === "none") return true;
-  }
 
   if (key === "webFrontend" || key === "nativeFrontend" || key === "addons" || key === "examples") {
     if (Array.isArray(defaultValue) && Array.isArray(value)) {

@@ -5,6 +5,26 @@ const validNativeFrontendIds = new Set(TECH_OPTIONS.nativeFrontend.map((option) 
 const validAddonIds = new Set(["none", ...TECH_OPTIONS.addons.map((option) => option.id)]);
 const validExampleIds = new Set(["none", ...TECH_OPTIONS.examples.map((option) => option.id)]);
 
+type SingleSelectCategory = Exclude<
+  keyof typeof TECH_OPTIONS,
+  "webFrontend" | "nativeFrontend" | "addons" | "examples"
+>;
+
+function validIdsFor(category: SingleSelectCategory): ReadonlySet<string> {
+  return new Set(TECH_OPTIONS[category].map((option) => option.id));
+}
+
+function sanitizeSingleValue(
+  value: string,
+  category: SingleSelectCategory,
+  fallback: string,
+): string {
+  const valid = validIdsFor(category);
+  if (valid.has(value)) return value;
+  if (value === "trpc" && valid.has("orpc")) return "orpc";
+  return fallback;
+}
+
 export const TASK_RUNNER_ADDONS = ["nx", "turborepo", "vite-plus"] as const;
 
 function sanitizeSingleSelection(
@@ -88,6 +108,28 @@ export function sanitizeStackState(stack: StackState): StackState {
     nativeFrontend: sanitizeNativeFrontends(stack.nativeFrontend),
     addons: sanitizeAddons(stack.addons),
     examples: sanitizeExamples(stack.examples),
+    runtime: sanitizeSingleValue(stack.runtime, "runtime", DEFAULT_STACK.runtime),
+    backend: sanitizeSingleValue(stack.backend, "backend", DEFAULT_STACK.backend),
+    api: sanitizeSingleValue(stack.api, "api", DEFAULT_STACK.api),
+    database: sanitizeSingleValue(stack.database, "database", DEFAULT_STACK.database),
+    orm: sanitizeSingleValue(stack.orm, "orm", DEFAULT_STACK.orm),
+    dbSetup: sanitizeSingleValue(stack.dbSetup, "dbSetup", DEFAULT_STACK.dbSetup),
+    auth: sanitizeSingleValue(stack.auth, "auth", DEFAULT_STACK.auth),
+    packageManager: sanitizeSingleValue(
+      stack.packageManager,
+      "packageManager",
+      DEFAULT_STACK.packageManager,
+    ),
+    webDeploy: sanitizeSingleValue(stack.webDeploy, "webDeploy", DEFAULT_STACK.webDeploy),
+    serverDeploy: sanitizeSingleValue(
+      stack.serverDeploy,
+      "serverDeploy",
+      DEFAULT_STACK.serverDeploy,
+    ),
+    git: stack.git === "true" || stack.git === "false" ? stack.git : DEFAULT_STACK.git,
+    install:
+      stack.install === "true" || stack.install === "false" ? stack.install : DEFAULT_STACK.install,
+    payments: "none",
   };
 }
 

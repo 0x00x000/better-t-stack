@@ -26,7 +26,7 @@ describe("Basic Configurations", () => {
         runtime: "bun",
         frontend: ["tanstack-router"],
         auth: "better-auth",
-        api: "trpc",
+        api: "orpc",
         addons: ["turborepo"],
         examples: ["none"],
         dbSetup: "none",
@@ -48,7 +48,7 @@ describe("Basic Configurations", () => {
         runtime: "none",
         frontend: ["next"],
         auth: "better-auth",
-        api: "trpc",
+        api: "orpc",
         addons: ["turborepo"],
         examples: ["none"],
         dbSetup: "none",
@@ -147,32 +147,6 @@ describe("Basic Configurations", () => {
     });
   });
 
-  describe("YOLO Mode", () => {
-    it("should bypass validations with --yolo flag", async () => {
-      // This would normally fail validation but should pass with yolo
-      const result = await runTRPCTest({
-        projectName: "yolo-app",
-        yolo: true,
-        frontend: ["tanstack-router"],
-        backend: "hono",
-        runtime: "bun",
-        api: "trpc",
-        database: "mongodb",
-        orm: "drizzle", // Incompatible combination
-        auth: "better-auth",
-        addons: ["none"],
-        examples: ["none"],
-        dbSetup: "none",
-        webDeploy: "none",
-        serverDeploy: "none",
-        install: false,
-      });
-
-      expectSuccess(result);
-      expect(result.result?.projectConfig.projectName).toBe("yolo-app");
-    });
-  });
-
   describe("Error Handling", () => {
     it("should fail with invalid project name", async () => {
       const result = await runTRPCTest({
@@ -193,7 +167,7 @@ describe("Basic Configurations", () => {
         runtime: "bun",
         frontend: ["tanstack-router"],
         auth: "better-auth",
-        api: "trpc",
+        api: "orpc",
         addons: ["none"],
         examples: ["none"],
         dbSetup: "none",

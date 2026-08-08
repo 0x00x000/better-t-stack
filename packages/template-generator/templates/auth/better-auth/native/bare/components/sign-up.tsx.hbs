@@ -1,7 +1,5 @@
 import { authClient } from "@/lib/auth-client";
-{{#if (eq api "trpc")}}
-import { queryClient } from "@/utils/trpc";
-{{/if}}
+
 {{#if (eq api "orpc")}}
 import { queryClient } from "@/utils/orpc";
 {{/if}}
@@ -94,9 +92,7 @@ function SignUp() {
             {{#if (eq api "orpc")}}
             queryClient.refetchQueries();
             {{/if}}
-            {{#if (eq api "trpc")}}
-            queryClient.refetchQueries();
-            {{/if}}
+
           },
         },
       );

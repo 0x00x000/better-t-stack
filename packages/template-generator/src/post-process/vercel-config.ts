@@ -27,19 +27,13 @@ type VercelService = {
 
 function getWebFramework(frontend: ProjectConfig["frontend"], isDesktop: boolean): string {
   if (frontend.includes("next")) return "nextjs";
-  if (frontend.includes("nuxt")) return "nuxtjs";
-  if (frontend.includes("svelte")) return "sveltekit";
-  if (frontend.includes("astro")) return "astro";
   if (frontend.includes("tanstack-start")) return "tanstack-start";
-  // Desktop addons force React Router into a static export served as a plain vite app
   if (frontend.includes("react-router") && !isDesktop) return "react-router";
   return "vite";
 }
 
 function getPublicServerUrlVar(frontend: ProjectConfig["frontend"]): string {
   if (frontend.includes("next")) return "NEXT_PUBLIC_SERVER_URL";
-  if (frontend.includes("nuxt")) return "NUXT_PUBLIC_SERVER_URL";
-  if (frontend.includes("svelte") || frontend.includes("astro")) return "PUBLIC_SERVER_URL";
   return "VITE_SERVER_URL";
 }
 
@@ -52,9 +46,7 @@ export function processVercelConfig(vfs: VirtualFileSystem, config: ProjectConfi
   const hasServer = serverDeploy === "vercel" && backend !== "self";
   const isDesktop = addons.includes("tauri") || addons.includes("electrobun");
   const isStaticSpa =
-    frontend.includes("tanstack-router") ||
-    frontend.includes("solid") ||
-    (frontend.includes("react-router") && isDesktop);
+    frontend.includes("tanstack-router") || (frontend.includes("react-router") && isDesktop);
   const installCommand = `cd ../.. && ${packageManager} install`;
 
   const services: Record<string, VercelService> = {};

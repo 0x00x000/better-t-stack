@@ -1,17 +1,15 @@
 "use client";
 
-import { Check, Copy, Edit, Share2, Terminal } from "lucide-react";
+import { Check, Copy, Edit, Terminal } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { ShareDialog } from "@/components/ui/share-dialog";
 import { TechBadge } from "@/components/ui/tech-badge";
 import type { LoadedStackState } from "@/lib/stack-url-state";
 import {
   formatProjectName,
   generateStackCommand,
-  generateStackSharingUrl,
   generateStackSummary,
   generateStackUrlFromState,
   getSelectedTechs,
@@ -23,12 +21,10 @@ type StackDisplayProps = {
 
 export function StackDisplay({ stackState }: StackDisplayProps) {
   const [copied, setCopied] = useState(false);
-  const [stackUrl, setStackUrl] = useState<string>("");
   const [editUrl, setEditUrl] = useState<string>("");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setStackUrl(generateStackSharingUrl(stackState, window.location.origin));
       setEditUrl(generateStackUrlFromState(stackState, window.location.origin));
     }
   }, [stackState]);
@@ -100,16 +96,6 @@ export function StackDisplay({ stackState }: StackDisplayProps) {
               <span>./edit --stack</span>
             </button>
           </Link>
-
-          <ShareDialog stackUrl={stackUrl} stackState={stackState}>
-            <button
-              type="button"
-              className="flex items-center gap-2 rounded border border-border bg-fd-background px-3 py-2 font-mono text-muted-foreground text-xs transition-all hover:border-muted-foreground/30 hover:bg-muted hover:text-foreground"
-            >
-              <Share2 className="h-3 w-3" />
-              <span>./share --config</span>
-            </button>
-          </ShareDialog>
         </div>
 
         <div className="space-y-4">

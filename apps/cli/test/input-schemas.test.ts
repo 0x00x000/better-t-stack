@@ -58,7 +58,7 @@ describe("Input schemas", () => {
       payments: "none",
       packageManager: "bun",
       dbSetup: "none",
-      api: "trpc",
+      api: "orpc",
       webDeploy: "none",
       serverDeploy: "none",
       unexpected: true,

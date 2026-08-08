@@ -13,20 +13,17 @@ export function processEnvDeps(vfs: VirtualFileSystem, config: ProjectConfig): v
     ["native-bare", "native-uniwind", "native-unistyles"].includes(value),
   );
   const hasNextJs = frontend.includes("next");
-  const hasNuxt = frontend.includes("nuxt");
 
   if (hasNextJs) {
     deps.push("@t3-oss/env-nextjs");
-  } else if (hasNuxt) {
-    deps.push("@t3-oss/env-nuxt");
   }
 
-  const needsCoreEnv = hasNative || (!hasNextJs && !hasNuxt);
+  const needsCoreEnv = hasNative || !hasNextJs;
   if (needsCoreEnv) {
     deps.push("@t3-oss/env-core");
   }
 
-  const needsServerEnv = backend !== "convex" && backend !== "none" && runtime !== "workers";
+  const needsServerEnv = backend !== "none" && runtime !== "workers";
   if (needsServerEnv && !deps.includes("@t3-oss/env-core")) {
     deps.push("@t3-oss/env-core");
   }

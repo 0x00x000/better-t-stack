@@ -21,7 +21,7 @@ describe("Addon options", () => {
     const addonOptions = {
       wxt: { template: "react" as const, devPort: 5555 },
       opentui: { template: "react" as const },
-      fumadocs: { template: "astro" as const, devPort: 4000, aiChat: "llmgateway" as const },
+      fumadocs: { template: "next-mdx" as const, devPort: 4000, aiChat: "llmgateway" as const },
       mcp: {
         scope: "project" as const,
         servers: ["context7"] as const,
@@ -53,7 +53,7 @@ describe("Addon options", () => {
       orm: "drizzle",
       auth: "none",
       payments: "none",
-      api: "trpc",
+      api: "orpc",
       addons: ["wxt", "opentui", "fumadocs", "mcp", "skills", "ultracite"],
       examples: ["none"],
       dbSetup: "none",
@@ -84,7 +84,6 @@ describe("Addon options", () => {
     const createResult = await create(projectPath, {
       yes: true,
       install: false,
-      disableAnalytics: true,
     });
 
     expect(createResult.isOk()).toBe(true);
@@ -121,7 +120,6 @@ describe("Addon options", () => {
     const createResult = await create(projectPath, {
       yes: true,
       install: false,
-      disableAnalytics: true,
     });
 
     expect(createResult.isOk()).toBe(true);

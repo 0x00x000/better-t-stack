@@ -30,9 +30,7 @@ export const stackParsers = {
     DEFAULT_STACK.dbSetup,
   ),
   auth: parseAsStringEnum<StackState["auth"]>(getValidIds("auth")).withDefault(DEFAULT_STACK.auth),
-  payments: parseAsStringEnum<StackState["payments"]>(getValidIds("payments")).withDefault(
-    DEFAULT_STACK.payments,
-  ),
+  payments: parseAsStringEnum<StackState["payments"]>(["none"]).withDefault(DEFAULT_STACK.payments),
   packageManager: parseAsStringEnum<StackState["packageManager"]>(
     getValidIds("packageManager"),
   ).withDefault(DEFAULT_STACK.packageManager),
@@ -48,7 +46,6 @@ export const stackParsers = {
   serverDeploy: parseAsStringEnum<StackState["serverDeploy"]>(
     getValidIds("serverDeploy"),
   ).withDefault(DEFAULT_STACK.serverDeploy),
-  yolo: parseAsStringEnum<StackState["yolo"]>(["true", "false"]).withDefault(DEFAULT_STACK.yolo),
   viewMode: parseAsStringEnum<"command" | "preview">(["command", "preview"]).withDefault("command"),
   selectedFile: parseAsString.withDefault(""),
 };
@@ -82,7 +79,6 @@ function getStackFromQueryState(queryState: StackState): StackState {
     install: queryState.install,
     webDeploy: queryState.webDeploy,
     serverDeploy: queryState.serverDeploy,
-    yolo: queryState.yolo,
   });
 }
 

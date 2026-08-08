@@ -10,13 +10,9 @@ export async function getDBSetupChoice(
   runtime?: Runtime,
   previousValue?: DatabaseSetup,
 ) {
-  if (backend === "convex") {
-    return "none";
-  }
-
   if (dbSetup !== undefined) return dbSetup as DatabaseSetup;
 
-  if (databaseType === "none") {
+  if (databaseType === "none" || backend === "none") {
     return "none";
   }
 
@@ -24,11 +20,6 @@ export async function getDBSetupChoice(
 
   if (databaseType === "sqlite") {
     options = [
-      {
-        value: "turso" as const,
-        label: "Turso",
-        hint: "SQLite for Production. Powered by libSQL",
-      },
       ...(runtime === "workers" || backend === "self"
         ? [
             {
@@ -46,11 +37,6 @@ export async function getDBSetupChoice(
         value: "neon" as const,
         label: "Neon Postgres",
         hint: "Serverless Postgres with branching capability",
-      },
-      {
-        value: "planetscale" as const,
-        label: "PlanetScale",
-        hint: "Postgres & Vitess (MySQL) on NVMe",
       },
       {
         value: "supabase" as const,
@@ -71,11 +57,6 @@ export async function getDBSetupChoice(
     ];
   } else if (databaseType === "mysql") {
     options = [
-      {
-        value: "planetscale" as const,
-        label: "PlanetScale",
-        hint: "MySQL on Vitess (NVMe, HA)",
-      },
       {
         value: "docker" as const,
         label: "Docker",

@@ -27,7 +27,7 @@ function createProjectConfig(overrides: Partial<ProjectConfig> = {}): ProjectCon
     packageManager: "bun",
     install: false,
     dbSetup: "none",
-    api: "trpc",
+    api: "orpc",
     webDeploy: "none",
     serverDeploy: "none",
     ...overrides,
@@ -256,7 +256,7 @@ describe("Addon setup regressions", () => {
         payments: "none",
         packageManager: "bun",
         dbSetup: "none",
-        api: "trpc",
+        api: "orpc",
         webDeploy: "none",
         serverDeploy: "none",
         addonOptions: {

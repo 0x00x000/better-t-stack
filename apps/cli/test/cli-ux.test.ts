@@ -23,7 +23,7 @@ describe("CLI flow presentation", () => {
         message: "Pick a framework",
         options: [
           { value: "next", label: "Next.js" },
-          { value: "nuxt", label: "Nuxt" },
+          { value: "tanstack-router", label: "TanStack Router" },
         ],
         input,
         output,
@@ -112,14 +112,14 @@ describe("CLI flow presentation", () => {
     ]);
   });
 
-  it("keeps incompatible preselected values when YOLO validation is disabled", async () => {
+  it("keeps incompatible preselected values when compatibility checks are skipped", async () => {
     const result = await runWithContextAsync({}, () =>
       gatherConfig(
         {
-          frontend: ["nuxt"],
+          frontend: ["tanstack-router"],
           backend: "hono",
           runtime: "bun",
-          api: "trpc",
+          api: "orpc",
           database: "mongodb",
           orm: "drizzle",
           dbSetup: "none",
@@ -133,15 +133,15 @@ describe("CLI flow presentation", () => {
           packageManager: "bun",
           install: false,
         },
-        "yolo-app",
-        "/tmp/yolo-app",
-        "yolo-app",
+        "compat-app",
+        "/tmp/compat-app",
+        "compat-app",
         { skipCompatibilityChecks: true },
       ),
     );
 
-    expect(result.frontend).toEqual(["nuxt"]);
-    expect(result.api).toBe("trpc");
+    expect(result.frontend).toEqual(["tanstack-router"]);
+    expect(result.api).toBe("orpc");
     expect(result.database).toBe("mongodb");
     expect(result.orm).toBe("drizzle");
   });
@@ -153,7 +153,7 @@ describe("CLI flow presentation", () => {
       frontend: ["tanstack-router"],
       backend: "hono",
       runtime: "bun",
-      api: "trpc",
+      api: "orpc",
       database: "postgres",
       orm: "drizzle",
       dbSetup: "neon",
@@ -180,7 +180,7 @@ describe("CLI flow presentation", () => {
           { label: "Frontend", value: "TanStack Router" },
           { label: "Backend", value: "Hono" },
           { label: "Runtime", value: "Bun" },
-          { label: "API", value: "tRPC" },
+          { label: "API", value: "oRPC" },
         ],
       },
       {
@@ -226,7 +226,7 @@ describe("CLI flow presentation", () => {
           runtime: "bun",
           auth: "better-auth",
           payments: "none",
-          api: "trpc",
+          api: "orpc",
           addons: ["turborepo"],
           examples: ["none"],
           dbSetup: "none",

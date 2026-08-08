@@ -4,7 +4,7 @@ import type { VirtualFileSystem } from "../core/virtual-fs";
 import { addPackageDependency } from "../utils/add-deps";
 
 export function processDeployDeps(vfs: VirtualFileSystem, config: ProjectConfig): void {
-  const { webDeploy, serverDeploy, frontend, backend, addons } = config;
+  const { webDeploy, serverDeploy, frontend, backend } = config;
 
   const isCloudflareWeb = webDeploy === "cloudflare";
   const isCloudflareServer = serverDeploy === "cloudflare";
@@ -18,7 +18,6 @@ export function processDeployDeps(vfs: VirtualFileSystem, config: ProjectConfig)
   }
 
   if (isVercelWeb || isVercelServer) {
-    // dotenv is already a root dependency via workspace-deps
     addPackageDependency({
       vfs,
       packagePath: "package.json",
@@ -27,66 +26,20 @@ export function processDeployDeps(vfs: VirtualFileSystem, config: ProjectConfig)
   }
 
   if (isVercelWeb && frontend.includes("tanstack-start")) {
-    // Nitro emits Vercel's Build Output API; without it the Start build is a
-    // plain node server the platform cannot serve
     const webPkgPath = "apps/web/package.json";
     if (vfs.exists(webPkgPath)) {
       addPackageDependency({ vfs, packagePath: webPkgPath, dependencies: ["nitro"] });
     }
   }
 
-  if (
-    isVercelWeb &&
-    frontend.includes("astro") &&
-    !addons.includes("electrobun") &&
-    !addons.includes("tauri")
-  ) {
-    // Astro needs the Vercel adapter for SSR; the default @astrojs/node
-    // standalone output is not served by Vercel's astro framework preset.
-    const webPkgPath = "apps/web/package.json";
-    if (vfs.exists(webPkgPath)) {
-      addPackageDependency({
-        vfs,
-        packagePath: webPkgPath,
-        dependencies: ["@astrojs/vercel"],
-      });
-    }
-  }
-
-  if (
-    isVercelWeb &&
-    frontend.includes("svelte") &&
-    !addons.includes("electrobun") &&
-    !addons.includes("tauri")
-  ) {
-    // Vercel docs recommend the explicit adapter over adapter-auto resolving it at build time
-    const webPkgPath = "apps/web/package.json";
-    if (vfs.exists(webPkgPath)) {
-      addPackageDependency({
-        vfs,
-        packagePath: webPkgPath,
-        devDependencies: ["@sveltejs/adapter-vercel"],
-      });
-    }
-  }
-
   if (isDockerWeb) {
     const webPkgPath = "apps/web/package.json";
-    if (vfs.exists(webPkgPath)) {
-      if (frontend.includes("svelte")) {
-        addPackageDependency({
-          vfs,
-          packagePath: webPkgPath,
-          devDependencies: ["@sveltejs/adapter-node"],
-        });
-      } else if (frontend.includes("tanstack-start")) {
-        // Same section as the evlog addon so the two never duplicate nitro
-        addPackageDependency({
-          vfs,
-          packagePath: webPkgPath,
-          dependencies: ["nitro"],
-        });
-      }
+    if (vfs.exists(webPkgPath) && frontend.includes("tanstack-start")) {
+      addPackageDependency({
+        vfs,
+        packagePath: webPkgPath,
+        dependencies: ["nitro"],
+      });
     }
   }
 
@@ -120,41 +73,13 @@ export function processDeployDeps(vfs: VirtualFileSystem, config: ProjectConfig)
         dependencies: ["@opennextjs/cloudflare"],
         devDependencies: ["alchemy", "wrangler", "@cloudflare/workers-types"],
       });
-    } else if (frontend.includes("nuxt")) {
-      addPackageDependency({
-        vfs,
-        packagePath: webPkgPath,
-        devDependencies: ["alchemy", "nitro-cloudflare-dev", "wrangler"],
-      });
-    } else if (frontend.includes("svelte")) {
-      addPackageDependency({
-        vfs,
-        packagePath: webPkgPath,
-        devDependencies: ["alchemy", "@sveltejs/adapter-cloudflare"],
-      });
     } else if (frontend.includes("tanstack-start")) {
       addPackageDependency({
         vfs,
         packagePath: webPkgPath,
         devDependencies: ["alchemy", "@cloudflare/vite-plugin", "wrangler"],
       });
-    } else if (frontend.includes("astro")) {
-      addPackageDependency({
-        vfs,
-        packagePath: webPkgPath,
-        dependencies: ["@astrojs/node"],
-        devDependencies: [
-          "alchemy",
-          "@astrojs/cloudflare",
-          "wrangler",
-          "@cloudflare/workers-types",
-        ],
-      });
-    } else if (
-      frontend.includes("tanstack-router") ||
-      frontend.includes("react-router") ||
-      frontend.includes("solid")
-    ) {
+    } else if (frontend.includes("tanstack-router") || frontend.includes("react-router")) {
       addPackageDependency({ vfs, packagePath: webPkgPath, devDependencies: ["alchemy"] });
     }
   }

@@ -15,13 +15,7 @@ export default defineConfig({
   },
   plugins: [
     tailwindcss(),
-    tanstackStart({{#if (or (includes addons "tauri") (and (includes addons "electrobun") (or (ne backend "convex") (ne auth "better-auth"))))}}
-      {
-        prerender: {
-          enabled: true,
-        },
-      },
-{{/if}}),
+    tanstackStart(),
 {{#if (or (eq webDeploy "docker") (eq webDeploy "vercel"))}}
     nitro(),
 {{/if}}
@@ -31,10 +25,6 @@ export default defineConfig({
   // Bundle all SSR deps: Vercel functions have no node_modules at runtime
   ssr: {
     noExternal: true,
-  },
-{{else if (and (eq backend "convex") (eq auth "better-auth"))}}
-  ssr: {
-    noExternal: ["@convex-dev/better-auth"],
   },
 {{/if}}
 });

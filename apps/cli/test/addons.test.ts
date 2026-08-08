@@ -85,7 +85,7 @@ describe("Addon Configurations", () => {
           if (frontend === "solid") {
             config.api = "orpc"; // tRPC not supported with solid
           } else {
-            config.api = "trpc";
+            config.api = "orpc";
           }
 
           const result = await runTRPCTest(config);
@@ -122,7 +122,7 @@ describe("Addon Configurations", () => {
           if (["nuxt", "svelte"].includes(frontend)) {
             config.api = "orpc";
           } else {
-            config.api = "trpc";
+            config.api = "orpc";
           }
 
           const result = await runTRPCTest(config);
@@ -167,7 +167,7 @@ describe("Addon Configurations", () => {
           if (["nuxt", "svelte", "solid", "astro"].includes(frontend)) {
             config.api = "orpc";
           } else {
-            config.api = "trpc";
+            config.api = "orpc";
           }
 
           const result = await runTRPCTest(config);
@@ -188,7 +188,7 @@ describe("Addon Configurations", () => {
             database: "sqlite",
             orm: "drizzle",
             auth: "none",
-            api: "trpc",
+            api: "orpc",
             examples: ["none"],
             dbSetup: "none",
             webDeploy: "none",
@@ -275,7 +275,7 @@ describe("Addon Configurations", () => {
             install: false,
           };
 
-          config.api = ["nuxt", "svelte", "solid", "astro"].includes(frontend) ? "orpc" : "trpc";
+          config.api = ["nuxt", "svelte", "solid", "astro"].includes(frontend) ? "orpc" : "orpc";
 
           const result = await runTRPCTest(config);
           expectSuccess(result);
@@ -302,7 +302,7 @@ describe("Addon Configurations", () => {
             expectError: true,
           };
 
-          config.api = "trpc";
+          config.api = "orpc";
 
           const result = await runTRPCTest(config);
           expectError(result, "electrobun addon requires one of these frontends");
@@ -379,7 +379,7 @@ describe("Addon Configurations", () => {
           database: "sqlite",
           orm: "drizzle",
           auth: "none",
-          api: "trpc",
+          api: "orpc",
           examples: ["none"],
           dbSetup: "none",
           webDeploy: "none",
@@ -403,7 +403,7 @@ describe("Addon Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         examples: ["none"],
         dbSetup: "none",
         webDeploy: "none",
@@ -424,7 +424,7 @@ describe("Addon Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         examples: ["none"],
         dbSetup: "none",
         webDeploy: "none",
@@ -439,7 +439,7 @@ describe("Addon Configurations", () => {
       const result = await runTRPCTest({
         projectName: "incompatible-addons-fail",
         addons: ["pwa"], // PWA not compatible with nuxt
-        frontend: ["nuxt"],
+        frontend: ["tanstack-router"],
         backend: "hono",
         runtime: "bun",
         database: "sqlite",
@@ -466,7 +466,7 @@ describe("Addon Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         examples: ["none"],
         dbSetup: "none",
         webDeploy: "none",
@@ -499,7 +499,7 @@ describe("Addon Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         examples: ["none"],
         dbSetup: "none",
         webDeploy: "none",
@@ -567,7 +567,7 @@ describe("Addon Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         examples: ["none"],
         dbSetup: "none",
         webDeploy: "none",
@@ -601,7 +601,7 @@ describe("Addon Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         examples: ["none"],
         dbSetup: "none",
         webDeploy: "none",
@@ -634,7 +634,7 @@ describe("Addon Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         examples: ["none"],
         dbSetup: "none",
         webDeploy: "none",
@@ -681,7 +681,7 @@ describe("Addon Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         examples: ["none"],
         dbSetup: "none",
         webDeploy: "none",
@@ -723,7 +723,7 @@ describe("Addon Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         examples: ["none"],
         dbSetup: "none",
         webDeploy: "none",
@@ -762,7 +762,7 @@ describe("Addon Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         examples: ["none"],
         dbSetup: "none",
         webDeploy: "none",
@@ -800,7 +800,7 @@ describe("Addon Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         examples: ["none"],
         dbSetup: "none",
         webDeploy: "none",
@@ -838,7 +838,7 @@ describe("Addon Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         examples: ["none"],
         dbSetup: "none",
         webDeploy: "none",
@@ -879,7 +879,7 @@ describe("Addon Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         examples: ["none"],
         dbSetup: "none",
         webDeploy: "none",
@@ -920,7 +920,7 @@ describe("Addon Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         examples: ["none"],
         dbSetup: "none",
         webDeploy: "none",
@@ -962,7 +962,7 @@ describe("Addon Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "better-auth",
-        api: "trpc",
+        api: "orpc",
         examples: ["none"],
         dbSetup: "none",
         webDeploy: "none",
@@ -1013,7 +1013,7 @@ describe("Addon Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         examples: ["none"],
         dbSetup: "none",
         webDeploy: "none",
@@ -1061,7 +1061,7 @@ describe("Addon Configurations", () => {
           database: "sqlite",
           orm: "drizzle",
           auth: "none",
-          api: "trpc",
+          api: "orpc",
           examples: ["none"],
           dbSetup: "none",
           webDeploy: "none",
@@ -1102,7 +1102,7 @@ describe("Addon Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         examples: ["none"],
         dbSetup: "none",
         webDeploy: "none",
@@ -1123,7 +1123,7 @@ describe("Addon Configurations", () => {
     const webCases = [
       {
         frontend: "next",
-        api: "trpc",
+        api: "orpc",
         files: [
           ["apps/web/src/lib/evlog.ts", "createEvlog"],
           ["apps/web/src/lib/evlog.ts", "createFsDrain"],
@@ -1134,7 +1134,7 @@ describe("Addon Configurations", () => {
         ],
       },
       {
-        frontend: "nuxt",
+        frontend: "tanstack-router",
         api: "orpc",
         files: [
           ["apps/web/nuxt.config.ts", '"evlog/nuxt"'],
@@ -1142,7 +1142,7 @@ describe("Addon Configurations", () => {
         ],
       },
       {
-        frontend: "svelte",
+        frontend: "react-router",
         api: "orpc",
         files: [
           ["apps/web/vite.config.ts", "evlog({ service:"],
@@ -1153,7 +1153,7 @@ describe("Addon Configurations", () => {
       },
       {
         frontend: "tanstack-start",
-        api: "trpc",
+        api: "orpc",
         files: [
           ["apps/web/nitro.config.ts", 'evlog from "evlog/nitro/v3"'],
           ["apps/web/server/plugins/evlog-drain.ts", "createFsDrain"],
@@ -1161,7 +1161,7 @@ describe("Addon Configurations", () => {
         ],
       },
       {
-        frontend: "astro",
+        frontend: "next",
         api: "orpc",
         files: [
           ["apps/web/src/middleware.ts", "createRequestLogger"],
@@ -1213,7 +1213,7 @@ describe("Addon Configurations", () => {
       const result = await runTRPCTest({
         projectName: "evlog-nuxt-cloudflare-web",
         addons: ["evlog"],
-        frontend: ["nuxt"],
+        frontend: ["tanstack-router"],
         backend: "self",
         runtime: "none",
         database: "sqlite",
@@ -1257,7 +1257,7 @@ describe("Addon Configurations", () => {
       const result = await runTRPCTest({
         projectName: "evlog-nuxt-cloudflare-auth",
         addons: ["evlog"],
-        frontend: ["nuxt"],
+        frontend: ["tanstack-router"],
         backend: "self",
         runtime: "none",
         database: "sqlite",
@@ -1313,30 +1313,30 @@ describe("Addon Configurations", () => {
     const fullstackBetterAuthEvlogCases = [
       {
         frontend: "next",
-        api: "trpc",
+        api: "orpc",
         path: "apps/web/src/lib/evlog-auth.ts",
         expected: "createAuthMiddleware(auth as BetterAuthInstance",
       },
       {
-        frontend: "nuxt",
+        frontend: "tanstack-router",
         api: "orpc",
         path: "apps/web/server/middleware/evlog-auth.ts",
         expected: "createAuthMiddleware(auth as BetterAuthInstance",
       },
       {
-        frontend: "svelte",
+        frontend: "react-router",
         api: "orpc",
         path: "apps/web/src/hooks.server.ts",
         expected: "createAuthMiddleware(auth as BetterAuthInstance",
       },
       {
         frontend: "tanstack-start",
-        api: "trpc",
+        api: "orpc",
         path: "apps/web/server/plugins/evlog-auth.ts",
         expected: "createAuthIdentifier(auth as BetterAuthInstance",
       },
       {
-        frontend: "astro",
+        frontend: "next",
         api: "orpc",
         path: "apps/web/src/middleware.ts",
         expected: "createAuthMiddleware(auth as BetterAuthInstance",
@@ -1388,20 +1388,20 @@ describe("Addon Configurations", () => {
     const fullstackBetterAuthFactoryEvlogCases = [
       {
         frontend: "next",
-        api: "trpc",
+        api: "orpc",
         path: "apps/web/src/lib/evlog-auth.ts",
         expected: "createAuthMiddleware(createAuth() as BetterAuthInstance",
         insideMarker: "export async function identifyEvlogUser",
       },
       {
-        frontend: "nuxt",
+        frontend: "tanstack-router",
         api: "orpc",
         path: "apps/web/server/middleware/evlog-auth.ts",
         expected: "createAuthMiddleware(createAuth() as BetterAuthInstance",
         insideMarker: "export default defineEventHandler",
       },
       {
-        frontend: "svelte",
+        frontend: "react-router",
         api: "orpc",
         path: "apps/web/src/hooks.server.ts",
         expected: "createAuthMiddleware(createAuth(authEnv) as BetterAuthInstance",
@@ -1409,13 +1409,13 @@ describe("Addon Configurations", () => {
       },
       {
         frontend: "tanstack-start",
-        api: "trpc",
+        api: "orpc",
         path: "apps/web/server/plugins/evlog-auth.ts",
         expected: "createAuthIdentifier(createAuth() as BetterAuthInstance",
         insideMarker: 'nitroApp.hooks.hook("request", async (event) => {',
       },
       {
-        frontend: "astro",
+        frontend: "next",
         api: "orpc",
         path: "apps/web/src/middleware.ts",
         expected: "createAuthMiddleware(createAuth() as BetterAuthInstance",
@@ -1490,7 +1490,7 @@ describe("Addon Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "better-auth",
-        api: "trpc",
+        api: "orpc",
         examples: ["ai"],
         dbSetup: "none",
         webDeploy: "none",
@@ -1527,8 +1527,8 @@ describe("Addon Configurations", () => {
       const result = await runTRPCTest({
         projectName: "evlog-express-ai",
         addons: ["evlog"],
-        frontend: ["nuxt"],
-        backend: "express",
+        frontend: ["tanstack-router"],
+        backend: "hono",
         runtime: "node",
         database: "sqlite",
         orm: "drizzle",
@@ -1561,7 +1561,7 @@ describe("Addon Configurations", () => {
         {
           projectName: "evlog-fastify-ai",
           frontend: "tanstack-router",
-          backend: "fastify",
+          backend: "hono",
           runtime: "node",
           api: "orpc",
           filePath: "apps/server/src/index.ts",
@@ -1570,15 +1570,15 @@ describe("Addon Configurations", () => {
         {
           projectName: "evlog-elysia-ai",
           frontend: "tanstack-router",
-          backend: "elysia",
+          backend: "hono",
           runtime: "bun",
-          api: "trpc",
+          api: "orpc",
           filePath: "apps/server/src/index.ts",
           expectedLogger: "const ai = createAILogger(context.log);",
         },
         {
           projectName: "evlog-nuxt-self-ai",
-          frontend: "nuxt",
+          frontend: "tanstack-router",
           backend: "self",
           runtime: "none",
           api: "orpc",
@@ -1587,7 +1587,7 @@ describe("Addon Configurations", () => {
         },
         {
           projectName: "evlog-svelte-self-ai",
-          frontend: "svelte",
+          frontend: "react-router",
           backend: "self",
           runtime: "none",
           api: "orpc",
@@ -1657,7 +1657,7 @@ describe("Addon Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "better-auth",
-        api: "trpc",
+        api: "orpc",
         examples: ["ai"],
         dbSetup: "none",
         webDeploy: "none",
@@ -1691,11 +1691,11 @@ describe("Addon Configurations", () => {
     });
 
     const separateBackendWebAuthCases = [
-      { frontend: "next", api: "trpc" },
-      { frontend: "nuxt", api: "orpc" },
-      { frontend: "svelte", api: "orpc" },
-      { frontend: "tanstack-start", api: "trpc" },
-      { frontend: "astro", api: "orpc" },
+      { frontend: "next", api: "orpc" },
+      { frontend: "tanstack-router", api: "orpc" },
+      { frontend: "react-router", api: "orpc" },
+      { frontend: "tanstack-start", api: "orpc" },
+      { frontend: "next", api: "orpc" },
     ] as const;
 
     for (const webCase of separateBackendWebAuthCases) {
@@ -1705,14 +1705,14 @@ describe("Addon Configurations", () => {
           projectName,
           addons: ["evlog"],
           frontend: [webCase.frontend as Frontend],
-          backend: "express",
+          backend: "hono",
           runtime: "node",
           database: "sqlite",
           orm: "drizzle",
           auth: "better-auth",
           api: webCase.api,
           examples: webCase.frontend === "astro" ? ["todo"] : ["todo", "ai"],
-          dbSetup: "turso",
+          dbSetup: "neon",
           webDeploy: "none",
           serverDeploy: "none",
           install: false,
@@ -1758,7 +1758,7 @@ describe("Addon Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         examples: ["none"],
         dbSetup: "none",
         webDeploy: "none",
@@ -1835,7 +1835,7 @@ describe("Addon Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         examples: ["none"],
         dbSetup: "none",
         webDeploy: "none",
@@ -1856,7 +1856,7 @@ describe("Addon Configurations", () => {
         database: "sqlite",
         orm: "drizzle",
         auth: "none",
-        api: "trpc",
+        api: "orpc",
         examples: ["none"],
         dbSetup: "none",
         webDeploy: "none",

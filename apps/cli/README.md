@@ -5,7 +5,6 @@ A modern CLI tool for scaffolding end-to-end type-safe TypeScript projects with 
 ## Sponsors
 
 <p align="center">
-<img src="https://sponsors.better-t-stack.dev/sponsors.png" alt="Sponsors">
 </p>
 
 ![demo](https://cdn.jsdelivr.net/gh/amanvarshney01/create-better-t-stack@master/demo.gif)
@@ -107,29 +106,6 @@ npx -y add-mcp@latest "npx -y create-better-t-stack@latest mcp"
 When you scaffold with the `mcp` addon, Better T Stack itself can also be installed into supported agent configs through `add-mcp` using a package runner command instead of assuming a global CLI install. For Bun projects, the generated config uses the equivalent `bunx create-better-t-stack@latest mcp` server command inside `add-mcp`.
 
 For MCP project creation, prefer `install: false`. Long dependency installs can exceed common MCP client request timeouts, so the safest flow is to scaffold first and run your package manager install command afterward in the project directory.
-
-## Telemetry
-
-This CLI collects anonymous usage data to help improve the tool. The data collected includes:
-
-- Configuration options selected
-- CLI version
-- Node.js version
-- Platform (OS)
-
-**Telemetry is enabled by default in published versions** to help us understand usage patterns and improve the tool.
-
-### Disabling Telemetry
-
-You can disable telemetry by setting the `BTS_TELEMETRY_DISABLED` environment variable:
-
-```bash
-# Disable telemetry for a single run
-BTS_TELEMETRY_DISABLED=1 npx create-better-t-stack
-
-# Disable telemetry globally in your shell profile (.bashrc, .zshrc, etc.)
-export BTS_TELEMETRY_DISABLED=1
-```
 
 ## Examples
 

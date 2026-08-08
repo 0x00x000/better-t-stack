@@ -11,8 +11,6 @@ export async function processExtrasTemplates(
   const hasNative = config.frontend.some((f) =>
     ["native-bare", "native-uniwind", "native-unistyles"].includes(f),
   );
-  const hasNuxt = config.frontend.includes("nuxt");
-
   if (config.packageManager === "pnpm") {
     processSingleTemplate(
       vfs,
@@ -23,7 +21,7 @@ export async function processExtrasTemplates(
     );
   }
 
-  if (config.packageManager === "pnpm" && (hasNative || hasNuxt)) {
+  if (config.packageManager === "pnpm" && hasNative) {
     processSingleTemplate(vfs, templates, "extras/_npmrc", ".npmrc", config);
   }
 

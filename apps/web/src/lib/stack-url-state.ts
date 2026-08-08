@@ -42,7 +42,7 @@ const serverStackParsers = {
   auth: parseAsStringEnumServer<StackState["auth"]>(getValidIds("auth")).withDefault(
     DEFAULT_STACK.auth,
   ),
-  payments: parseAsStringEnumServer<StackState["payments"]>(getValidIds("payments")).withDefault(
+  payments: parseAsStringEnumServer<StackState["payments"]>(["none"]).withDefault(
     DEFAULT_STACK.payments,
   ),
   packageManager: parseAsStringEnumServer<StackState["packageManager"]>(
@@ -60,9 +60,6 @@ const serverStackParsers = {
   serverDeploy: parseAsStringEnumServer<StackState["serverDeploy"]>(
     getValidIds("serverDeploy"),
   ).withDefault(DEFAULT_STACK.serverDeploy),
-  yolo: parseAsStringEnumServer<StackState["yolo"]>(["true", "false"]).withDefault(
-    DEFAULT_STACK.yolo,
-  ),
 };
 
 const rawLoadStackParams = createLoader(serverStackParsers, {

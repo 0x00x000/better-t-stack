@@ -36,7 +36,6 @@ describe("programmatic API input validation", () => {
       dryRun: true,
       git: false,
       install: false,
-      disableAnalytics: true,
     });
 
     expect(result.isErr()).toBe(true);
@@ -56,7 +55,6 @@ describe("programmatic API input validation", () => {
       dryRun: true,
       git: false,
       install: false,
-      disableAnalytics: true,
     });
 
     expect(result.isErr()).toBe(true);
@@ -79,7 +77,6 @@ describe("programmatic API input validation", () => {
       database: "mongodb",
       git: false,
       install: false,
-      disableAnalytics: true,
       directoryConflict: "overwrite",
     });
 
@@ -101,7 +98,6 @@ describe("programmatic API input validation", () => {
       database: "mongodb",
       git: false,
       install: false,
-      disableAnalytics: true,
     });
 
     expect(result.isErr()).toBe(true);
@@ -124,7 +120,6 @@ describe("programmatic API input validation", () => {
       yes: true,
       git: false,
       install: false,
-      disableAnalytics: true,
       directoryConflict: "error",
     });
 
@@ -158,7 +153,6 @@ describe("programmatic API input validation", () => {
       git: false,
       install: false,
       directoryConflict: "overwrite",
-      disableAnalytics: true,
     });
     if (createResult.isErr()) {
       throw createResult.error;

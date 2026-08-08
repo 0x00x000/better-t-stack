@@ -13,7 +13,6 @@ const CATEGORY_ORDER: Array<keyof typeof TECH_OPTIONS> = [
   "webDeploy",
   "serverDeploy",
   "auth",
-  "payments",
   "packageManager",
   "addons",
   "examples",
@@ -29,18 +28,9 @@ const desktopAddonNames = {
 const staticDesktopFrontendNames = {
   "tanstack-start": "TanStack Start",
   next: "Next.js",
-  nuxt: "Nuxt",
-  svelte: "SvelteKit",
-  astro: "Astro",
 } as const;
 
-const selfHostedFullstackBackends = [
-  "self-next",
-  "self-tanstack-start",
-  "self-nuxt",
-  "self-svelte",
-  "self-astro",
-] as const;
+const selfHostedFullstackBackends = ["self-next", "self-tanstack-start"] as const;
 
 export function formatProjectName(name: string | null | undefined) {
   return (name || "my-better-t-app").replace(/\s+/g, "-");
@@ -165,9 +155,8 @@ export function generateStackCommand(stack: StackState) {
     if (
       backend === "self-next" ||
       backend === "self-tanstack-start" ||
-      backend === "self-nuxt" ||
-      backend === "self-svelte" ||
-      backend === "self-astro"
+      backend === "self-next" ||
+      backend === "self-tanstack-start"
     ) {
       return "self";
     }
@@ -201,7 +190,6 @@ export function generateStackCommand(stack: StackState) {
                 "pwa",
                 "tauri",
                 "electrobun",
-                "starlight",
                 "biome",
                 "lefthook",
                 "husky",
@@ -223,10 +211,6 @@ export function generateStackCommand(stack: StackState) {
     }`,
     `--examples ${stack.examples.join(" ") || "none"}`,
   ];
-
-  if (stack.yolo === "true") {
-    flags.push("--yolo");
-  }
 
   return `${base} ${projectName} ${flags.join(" ")}`;
 }

@@ -3,39 +3,25 @@ import { evaluateMatrixConfig, type MatrixOracleResult } from "./oracle";
 
 export const MATRIX_DATABASES = ["none", "sqlite", "postgres", "mysql", "mongodb"] as const;
 export const MATRIX_ORMS = ["drizzle", "prisma", "mongoose", "none"] as const;
-export const MATRIX_BACKENDS = [
-  "hono",
-  "express",
-  "fastify",
-  "elysia",
-  "convex",
-  "self",
-  "none",
-] as const;
+export const MATRIX_BACKENDS = ["hono", "self", "none"] as const;
 export const MATRIX_RUNTIMES = ["bun", "node", "workers", "none"] as const;
 export const MATRIX_WEB_FRONTENDS = [
   "tanstack-router",
   "react-router",
   "tanstack-start",
   "next",
-  "nuxt",
-  "svelte",
-  "solid",
-  "astro",
 ] as const;
 export const MATRIX_NATIVE_FRONTENDS = [
   "native-bare",
   "native-uniwind",
   "native-unistyles",
 ] as const;
-export const MATRIX_APIS = ["trpc", "orpc", "none"] as const;
-export const MATRIX_AUTHS = ["better-auth", "clerk", "none"] as const;
-export const MATRIX_PAYMENTS = ["polar", "none"] as const;
+export const MATRIX_APIS = ["orpc", "none"] as const;
+export const MATRIX_AUTHS = ["better-auth", "none"] as const;
+export const MATRIX_PAYMENTS = ["none"] as const;
 export const MATRIX_DB_SETUPS = [
-  "turso",
   "neon",
   "prisma-postgres",
-  "planetscale",
   "mongodb-atlas",
   "supabase",
   "d1",
@@ -105,7 +91,7 @@ const BASE_VALID_CONFIG: MatrixConfigInput = {
   backend: "hono",
   runtime: "bun",
   frontend: ["tanstack-router"],
-  api: "trpc",
+  api: "orpc",
   auth: "none",
   payments: "none",
   dbSetup: "none",
@@ -236,15 +222,11 @@ function pushUnique(
 
 function getCompatibleDatabaseSetup(dbSetup: DatabaseSetup): Partial<MatrixConfigInput> {
   switch (dbSetup) {
-    case "turso":
-      return { database: "sqlite", orm: "drizzle" };
     case "neon":
     case "supabase":
       return { database: "postgres", orm: "drizzle" };
     case "prisma-postgres":
       return { database: "postgres", orm: "prisma" };
-    case "planetscale":
-      return { database: "mysql", orm: "drizzle" };
     case "mongodb-atlas":
       return { database: "mongodb", orm: "mongoose" };
     case "d1":
@@ -276,13 +258,13 @@ export function createSmokeMatrixCases(): MatrixCase[] {
 
   for (const backend of MATRIX_BACKENDS) {
     for (const runtime of MATRIX_RUNTIMES) {
-      const terminalBackend = backend === "convex" || backend === "none";
+      const terminalBackend = backend === "none";
       pushUnique(configs, seen, {
         backend,
         runtime,
         database: terminalBackend ? "none" : "sqlite",
         orm: terminalBackend ? "none" : "drizzle",
-        api: terminalBackend ? "none" : "trpc",
+        api: terminalBackend ? "none" : "orpc",
         auth: terminalBackend ? "none" : "none",
         frontend: backend === "self" ? ["next"] : ["tanstack-router"],
       });
@@ -299,23 +281,14 @@ export function createSmokeMatrixCases(): MatrixCase[] {
   }
 
   for (const frontend of MATRIX_FRONTEND_SETS) {
-    pushUnique(configs, seen, { frontend: [...frontend], auth: "clerk" });
-    pushUnique(configs, seen, {
-      frontend: [...frontend],
-      backend: "convex",
-      runtime: "none",
-      database: "none",
-      orm: "none",
-      api: "none",
-      auth: "better-auth",
-    });
+    pushUnique(configs, seen, { frontend: [...frontend], auth: "better-auth" });
   }
 
   for (const payments of MATRIX_PAYMENTS) {
     for (const frontend of [[], ["native-bare"], ["next"]] as const) {
       pushUnique(configs, seen, {
         payments,
-        auth: payments === "polar" ? "better-auth" : "none",
+        auth: "none",
         frontend: [...frontend],
       });
     }
@@ -326,13 +299,6 @@ export function createSmokeMatrixCases(): MatrixCase[] {
       dbSetup,
       ...getCompatibleDatabaseSetup(dbSetup),
     });
-    if (dbSetup === "planetscale") {
-      pushUnique(configs, seen, {
-        dbSetup,
-        database: "postgres",
-        orm: "drizzle",
-      });
-    }
     pushUnique(configs, seen, {
       dbSetup,
       database: dbSetup === "none" ? "sqlite" : "none",
@@ -362,15 +328,6 @@ export function createSmokeMatrixCases(): MatrixCase[] {
     pushUnique(configs, seen, { examples: [...examples] });
     pushUnique(configs, seen, {
       examples: [...examples],
-      backend: "convex",
-      runtime: "none",
-      database: "none",
-      orm: "none",
-      api: "none",
-      auth: "none",
-    });
-    pushUnique(configs, seen, {
-      examples: [...examples],
       backend: "none",
       runtime: "none",
       database: "none",
@@ -378,30 +335,15 @@ export function createSmokeMatrixCases(): MatrixCase[] {
       api: "none",
       auth: "none",
     });
-    pushUnique(configs, seen, {
-      examples: [...examples],
-      frontend: ["solid"],
-      api: "orpc",
-    });
-    pushUnique(configs, seen, {
-      examples: [...examples],
-      frontend: ["astro"],
-      api: "orpc",
-    });
   }
 
-  for (const frontend of ["next", "tanstack-start", "nuxt", "svelte", "astro"] as const) {
+  for (const frontend of ["next", "tanstack-start"] as const) {
     pushUnique(configs, seen, {
       backend: "self",
       runtime: "none",
       frontend: [frontend],
-      api: frontend === "nuxt" || frontend === "svelte" || frontend === "astro" ? "orpc" : "trpc",
+      api: "orpc",
       auth: "better-auth",
-    });
-    pushUnique(configs, seen, {
-      backend: "self",
-      runtime: "bun",
-      frontend: [frontend],
     });
   }
 
@@ -409,9 +351,9 @@ export function createSmokeMatrixCases(): MatrixCase[] {
     pushUnique(configs, seen, {
       backend,
       runtime: "workers",
-      database: backend === "convex" || backend === "none" ? "none" : "sqlite",
-      orm: backend === "convex" || backend === "none" ? "none" : "drizzle",
-      api: backend === "convex" || backend === "none" ? "none" : "trpc",
+      database: backend === "none" ? "none" : "sqlite",
+      orm: backend === "none" ? "none" : "drizzle",
+      api: backend === "none" ? "none" : "orpc",
       serverDeploy: "cloudflare",
     });
   }

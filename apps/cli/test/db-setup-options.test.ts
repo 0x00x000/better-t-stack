@@ -27,14 +27,13 @@ describe("Database setup options", () => {
       orm: "drizzle",
       auth: "none",
       payments: "none",
-      api: "trpc",
+      api: "orpc",
       addons: ["none"],
       examples: ["none"],
       dbSetup: "neon",
       webDeploy: "none",
       serverDeploy: "none",
       install: false,
-      disableAnalytics: true,
     });
 
     expect(result.isOk()).toBe(true);
@@ -55,13 +54,13 @@ describe("Database setup options", () => {
 
     const result = await create(projectPath, {
       frontend: ["react-router"],
-      backend: "elysia",
+      backend: "hono",
       runtime: "node",
       database: "postgres",
       orm: "drizzle",
       auth: "better-auth",
       payments: "none",
-      api: "trpc",
+      api: "orpc",
       addons: ["nx"],
       examples: ["todo"],
       dbSetup: "neon",
@@ -71,7 +70,6 @@ describe("Database setup options", () => {
       packageManager: "bun",
       install: true,
       dbSetupOptions: { mode: "auto" },
-      disableAnalytics: true,
     });
 
     expect(result.isOk()).toBe(true);
@@ -94,7 +92,7 @@ describe("Database setup options", () => {
       orm: "drizzle",
       auth: "none",
       payments: "none",
-      api: "trpc",
+      api: "orpc",
       addons: ["none"],
       examples: ["none"],
       dbSetup: "neon",
@@ -108,7 +106,6 @@ describe("Database setup options", () => {
           method: "neon-new",
         },
       },
-      disableAnalytics: true,
     });
 
     expect(result.isOk()).toBe(true);
@@ -130,14 +127,13 @@ describe("Database setup options", () => {
       orm: "drizzle",
       auth: "none",
       payments: "none",
-      api: "trpc",
+      api: "orpc",
       addons: ["none"],
       examples: ["none"],
       dbSetup: "d1",
       webDeploy: "none",
       serverDeploy: "cloudflare",
       install: false,
-      disableAnalytics: true,
     });
 
     expect(result.isOk()).toBe(true);
@@ -161,7 +157,7 @@ describe("Database setup options", () => {
       orm: "drizzle",
       auth: "better-auth",
       payments: "none",
-      api: "trpc",
+      api: "orpc",
       addons: ["turborepo"],
       examples: ["todo"],
       dbSetup: "none",
@@ -171,7 +167,6 @@ describe("Database setup options", () => {
       packageManager: "bun",
       install: true,
       manualDb: false,
-      disableAnalytics: true,
     });
 
     expect(result.isOk()).toBe(true);
@@ -205,7 +200,7 @@ describe("Database setup options", () => {
       packageManager: "bun",
       install: false,
       dbSetup: "neon",
-      api: "trpc",
+      api: "orpc",
       webDeploy: "none",
       serverDeploy: "none",
     });

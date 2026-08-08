@@ -73,7 +73,7 @@ export async function processEnvPackage(
   }
 
   // Conditionally include server.ts when backend is NOT none and NOT convex
-  if (config.backend !== "none" && config.backend !== "convex") {
+  if (config.backend !== "none") {
     processSingleTemplate(
       vfs,
       templates,

@@ -14,10 +14,6 @@ import type {
 } from "../../types";
 import { desktopWebFrontends } from "../../types";
 import { getDockerStatus } from "../../utils/docker-utils";
-import {
-  fetchSponsorsQuietly,
-  formatPostInstallSpecialSponsorsSection,
-} from "../../utils/sponsors";
 import { cliLog } from "../../utils/terminal-output";
 
 function getDesktopStaticBuildNote(frontend: Frontend[]): string {
@@ -259,11 +255,6 @@ export async function displayPostInstallInstructions(
   if (noOrmWarning) output += `\n${noOrmWarning.trim()}\n`;
   if (bunWebNativeWarning) output += `\n${bunWebNativeWarning.trim()}\n`;
 
-  const sponsorsResult = await fetchSponsorsQuietly();
-  const specialSponsorsSection = sponsorsResult.isOk()
-    ? formatPostInstallSpecialSponsorsSection(sponsorsResult.value)
-    : "";
-
   log.message([], { spacing: 1 });
   box(output.trimEnd(), pc.bold("Next steps"), {
     contentPadding: 2,
@@ -271,10 +262,6 @@ export async function displayPostInstallInstructions(
     rounded: true,
     width: "auto",
   });
-
-  if (specialSponsorsSection) {
-    cliLog.message(specialSponsorsSection);
-  }
 
   cliLog.message(
     `${pc.bold("Like Better T Stack?")} ${pc.dim("Star the project on GitHub")}\n${pc.cyan(

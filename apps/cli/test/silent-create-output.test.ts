@@ -28,7 +28,6 @@ async function runSilentCreate(testCase: SilentCreateCase) {
 
     const result = await create(${JSON.stringify(testCase.projectName)}, {
       ...${JSON.stringify(testCase.options)},
-      disableAnalytics: true,
     });
 
     if (result.isErr()) {
@@ -39,9 +38,7 @@ async function runSilentCreate(testCase: SilentCreateCase) {
 
   const result = await execa("bun", ["-e", script], {
     cwd: SMOKE_DIR,
-    env: {
-      BTS_TELEMETRY_DISABLED: "1",
-    },
+    env: {},
     reject: false,
   });
 
@@ -95,7 +92,7 @@ describe("silent create output", () => {
         runtime: "node",
         database: "postgres",
         orm: "drizzle",
-        api: "trpc",
+        api: "orpc",
         auth: "none",
         payments: "none",
         addons: [],
@@ -118,7 +115,7 @@ describe("silent create output", () => {
         runtime: "node",
         database: "postgres",
         orm: "prisma",
-        api: "trpc",
+        api: "orpc",
         auth: "none",
         payments: "none",
         addons: [],
@@ -133,29 +130,6 @@ describe("silent create output", () => {
       },
     },
     {
-      name: "stays quiet for manual turso setup",
-      projectName: "silent-db-turso",
-      options: {
-        frontend: ["next"],
-        backend: "hono",
-        runtime: "node",
-        database: "sqlite",
-        orm: "drizzle",
-        api: "trpc",
-        auth: "none",
-        payments: "none",
-        addons: [],
-        examples: [],
-        git: true,
-        packageManager: "pnpm",
-        install: false,
-        dbSetup: "turso",
-        dbSetupOptions: { mode: "manual" },
-        webDeploy: "none",
-        serverDeploy: "none",
-      },
-    },
-    {
       name: "stays quiet for manual supabase setup",
       projectName: "silent-db-supabase",
       options: {
@@ -164,7 +138,7 @@ describe("silent create output", () => {
         runtime: "node",
         database: "postgres",
         orm: "drizzle",
-        api: "trpc",
+        api: "orpc",
         auth: "none",
         payments: "none",
         addons: [],

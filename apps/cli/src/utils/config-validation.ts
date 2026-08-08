@@ -2,11 +2,8 @@ import { Result } from "better-result";
 
 import type { CLIInput, Database, DatabaseSetup, ProjectConfig, Runtime } from "../types";
 import {
-  CONVEX_BETTER_AUTH_INCOMPATIBLE_FRONTENDS,
-  CONVEX_BETTER_AUTH_SUPPORTED_FRONTENDS,
   ensureSingleWebAndNative,
   isWebFrontend,
-  supportsConvexBetterAuth,
   validateAddonsAgainstFrontends,
   validateApiFrontendCompatibility,
   validateExamplesCompatibility,
@@ -131,11 +128,6 @@ export function validateDatabaseSetup(
     DatabaseSetup,
     { database?: Database; runtime?: Runtime; errorMessage: string }
   > = {
-    turso: {
-      database: "sqlite",
-      errorMessage:
-        "Turso setup requires SQLite database. Please use '--database sqlite' or choose a different setup.",
-    },
     neon: {
       database: "postgres",
       errorMessage:
@@ -145,10 +137,6 @@ export function validateDatabaseSetup(
       database: "postgres",
       errorMessage:
         "Prisma PostgreSQL setup requires PostgreSQL database. Please use '--database postgres' or choose a different setup.",
-    },
-    planetscale: {
-      errorMessage:
-        "PlanetScale setup requires PostgreSQL or MySQL database. Please use '--database postgres' or '--database mysql' or choose a different setup.",
     },
     "mongodb-atlas": {
       database: "mongodb",
@@ -174,14 +162,8 @@ export function validateDatabaseSetup(
   if (dbSetup && dbSetup !== "none") {
     const validation = setupValidations[dbSetup];
 
-    if (dbSetup === "planetscale") {
-      if (database !== "postgres" && database !== "mysql") {
-        return validationErr(validation.errorMessage);
-      }
-    } else {
-      if (validation.database && database !== validation.database) {
-        return validationErr(validation.errorMessage);
-      }
+    if (validation.database && database !== validation.database) {
+      return validationErr(validation.errorMessage);
     }
 
     if (validation.runtime && runtime !== validation.runtime) {
@@ -224,79 +206,9 @@ export function validateDatabaseSetup(
 }
 
 export function validateConvexConstraints(
-  config: Partial<ProjectConfig>,
-  providedFlags: Set<string>,
+  _config: Partial<ProjectConfig>,
+  _providedFlags: Set<string>,
 ): ValidationResult {
-  const { backend } = config;
-
-  if (backend !== "convex") {
-    return Result.ok(undefined);
-  }
-
-  const has = (k: string) => providedFlags.has(k);
-
-  if (has("runtime") && config.runtime !== "none") {
-    return validationErr(
-      "Convex backend requires '--runtime none'. Please remove the --runtime flag or set it to 'none'.",
-    );
-  }
-
-  if (has("database") && config.database !== "none") {
-    return validationErr(
-      "Convex backend requires '--database none'. Please remove the --database flag or set it to 'none'.",
-    );
-  }
-
-  if (has("orm") && config.orm !== "none") {
-    return validationErr(
-      "Convex backend requires '--orm none'. Please remove the --orm flag or set it to 'none'.",
-    );
-  }
-
-  if (has("api") && config.api !== "none") {
-    return validationErr(
-      "Convex backend requires '--api none'. Please remove the --api flag or set it to 'none'.",
-    );
-  }
-
-  if (has("dbSetup") && config.dbSetup !== "none") {
-    return validationErr(
-      "Convex backend requires '--db-setup none'. Please remove the --db-setup flag or set it to 'none'.",
-    );
-  }
-
-  if (has("serverDeploy") && config.serverDeploy !== "none") {
-    return validationErr(
-      "Convex backend requires '--server-deploy none'. Please remove the --server-deploy flag or set it to 'none'.",
-    );
-  }
-
-  if (has("auth") && config.auth === "better-auth") {
-    const incompatibleFrontends =
-      config.frontend?.filter((f) =>
-        CONVEX_BETTER_AUTH_INCOMPATIBLE_FRONTENDS.includes(
-          f as (typeof CONVEX_BETTER_AUTH_INCOMPATIBLE_FRONTENDS)[number],
-        ),
-      ) ?? [];
-    const hasSupportedFrontend = supportsConvexBetterAuth(config.frontend);
-
-    if (incompatibleFrontends.length > 0) {
-      return validationErr(
-        `Better Auth with '--backend convex' is not compatible with the following frontends: ${incompatibleFrontends.join(
-          ", ",
-        )}. Please use a React-based web frontend (next, tanstack-start, tanstack-router, react-router), a supported native frontend, or choose a different auth provider.`,
-      );
-    }
-
-    if (!hasSupportedFrontend) {
-      return validationErr(
-        `Better Auth with '--backend convex' requires a supported frontend (${CONVEX_BETTER_AUTH_SUPPORTED_FRONTENDS.join(
-          ", ",
-        )}).`,
-      );
-    }
-  }
-
   return Result.ok(undefined);
 }
 
@@ -391,40 +303,10 @@ export function validateBackendConstraints(
 ): ValidationResult {
   const { backend } = config;
 
-  if (config.auth === "clerk" && config.frontend) {
-    const incompatibleFrontends = config.frontend.filter((f) =>
-      ["nuxt", "svelte", "solid", "astro"].includes(f),
-    );
-    if (incompatibleFrontends.length > 0) {
-      return validationErr(
-        `Clerk authentication is not compatible with the following frontends: ${incompatibleFrontends.join(
-          ", ",
-        )}. Please choose a different frontend or auth provider.`,
-      );
-    }
-  }
-
-  if (
-    providedFlags.has("backend") &&
-    backend &&
-    backend !== "convex" &&
-    backend !== "none" &&
-    backend !== "self"
-  ) {
+  if (providedFlags.has("backend") && backend && backend !== "none" && backend !== "self") {
     if (providedFlags.has("runtime") && options.runtime === "none") {
       return validationErr(
-        "'--runtime none' is only supported with '--backend convex', '--backend none', or '--backend self'. Please choose 'bun', 'node', or remove the --runtime flag.",
-      );
-    }
-  }
-
-  if (backend === "convex" && providedFlags.has("frontend") && options.frontend) {
-    const incompatibleFrontends = options.frontend.filter((f) => f === "solid" || f === "astro");
-    if (incompatibleFrontends.length > 0) {
-      return validationErr(
-        `The following frontends are not compatible with '--backend convex': ${incompatibleFrontends.join(
-          ", ",
-        )}. Please choose a different frontend or backend.`,
+        "'--runtime none' is only supported with '--backend none' or '--backend self'. Please choose 'bun', 'node', or remove the --runtime flag.",
       );
     }
   }
@@ -469,11 +351,7 @@ export function validateApiConstraints(
   options: CLIInput,
 ): ValidationResult {
   if (config.api === "none") {
-    if (
-      options.examples?.includes("todo") &&
-      options.backend !== "convex" &&
-      options.backend !== "none"
-    ) {
+    if (options.examples?.includes("todo") && options.backend !== "none") {
       return validationErr(
         "Cannot use '--examples todo' when '--api' is set to 'none'. The todo example requires an API layer. Please remove 'todo' from --examples or choose an API type.",
       );

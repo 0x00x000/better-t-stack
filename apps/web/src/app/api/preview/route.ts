@@ -115,7 +115,7 @@ function stackStateToConfig(state: StackState): ProjectConfig {
     packageManager: (state.packageManager || "bun") as ProjectConfig["packageManager"],
     install: false,
     dbSetup: (state.dbSetup || "none") as ProjectConfig["dbSetup"],
-    api: (state.api || "trpc") as ProjectConfig["api"],
+    api: (state.api || "orpc") as ProjectConfig["api"],
     webDeploy: (state.webDeploy || "none") as ProjectConfig["webDeploy"],
     serverDeploy: (state.serverDeploy || "none") as ProjectConfig["serverDeploy"],
   };

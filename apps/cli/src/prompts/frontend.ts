@@ -17,10 +17,6 @@ const WEB_FRONTEND_VALUES: readonly Frontend[] = [
   "tanstack-router",
   "react-router",
   "next",
-  "nuxt",
-  "svelte",
-  "solid",
-  "astro",
   "tanstack-start",
 ];
 
@@ -82,26 +78,6 @@ export async function getFrontendChoice(
           value: "next" as const,
           label: "Next.js",
           hint: "The React Framework for the Web",
-        },
-        {
-          value: "nuxt" as const,
-          label: "Nuxt",
-          hint: "The Progressive Web Framework for Vue.js",
-        },
-        {
-          value: "svelte" as const,
-          label: "Svelte",
-          hint: "web development for the rest of us",
-        },
-        {
-          value: "solid" as const,
-          label: "Solid",
-          hint: "Simple and performant reactivity for building user interfaces",
-        },
-        {
-          value: "astro" as const,
-          label: "Astro",
-          hint: "The web framework for content-driven websites",
         },
         {
           value: "tanstack-start" as const,

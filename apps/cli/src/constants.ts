@@ -30,7 +30,7 @@ export const DEFAULT_CONFIG_BASE = {
   dbSetup: "none",
   backend: "hono",
   runtime: "bun",
-  api: "trpc",
+  api: "orpc",
   webDeploy: "none",
   serverDeploy: "none",
 } as const;
@@ -51,7 +51,7 @@ export const DEFAULT_CONFIG = getDefaultConfig();
 export { desktopWebFrontends };
 
 export const ADDON_COMPATIBILITY = {
-  pwa: ["tanstack-router", "react-router", "solid", "next"],
+  pwa: ["tanstack-router", "react-router", "next"],
   tauri: desktopWebFrontends,
   electrobun: desktopWebFrontends,
   biome: [],
@@ -60,7 +60,6 @@ export const ADDON_COMPATIBILITY = {
   turborepo: [],
   nx: [],
   "vite-plus": [],
-  starlight: [],
   ultracite: [],
   mcp: [],
   oxlint: [],

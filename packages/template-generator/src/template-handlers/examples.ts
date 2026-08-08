@@ -3,6 +3,8 @@ import type { ProjectConfig } from "@better-t-stack/types";
 import type { VirtualFileSystem } from "../core/virtual-fs";
 import { type TemplateData, processTemplatesFromPrefix } from "./utils";
 
+const REACT_WEB_FRONTENDS = ["tanstack-router", "react-router", "tanstack-start", "next"] as const;
+
 export async function processExampleTemplates(
   vfs: VirtualFileSystem,
   templates: TemplateData,
@@ -11,12 +13,8 @@ export async function processExampleTemplates(
   if (!config.examples || config.examples.length === 0 || config.examples[0] === "none") return;
 
   const hasReactWeb = config.frontend.some((f) =>
-    ["tanstack-router", "react-router", "tanstack-start", "next"].includes(f),
+    REACT_WEB_FRONTENDS.includes(f as (typeof REACT_WEB_FRONTENDS)[number]),
   );
-  const hasNuxtWeb = config.frontend.includes("nuxt");
-  const hasSvelteWeb = config.frontend.includes("svelte");
-  const hasSolidWeb = config.frontend.includes("solid");
-  const hasAstroWeb = config.frontend.includes("astro");
   const hasNativeBare = config.frontend.includes("native-bare");
   const hasUniwind = config.frontend.includes("native-uniwind");
   const hasUnistyles = config.frontend.includes("native-unistyles");
@@ -25,15 +23,7 @@ export async function processExampleTemplates(
   for (const example of config.examples) {
     if (example === "none") continue;
 
-    if (config.backend === "convex") {
-      processTemplatesFromPrefix(
-        vfs,
-        templates,
-        `examples/${example}/convex/packages/backend`,
-        "packages/backend",
-        config,
-      );
-    } else if (config.backend !== "none" && config.api !== "none") {
+    if (config.backend !== "none" && config.api !== "none") {
       processTemplatesFromPrefix(
         vfs,
         templates,
@@ -55,7 +45,7 @@ export async function processExampleTemplates(
 
     if (hasReactWeb) {
       const reactFramework = config.frontend.find((f) =>
-        ["next", "react-router", "tanstack-router", "tanstack-start"].includes(f),
+        REACT_WEB_FRONTENDS.includes(f as (typeof REACT_WEB_FRONTENDS)[number]),
       );
       if (reactFramework) {
         processTemplatesFromPrefix(
@@ -79,56 +69,6 @@ export async function processExampleTemplates(
           );
         }
       }
-    } else if (hasNuxtWeb) {
-      if (config.backend === "self") {
-        processTemplatesFromPrefix(
-          vfs,
-          templates,
-          `examples/${example}/fullstack/nuxt`,
-          "apps/web",
-          config,
-        );
-      }
-      processTemplatesFromPrefix(
-        vfs,
-        templates,
-        `examples/${example}/web/nuxt`,
-        "apps/web",
-        config,
-      );
-    } else if (hasSvelteWeb) {
-      if (config.backend === "self") {
-        processTemplatesFromPrefix(
-          vfs,
-          templates,
-          `examples/${example}/fullstack/svelte`,
-          "apps/web",
-          config,
-        );
-      }
-      processTemplatesFromPrefix(
-        vfs,
-        templates,
-        `examples/${example}/web/svelte`,
-        "apps/web",
-        config,
-      );
-    } else if (hasSolidWeb) {
-      processTemplatesFromPrefix(
-        vfs,
-        templates,
-        `examples/${example}/web/solid`,
-        "apps/web",
-        config,
-      );
-    } else if (hasAstroWeb) {
-      processTemplatesFromPrefix(
-        vfs,
-        templates,
-        `examples/${example}/web/astro`,
-        "apps/web",
-        config,
-      );
     }
 
     if (hasNative) {

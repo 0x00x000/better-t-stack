@@ -5,8 +5,4 @@ export const desktopWebFrontends = [
   "react-router",
   "tanstack-start",
   "next",
-  "nuxt",
-  "svelte",
-  "solid",
-  "astro",
 ] as const satisfies readonly DesktopWebFrontend[];

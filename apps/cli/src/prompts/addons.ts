@@ -72,10 +72,6 @@ function getAddonDisplay(addon: Addons): { label: string; hint: string } {
       label = "Husky";
       hint = "Modern native Git hooks made easy";
       break;
-    case "starlight":
-      label = "Starlight";
-      hint = "Build stellar docs with astro";
-      break;
     case "fumadocs":
       label = "Fumadocs";
       hint = "Build excellent documentation site";
@@ -111,7 +107,7 @@ function getAddonDisplay(addon: Addons): { label: string; hint: string } {
 const ADDON_GROUPS = {
   "Monorepo & Tasks": ["turborepo", "nx", "vite-plus"],
   "Code Quality": ["biome", "oxlint", "ultracite", "husky", "lefthook"],
-  Documentation: ["starlight", "fumadocs"],
+  Documentation: ["fumadocs"],
   "Platform Extensions": ["pwa", "tauri", "electrobun", "opentui", "wxt"],
   Observability: ["evlog"],
   "AI & Agent Tools": ["skills", "mcp"],

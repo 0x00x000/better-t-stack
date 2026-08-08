@@ -26,7 +26,7 @@ function createTuiConfig(overrides: Partial<ProjectConfig> = {}): ProjectConfig 
     packageManager: "bun",
     install: false,
     dbSetup: "none",
-    api: "trpc",
+    api: "orpc",
     webDeploy: "none",
     serverDeploy: "none",
     ...overrides,

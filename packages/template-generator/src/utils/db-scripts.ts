@@ -15,7 +15,6 @@ export function getDbScriptSupport(config: ProjectConfig): DbScriptSupport {
     (config.serverDeploy === "cloudflare" ||
       (config.backend === "self" && config.webDeploy === "cloudflare"));
   const hasDbScripts =
-    config.backend !== "convex" &&
     config.backend !== "none" &&
     config.database !== "none" &&
     config.orm !== "none" &&

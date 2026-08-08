@@ -18,13 +18,13 @@ describe("Tauri setup", () => {
         expectedBuildCommand: "bun run build",
       },
       {
-        frontend: ["nuxt"],
+        frontend: ["tanstack-router"],
         expectedDist: "../.output/public",
         expectedUrl: "http://localhost:3001",
         expectedBuildCommand: "bun run generate",
       },
       {
-        frontend: ["astro"],
+        frontend: ["next"],
         expectedDist: "../dist",
         expectedUrl: "http://localhost:4321",
         expectedBuildCommand: "bun run build",
@@ -36,7 +36,7 @@ describe("Tauri setup", () => {
         expectedBuildCommand: "bun run build",
       },
       {
-        frontend: ["solid"],
+        frontend: ["tanstack-router"],
         expectedDist: "../dist",
         expectedUrl: "http://localhost:3001",
         expectedBuildCommand: "bun run build",

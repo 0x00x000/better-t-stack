@@ -9,7 +9,6 @@ export interface DatabaseSetupCliOptions {
 export type DbSetupMode = NonNullable<DbSetupOptions["mode"]>;
 
 const REMOTE_PROVISIONING_DB_SETUPS: DatabaseSetup[] = [
-  "turso",
   "neon",
   "prisma-postgres",
   "supabase",

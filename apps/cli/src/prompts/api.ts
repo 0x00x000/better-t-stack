@@ -1,3 +1,4 @@
+import { DEFAULT_CONFIG } from "../constants";
 import type { API, Backend, Frontend } from "../types";
 import {
   allowedApisForFrontends,
@@ -12,7 +13,7 @@ export async function getApiChoice(
   backend?: Backend,
   previousValue?: API,
 ) {
-  if (backend === "convex" || backend === "none") {
+  if (backend === "none") {
     return "none";
   }
 
@@ -24,29 +25,27 @@ export async function getApiChoice(
     return Api;
   }
   const apiOptions = allowed.map((a) =>
-    a === "trpc"
+    a === "orpc"
       ? {
-          value: "trpc" as const,
-          label: "tRPC",
-          hint: "End-to-end typesafe APIs made easy",
+          value: "orpc" as const,
+          label: "oRPC",
+          hint: "End-to-end type-safe APIs that adhere to OpenAPI standards",
         }
-      : a === "orpc"
-        ? {
-            value: "orpc" as const,
-            label: "oRPC",
-            hint: "End-to-end type-safe APIs that adhere to OpenAPI standards",
-          }
-        : {
-            value: "none" as const,
-            label: "None",
-            hint: "No API layer (e.g. for full-stack frameworks like Next.js with Route Handlers)",
-          },
+      : {
+          value: "none" as const,
+          label: "None",
+          hint: "No API layer (e.g. for full-stack frameworks like Next.js with Route Handlers)",
+        },
   );
 
   const apiType = await navigableSelect<API>({
     message: "Choose an API layer",
     options: apiOptions,
-    initialValue: preferValidInitial(apiOptions, previousValue, apiOptions[0].value),
+    initialValue: preferValidInitial(
+      apiOptions,
+      previousValue,
+      apiOptions.some((o) => o.value === DEFAULT_CONFIG.api) ? DEFAULT_CONFIG.api : "orpc",
+    ),
   });
 
   if (isCancel(apiType)) throw new UserCancelledError({ message: "Operation cancelled" });

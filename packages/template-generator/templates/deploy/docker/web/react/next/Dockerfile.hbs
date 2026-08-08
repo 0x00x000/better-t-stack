@@ -25,18 +25,6 @@ RUN --mount=type=cache,target=/pnpm-store pnpm install --store-dir /pnpm-store
 RUN --mount=type=cache,target=/root/.npm npm install
 {{/if}}
 
-{{#if (and (ne backend "self") (ne backend "none") (ne backend "convex"))}}
-ARG NEXT_PUBLIC_SERVER_URL
-ENV NEXT_PUBLIC_SERVER_URL=${NEXT_PUBLIC_SERVER_URL}
-{{/if}}
-{{#if (eq backend "convex")}}
-ARG NEXT_PUBLIC_CONVEX_URL
-ENV NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL}
-{{/if}}
-{{#if (eq auth "clerk")}}
-ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-{{/if}}
 ENV NODE_ENV=production
 RUN cd apps/web && {{packageManager}} run build
 # standalone output excludes public/; ensure it exists so the runner copy never fails

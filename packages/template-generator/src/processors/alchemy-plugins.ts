@@ -9,21 +9,12 @@ export function processAlchemyPlugins(vfs: VirtualFileSystem, config: ProjectCon
   if (webDeploy !== "cloudflare") return;
 
   const isNext = frontend.includes("next");
-  const isNuxt = frontend.includes("nuxt");
-  const isSvelte = frontend.includes("svelte");
   const isTanstackStart = frontend.includes("tanstack-start");
-  const isAstro = frontend.includes("astro");
 
   if (isNext) {
     processNextAlchemy(vfs);
-  } else if (isNuxt) {
-    processNuxtAlchemy(vfs);
-  } else if (isSvelte) {
-    processSvelteAlchemy(vfs);
   } else if (isTanstackStart) {
     processTanStackStartAlchemy(vfs);
-  } else if (isAstro) {
-    processAstroAlchemy(vfs);
   }
 }
 

@@ -21,7 +21,7 @@ const baseConfig: ProjectConfig = {
   dbSetup: "none",
   backend: "hono",
   runtime: "bun",
-  api: "trpc",
+  api: "orpc",
   webDeploy: "none",
   serverDeploy: "none",
 };
@@ -71,7 +71,7 @@ describe("Vite+ config generator", () => {
 
     const nuxtPatterns = getVitePlusIgnorePatterns(
       configWith({
-        frontend: ["nuxt"],
+        frontend: ["tanstack-router"],
         api: "orpc",
       }),
     );
@@ -97,7 +97,7 @@ describe("Vite+ config generator", () => {
     expect(patterns).toContain(".wrangler/**");
   });
 
-  it("adds ORM and Convex generated paths only for matching stacks", () => {
+  it("adds ORM generated paths only for matching stacks", () => {
     const prismaPatterns = getVitePlusIgnorePatterns(
       configWith({
         orm: "prisma",
@@ -108,35 +108,22 @@ describe("Vite+ config generator", () => {
     expect(prismaPatterns).toContain("packages/db/dist/**");
     expect(prismaPatterns).toContain("packages/db/prisma/generated/**");
     expect(prismaPatterns).not.toContain("packages/db/prisma/**/*.db*");
-    expect(prismaPatterns).not.toContain("packages/backend/convex/_generated/**");
-
-    const convexPatterns = getVitePlusIgnorePatterns(
-      configWith({
-        backend: "convex",
-        database: "none",
-        orm: "none",
-      }),
-    );
-
-    expect(convexPatterns).toContain("packages/backend/convex/_generated/**");
-    expect(convexPatterns).not.toContain("apps/server/dist/**");
-    expect(convexPatterns).not.toContain("packages/db/dist/**");
-    expect(convexPatterns).not.toContain("packages/db/prisma/generated/**");
   });
 
-  it("adds Turso local database paths only for matching SQLite stacks", () => {
-    const tursoPatterns = getVitePlusIgnorePatterns(
+  it("adds local SQLite database paths for matching stacks", () => {
+    const sqlitePatterns = getVitePlusIgnorePatterns(
       configWith({
-        dbSetup: "turso",
+        database: "sqlite",
+        orm: "drizzle",
       }),
     );
 
-    expect(tursoPatterns).toContain("packages/db/local.db*");
-    expect(tursoPatterns).not.toContain("packages/db/prisma/**/*.db*");
+    expect(sqlitePatterns).toContain("packages/db/local.db*");
+    expect(sqlitePatterns).not.toContain("packages/db/prisma/**/*.db*");
 
     const prismaTursoPatterns = getVitePlusIgnorePatterns(
       configWith({
-        dbSetup: "turso",
+        dbSetup: "neon",
         orm: "prisma",
       }),
     );

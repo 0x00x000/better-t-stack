@@ -3,6 +3,13 @@ import type { ProjectConfig } from "@better-t-stack/types";
 import type { VirtualFileSystem } from "../core/virtual-fs";
 import { type TemplateData, processTemplatesFromPrefix } from "./utils";
 
+const DOCKER_WEB_TEMPLATE_MAP: Record<string, string> = {
+  "tanstack-router": "react/tanstack-router",
+  "tanstack-start": "react/tanstack-start",
+  "react-router": "react/react-router",
+  next: "react/next",
+};
+
 export async function processDeployTemplates(
   vfs: VirtualFileSystem,
   templates: TemplateData,
@@ -27,23 +34,13 @@ export async function processDeployTemplates(
     config.webDeploy !== "cloudflare" &&
     config.webDeploy !== "vercel"
   ) {
-    const templateMap: Record<string, string> = {
-      "tanstack-router": "react/tanstack-router",
-      "tanstack-start": "react/tanstack-start",
-      "react-router": "react/react-router",
-      solid: "solid",
-      next: "react/next",
-      nuxt: "nuxt",
-      svelte: "svelte",
-      astro: "astro",
-    };
-
     for (const f of config.frontend) {
-      if (templateMap[f]) {
+      const templatePath = DOCKER_WEB_TEMPLATE_MAP[f];
+      if (templatePath) {
         processTemplatesFromPrefix(
           vfs,
           templates,
-          `deploy/${config.webDeploy}/web/${templateMap[f]}`,
+          `deploy/${config.webDeploy}/web/${templatePath}`,
           "apps/web",
           config,
         );

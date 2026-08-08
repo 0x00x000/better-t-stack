@@ -4,7 +4,7 @@ export const TEMPLATE_PRESETS: Record<Template, CreateInput | null> = {
   mern: {
     database: "mongodb",
     orm: "mongoose",
-    backend: "express",
+    backend: "hono",
     runtime: "node",
     frontend: ["react-router"],
     api: "orpc",
@@ -19,10 +19,10 @@ export const TEMPLATE_PRESETS: Record<Template, CreateInput | null> = {
   pern: {
     database: "postgres",
     orm: "drizzle",
-    backend: "express",
+    backend: "hono",
     runtime: "node",
     frontend: ["tanstack-router"],
-    api: "trpc",
+    api: "orpc",
     auth: "better-auth",
     payments: "none",
     addons: ["turborepo"],
@@ -37,7 +37,7 @@ export const TEMPLATE_PRESETS: Record<Template, CreateInput | null> = {
     backend: "self",
     runtime: "none",
     frontend: ["next"],
-    api: "trpc",
+    api: "orpc",
     auth: "better-auth",
     payments: "none",
     addons: ["biome", "turborepo"],
@@ -79,9 +79,9 @@ export function getTemplateConfig(template: Template) {
 
 export function getTemplateDescription(template: Template) {
   const descriptions: Record<Template, string> = {
-    mern: "MongoDB + Express + React + Node.js - Classic MERN stack",
-    pern: "PostgreSQL + Express + React + Node.js - Popular PERN stack",
-    t3: "T3 Stack - Next.js + tRPC + Prisma + PostgreSQL + Better Auth",
+    mern: "MongoDB + Hono + React + Node.js - MERN-style stack",
+    pern: "PostgreSQL + Hono + React + Node.js - PERN-style stack",
+    t3: "T3 Stack - Next.js + oRPC + Prisma + PostgreSQL + Better Auth",
     uniwind: "Expo + Uniwind native app with no backend services",
     none: "No template - Full customization",
   };

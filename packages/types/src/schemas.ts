@@ -6,9 +6,7 @@ export const DatabaseSchema = z
 
 export const ORMSchema = z.enum(["drizzle", "prisma", "mongoose", "none"]).describe("ORM type");
 
-export const BackendSchema = z
-  .enum(["hono", "express", "fastify", "elysia", "convex", "self", "none"])
-  .describe("Backend framework");
+export const BackendSchema = z.enum(["hono", "self", "none"]).describe("Backend framework");
 
 export const RuntimeSchema = z
   .enum(["bun", "node", "workers", "none"])
@@ -20,13 +18,9 @@ export const FrontendSchema = z
     "react-router",
     "tanstack-start",
     "next",
-    "nuxt",
     "native-bare",
     "native-uniwind",
     "native-unistyles",
-    "svelte",
-    "solid",
-    "astro",
     "none",
   ])
   .describe("Frontend framework");
@@ -36,7 +30,6 @@ export const AddonsSchema = z
     "pwa",
     "tauri",
     "electrobun",
-    "starlight",
     "biome",
     "lefthook",
     "husky",
@@ -72,26 +65,14 @@ export const ExamplesSchema = z
 export const PackageManagerSchema = z.enum(["npm", "pnpm", "bun"]).describe("Package manager");
 
 export const DatabaseSetupSchema = z
-  .enum([
-    "turso",
-    "neon",
-    "prisma-postgres",
-    "planetscale",
-    "mongodb-atlas",
-    "supabase",
-    "d1",
-    "docker",
-    "none",
-  ])
+  .enum(["neon", "prisma-postgres", "mongodb-atlas", "supabase", "d1", "docker", "none"])
   .describe("Database hosting setup");
 
-export const APISchema = z.enum(["trpc", "orpc", "none"]).describe("API type");
+export const APISchema = z.enum(["orpc", "none"]).describe("API type");
 
-export const AuthSchema = z
-  .enum(["better-auth", "clerk", "none"])
-  .describe("Authentication provider");
+export const AuthSchema = z.enum(["better-auth", "none"]).describe("Authentication provider");
 
-export const PaymentsSchema = z.enum(["polar", "none"]).describe("Payments provider");
+export const PaymentsSchema = z.enum(["none"]).describe("Payments provider");
 
 export const WebDeploySchema = z
   .enum(["cloudflare", "docker", "vercel", "none"])
@@ -109,11 +90,9 @@ export const TemplateSchema = z
   .enum(["mern", "pern", "t3", "uniwind", "none"])
   .describe("Predefined project template");
 
-export const WxtTemplateSchema = z
-  .enum(["vanilla", "vue", "react", "solid", "svelte"])
-  .describe("WXT template");
+export const WxtTemplateSchema = z.enum(["vanilla", "vue", "react"]).describe("WXT template");
 
-export const TuiTemplateSchema = z.enum(["core", "react", "solid"]).describe("OpenTUI template");
+export const TuiTemplateSchema = z.enum(["core", "react"]).describe("OpenTUI template");
 
 export const FumadocsTemplateSchema = z
   .enum([
@@ -124,7 +103,6 @@ export const FumadocsTemplateSchema = z
     "react-router-spa",
     "tanstack-start",
     "tanstack-start-spa",
-    "astro",
   ])
   .describe("Fumadocs template");
 
@@ -148,20 +126,12 @@ export const McpServerSchema = z
     "context7",
     "nx",
     "cloudflare-docs",
-    "convex",
     "shadcn",
     "next-devtools",
-    "nuxt-docs",
-    "nuxt-ui-docs",
-    "svelte-docs",
-    "astro-docs",
-    "planetscale",
     "neon",
     "supabase",
     "better-auth",
-    "clerk",
     "expo",
-    "polar",
   ])
   .describe("MCP server to install");
 
@@ -193,18 +163,13 @@ export const SkillsSourceSchema = z
     "vercel/turborepo",
     "yusukebe/hono-skill",
     "vercel-labs/next-skills",
-    "nuxt/ui",
     "heroui-inc/heroui",
     "shadcn/ui",
     "better-auth/skills",
-    "clerk/skills",
     "neondatabase/agent-skills",
     "supabase/agent-skills",
-    "planetscale/database-skills",
     "expo/skills",
     "prisma/skills",
-    "elysiajs/skills",
-    "waynesutton/convexskills",
     "msmps/opentui-skill",
     "haydenbleasel/ultracite",
     "https://www.evlog.dev",
@@ -443,17 +408,6 @@ export const DbSetupOptionsSchema = z
       })
       .optional()
       .describe("Options for Prisma Postgres setup"),
-    turso: z
-      .strictObject({
-        databaseName: z.string().min(1).optional().describe("Turso database name"),
-        groupName: z.string().min(1).optional().describe("Turso database group name"),
-        installCli: z
-          .boolean()
-          .optional()
-          .describe("Whether the CLI may install the Turso CLI automatically"),
-      })
-      .optional()
-      .describe("Options for Turso setup"),
   })
   .describe("Database setup configuration");
 
@@ -478,7 +432,6 @@ export const CreateInputSchema = z
     projectName: z.string().optional(),
     template: TemplateSchema.optional(),
     yes: z.boolean().optional(),
-    yolo: z.boolean().optional(),
     dryRun: z.boolean().optional(),
     verbose: z.boolean().optional(),
     addonOptions: AddonOptionsSchema.optional(),
@@ -501,7 +454,6 @@ export const CreateInputSchema = z
     serverDeploy: ServerDeploySchema.optional(),
     directoryConflict: DirectoryConflictSchema.optional(),
     renderTitle: z.boolean().optional(),
-    disableAnalytics: z.boolean().optional(),
     manualDb: z.boolean().optional(),
   })
   .strict()

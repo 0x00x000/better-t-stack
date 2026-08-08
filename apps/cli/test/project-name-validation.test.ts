@@ -49,7 +49,6 @@ describe("Project name validation hardening", () => {
     const result = await create(projectPath, {
       yes: true,
       install: false,
-      disableAnalytics: true,
       directoryConflict: "overwrite",
     });
 

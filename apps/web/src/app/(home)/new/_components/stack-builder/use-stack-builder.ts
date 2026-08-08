@@ -1,15 +1,10 @@
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { DEFAULT_STACK, PRESET_TEMPLATES, type StackState, TECH_OPTIONS } from "@/lib/constant";
+import { DEFAULT_STACK, type StackState, TECH_OPTIONS } from "@/lib/constant";
 import { sanitizeStackState, TASK_RUNNER_ADDONS } from "@/lib/sanitize-stack-addons";
 import { useStackState } from "@/lib/stack-url-state.client";
-import {
-  CATEGORY_ORDER,
-  formatProjectName,
-  generateStackCommand,
-  generateStackSharingUrl,
-} from "@/lib/stack-utils";
+import { CATEGORY_ORDER, formatProjectName, generateStackCommand } from "@/lib/stack-utils";
 import type { TechCategory } from "@/lib/types";
 
 import { analyzeStackCompatibility, isOptionCompatible, validateProjectName } from "../utils";
@@ -290,10 +285,6 @@ export function useStackBuilder() {
     return categoryProgress.reduce((total, entry) => total + entry.selected, 0);
   }, [categoryProgress]);
 
-  function getStackUrl() {
-    return generateStackSharingUrl(withFormattedProjectName(effectiveStack));
-  }
-
   function getRandomStack() {
     const randomStack: Partial<StackState> = {};
 
@@ -398,29 +389,13 @@ export function useStackBuilder() {
     toast.success("Saved configuration loaded");
   }
 
-  function applyPreset(presetId: string) {
-    const preset = PRESET_TEMPLATES.find((template) => template.id === presetId);
-    if (!preset) {
-      return;
-    }
-
-    startTransition(() => {
-      setStack(preset.stack);
-    });
-
-    contentRef.current?.scrollTo(0, 0);
-    toast.success(`Applied preset: ${preset.name}`);
-  }
-
   return {
-    applyPreset,
     categoryProgress,
     command,
     compatibilityAnalysis,
     copied,
     copyToClipboard,
     getRandomStack,
-    getStackUrl,
     handleTechSelect,
     lastSavedStack,
     loadSavedStack,

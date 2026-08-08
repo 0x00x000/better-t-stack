@@ -11,8 +11,8 @@ async function generateReadme(config: Parameters<typeof createVirtual>[0]): Prom
     runtime: "bun",
     database: "sqlite",
     orm: "drizzle",
-    auth: "clerk",
-    api: "trpc",
+    auth: "better-auth",
+    api: "orpc",
     addons: ["turborepo"],
     examples: ["todo"],
     dbSetup: "none",
@@ -36,50 +36,14 @@ async function generateReadme(config: Parameters<typeof createVirtual>[0]): Prom
 }
 
 describe("README generation", () => {
-  it("documents Clerk env setup for next + express", async () => {
+  it("includes project structure for a standard hono stack", async () => {
     const readme = await generateReadme({
-      frontend: ["next"],
-      backend: "express",
-    });
-
-    expect(readme).toContain("`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` in `apps/web/.env`");
-    expect(readme).toContain("`CLERK_SECRET_KEY` in `apps/web/.env` for Clerk server middleware");
-    expect(readme).toContain("`CLERK_SECRET_KEY` in `apps/server/.env` for server-side Clerk auth");
-    expect(readme).toContain(
-      "`CLERK_PUBLISHABLE_KEY` in `apps/server/.env` for Clerk backend middleware",
-    );
-  });
-
-  it("documents Clerk request verification for self backends", async () => {
-    const readme = await generateReadme({
-      frontend: ["next"],
-      backend: "self",
-      runtime: "none",
-    });
-
-    expect(readme).toContain("`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` in `apps/web/.env`");
-    expect(readme).toContain(
-      "`CLERK_SECRET_KEY` in `apps/web/.env` for Clerk server middleware and server-side Clerk auth",
-    );
-    expect(readme).toContain(
-      "`CLERK_PUBLISHABLE_KEY` in `apps/web/.env` for server-side Clerk request verification",
-    );
-  });
-
-  it("documents Clerk native env setup for standalone backends", async () => {
-    const readme = await generateReadme({
-      frontend: ["native-uniwind"],
+      frontend: ["tanstack-router"],
       backend: "hono",
-      api: "trpc",
     });
 
-    expect(readme).toContain("`EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` in `apps/native/.env`");
-    expect(readme).toContain("`CLERK_SECRET_KEY` in `apps/server/.env` for server-side Clerk auth");
-    expect(readme).toContain(
-      "`CLERK_PUBLISHABLE_KEY` in `apps/server/.env` for server-side Clerk request verification",
-    );
-    expect(readme).not.toContain("Open [http://localhost:3001]");
-    expect(readme).not.toContain("web/         # Frontend application");
+    expect(readme).toContain("apps/web");
+    expect(readme).toContain("apps/server");
   });
 
   it("documents optional native Vite+ hooks when no hook addon is selected", async () => {

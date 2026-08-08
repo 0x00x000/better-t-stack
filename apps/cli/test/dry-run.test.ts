@@ -15,7 +15,6 @@ describe("Dry run", () => {
     const result = await create(projectPath, {
       yes: true,
       dryRun: true,
-      disableAnalytics: true,
       directoryConflict: "overwrite",
     });
 
@@ -33,7 +32,6 @@ describe("Dry run", () => {
     const result = await create(projectPath, {
       yes: true,
       dryRun: true,
-      disableAnalytics: true,
       directoryConflict: "overwrite",
     });
 

@@ -8,7 +8,7 @@ export async function getRuntimeChoice(
   backend?: Backend,
   previousValue?: Runtime,
 ) {
-  if (backend === "convex" || backend === "none" || backend === "self") {
+  if (backend === "none" || backend === "self") {
     return "none";
   }
 

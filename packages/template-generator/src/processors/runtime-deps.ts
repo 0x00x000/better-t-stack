@@ -11,7 +11,7 @@ type PackageJson = {
 export function processRuntimeDeps(vfs: VirtualFileSystem, config: ProjectConfig): void {
   const { runtime, backend } = config;
 
-  if (backend === "convex" || backend === "self" || runtime === "none") return;
+  if (backend === "self" || runtime === "none") return;
 
   const serverPath = "apps/server/package.json";
   if (!vfs.exists(serverPath)) return;
@@ -45,12 +45,6 @@ export function processRuntimeDeps(vfs: VirtualFileSystem, config: ProjectConfig
         vfs,
         packagePath: serverPath,
         dependencies: ["@hono/node-server"],
-      });
-    } else if (backend === "elysia") {
-      addPackageDependency({
-        vfs,
-        packagePath: serverPath,
-        dependencies: ["@elysiajs/node"],
       });
     }
   }

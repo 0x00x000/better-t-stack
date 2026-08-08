@@ -30,7 +30,6 @@ export function processNxConfig(vfs: VirtualFileSystem, config: ProjectConfig): 
 
 export function generateNxConfig(config: ProjectConfig): NxConfig {
   const { backend, database, dbSetup, webDeploy, serverDeploy } = config;
-  const isConvex = backend === "convex";
   const dbSupport = getDbScriptSupport(config);
   const hasDatabase = dbSupport.hasDbScripts;
   const isDocker = dbSetup === "docker";
@@ -49,8 +48,7 @@ export function generateNxConfig(config: ProjectConfig): NxConfig {
     dev: {
       cache: false,
     },
-    ...(isConvex ? getConvexTargets() : {}),
-    ...(!isConvex && hasDatabase ? getDatabaseTargets(dbSupport) : {}),
+    ...(hasDatabase ? getDatabaseTargets(dbSupport) : {}),
     ...(isDocker ? getDockerTargets() : {}),
     ...(isSqliteLocal ? getSqliteLocalTarget() : {}),
     ...(hasCloudflare ? getDeployTargets() : {}),
@@ -74,14 +72,6 @@ export function generateNxConfig(config: ProjectConfig): NxConfig {
 
 export function getNxProductionInputExclusions(config: ProjectConfig): string[] {
   return getStackGeneratedIgnorePatterns(config).map((pattern) => `!{workspaceRoot}/${pattern}`);
-}
-
-function getConvexTargets(): Record<string, NxTargetDefaults> {
-  return {
-    "dev:setup": {
-      cache: false,
-    },
-  };
 }
 
 function getDatabaseTargets(dbSupport: DbScriptSupport): Record<string, NxTargetDefaults> {

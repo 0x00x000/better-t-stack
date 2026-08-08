@@ -36,7 +36,7 @@ function getExplicitCreateInput(projectPath: string) {
     runtime: "bun" as const,
     database: "sqlite" as const,
     orm: "drizzle" as const,
-    api: "trpc" as const,
+    api: "orpc" as const,
     auth: "better-auth" as const,
     payments: "none" as const,
     addons: ["turborepo"] as const,
@@ -260,7 +260,7 @@ describe("MCP server", () => {
       name: "bts_plan_project",
       arguments: {
         ...getExplicitCreateInput(path.join(SMOKE_DIR, "mcp-astro-ai")),
-        frontend: ["astro"],
+        frontend: ["next"],
         api: "orpc",
         examples: ["ai"],
       },
@@ -438,7 +438,7 @@ describe("MCP server", () => {
       runtime: "bun",
       database: "sqlite",
       orm: "drizzle",
-      api: "trpc",
+      api: "orpc",
       auth: "none",
       payments: "none",
       addons: ["turborepo"],
@@ -449,7 +449,6 @@ describe("MCP server", () => {
       install: false,
       git: true,
       packageManager: "bun",
-      disableAnalytics: true,
     });
     expect(createResult.isOk()).toBe(true);
 
@@ -491,7 +490,7 @@ describe("MCP server", () => {
       runtime: "bun",
       database: "sqlite",
       orm: "drizzle",
-      api: "trpc",
+      api: "orpc",
       auth: "none",
       payments: "none",
       addons: ["turborepo"],
@@ -502,7 +501,6 @@ describe("MCP server", () => {
       install: false,
       git: true,
       packageManager: "bun",
-      disableAnalytics: true,
     });
     expect(createResult.isOk()).toBe(true);
 

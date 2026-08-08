@@ -22,15 +22,15 @@ async function readPnpmWorkspace(config: TestConfig) {
 }
 
 describe("pnpm workspace", () => {
-  it("adds build approvals for the Convex Better Auth Cloudflare stack", async () => {
+  it("adds build approvals for Cloudflare fullstack stacks", async () => {
     const workspace = await readPnpmWorkspace({
-      projectName: "pnpm-convex-cloudflare",
+      projectName: "pnpm-self-cloudflare",
       frontend: ["tanstack-start"],
-      backend: "convex",
+      backend: "self",
       runtime: "none",
-      api: "none",
-      database: "none",
-      orm: "none",
+      api: "orpc",
+      database: "sqlite",
+      orm: "drizzle",
       auth: "better-auth",
       payments: "none",
       addons: ["turborepo"],
@@ -99,7 +99,7 @@ describe("pnpm workspace", () => {
   it("adds esbuild approval for Vite+ stacks", async () => {
     const workspace = await readPnpmWorkspace({
       projectName: "pnpm-svelte-vite-plus",
-      frontend: ["svelte"],
+      frontend: ["react-router"],
       backend: "self",
       runtime: "none",
       api: "orpc",
@@ -123,7 +123,7 @@ describe("pnpm workspace", () => {
       frontend: ["tanstack-router"],
       backend: "hono",
       runtime: "bun",
-      api: "trpc",
+      api: "orpc",
       database: "sqlite",
       orm: "drizzle",
       auth: "none",
@@ -206,7 +206,7 @@ describe("pnpm workspace", () => {
   it("adds build approvals for a plain Nuxt frontend", async () => {
     const workspace = await readPnpmWorkspace({
       projectName: "pnpm-nuxt-ui",
-      frontend: ["nuxt"],
+      frontend: ["tanstack-router"],
       backend: "none",
       runtime: "none",
       api: "none",
@@ -255,7 +255,7 @@ describe("pnpm workspace", () => {
       frontend: ["next"],
       backend: "self",
       runtime: "none",
-      api: "trpc",
+      api: "orpc",
       database: "postgres",
       orm: "prisma",
       auth: "better-auth",
@@ -277,7 +277,7 @@ describe("pnpm workspace", () => {
   it("adds build approvals for Vercel deploys so non-interactive installs succeed", async () => {
     const workspace = await readPnpmWorkspace({
       projectName: "pnpm-vercel-svelte",
-      frontend: ["svelte"],
+      frontend: ["react-router"],
       backend: "self",
       runtime: "none",
       api: "orpc",
@@ -301,8 +301,8 @@ describe("pnpm workspace", () => {
   it("approves Nuxt lifecycle-script dependencies", async () => {
     const workspace = await readPnpmWorkspace({
       projectName: "pnpm-nuxt-builds",
-      frontend: ["nuxt"],
-      backend: "fastify",
+      frontend: ["tanstack-router"],
+      backend: "hono",
       runtime: "node",
       api: "orpc",
       database: "none",
@@ -325,7 +325,7 @@ describe("pnpm workspace", () => {
   it("does not add build approvals for stacks without lifecycle-script dependencies", async () => {
     const workspace = await readPnpmWorkspace({
       projectName: "pnpm-svelte",
-      frontend: ["svelte"],
+      frontend: ["react-router"],
       backend: "none",
       runtime: "none",
       api: "none",

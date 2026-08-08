@@ -67,13 +67,12 @@ function randomStack(rand: () => number): StackState {
     orm: pick(rand, ids("orm")) as StackState["orm"],
     dbSetup: pick(rand, ids("dbSetup")) as StackState["dbSetup"],
     auth: pick(rand, ids("auth")) as StackState["auth"],
-    payments: pick(rand, ids("payments")) as StackState["payments"],
+    payments: "none",
     packageManager: pick(rand, ids("packageManager")) as StackState["packageManager"],
     webDeploy: pick(rand, ids("webDeploy")) as StackState["webDeploy"],
     serverDeploy: pick(rand, ids("serverDeploy")) as StackState["serverDeploy"],
     addons: multi("addons"),
     examples: multi("examples"),
-    yolo: "false",
   });
 }
 
@@ -217,19 +216,19 @@ describe("compatibility adjustment invariants", () => {
     expect(failures.length).toBe(0);
   });
 
-  test("tauri is removed when Convex Better Auth targets Next.js or TanStack Start", () => {
+  test("tauri is removed for self fullstack backends", () => {
     const stack = sanitizeStackState({
       ...DEFAULT_STACK,
       webFrontend: ["next"],
-      backend: "convex",
-      auth: "better-auth",
+      backend: "self-next",
+      runtime: "none",
       addons: ["tauri", "turborepo"],
     });
 
     const adjusted = resolveStackCompatibility(stack).stack;
     expect(adjusted.addons).not.toContain("tauri");
     expect(getDisabledReason(adjusted, "addons", "tauri")).toBe(
-      "Tauri isn't compatible with Convex Better Auth on Next.js or TanStack Start",
+      "Tauri requires a separate backend or no backend",
     );
   });
 });

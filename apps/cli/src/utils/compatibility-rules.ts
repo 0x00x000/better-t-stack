@@ -21,24 +21,6 @@ type ValidationResult = Result<void, ValidationError>;
 type AddonCompatibilityConfig = Pick<ProjectConfig, "frontend" | "auth" | "backend" | "runtime">;
 const TASK_RUNNER_ADDONS = ["turborepo", "nx", "vite-plus"] as const satisfies readonly Addons[];
 const STATIC_DESKTOP_ADDONS: readonly Addons[] = ["tauri", "electrobun"];
-const TAURI_STATIC_EXPORT_FRONTENDS: readonly Frontend[] = ["next", "tanstack-start"];
-
-export const CONVEX_BETTER_AUTH_INCOMPATIBLE_FRONTENDS = [
-  "nuxt",
-  "svelte",
-  "solid",
-  "astro",
-] as const;
-
-export const CONVEX_BETTER_AUTH_SUPPORTED_FRONTENDS = [
-  "tanstack-router",
-  "react-router",
-  "tanstack-start",
-  "next",
-  "native-bare",
-  "native-uniwind",
-  "native-unistyles",
-] as const;
 
 function validationErr(message: string): ValidationResult {
   return Result.err(new ValidationError({ message }));
@@ -63,7 +45,7 @@ export function ensureSingleWebAndNative(frontends: Frontend[]): ValidationResul
   const { web, native } = splitFrontends(frontends);
   if (web.length > 1) {
     return validationErr(
-      "Cannot select multiple web frameworks. Choose only one of: tanstack-router, tanstack-start, react-router, next, nuxt, svelte, solid, astro",
+      "Cannot select multiple web frameworks. Choose only one of: tanstack-router, tanstack-start, react-router, next",
     );
   }
   if (native.length > 1) {
@@ -74,20 +56,10 @@ export function ensureSingleWebAndNative(frontends: Frontend[]): ValidationResul
   return Result.ok(undefined);
 }
 
-// Frontends that support backend="self" (fullstack mode with built-in server routes)
-const FULLSTACK_FRONTENDS: readonly Frontend[] = [
-  "next",
-  "tanstack-start",
-  "nuxt",
-  "svelte",
-  "astro",
-] as const;
-
-const EVLOG_SERVER_BACKENDS: readonly Backend[] = ["hono", "express", "fastify", "elysia"];
-const EVLOG_FULLSTACK_FRONTENDS: readonly Frontend[] = FULLSTACK_FRONTENDS;
+const FULLSTACK_FRONTENDS: readonly Frontend[] = ["next", "tanstack-start"] as const;
 
 const evlogCompatibilityMessage =
-  "evlog addon supports Hono, Express, Fastify, Elysia, or backend self with Next.js, TanStack Start, Nuxt, SvelteKit, or Astro. Convex and backend none are not supported yet.";
+  "evlog addon supports Hono or backend self with Next.js or TanStack Start. Backend none is not supported yet.";
 
 export function supportsEvlogAddon(
   frontend: Frontend[] = [],
@@ -96,13 +68,13 @@ export function supportsEvlogAddon(
 ) {
   if (!backend) return true;
 
-  if (EVLOG_SERVER_BACKENDS.includes(backend)) {
+  if (backend === "hono") {
     return true;
   }
 
   if (backend === "self") {
     if (frontend.length === 0) return true;
-    return frontend.some((f) => EVLOG_FULLSTACK_FRONTENDS.includes(f));
+    return frontend.some((f) => FULLSTACK_FRONTENDS.includes(f));
   }
 
   return false;
@@ -122,7 +94,7 @@ export function validateSelfBackendCompatibility(
 
     if (!hasSupportedWeb) {
       return validationErr(
-        "Backend 'self' (fullstack) currently only supports Next.js, TanStack Start, Nuxt, SvelteKit, and Astro frontends. Please use --frontend next, --frontend tanstack-start, --frontend nuxt, --frontend svelte, or --frontend astro.",
+        "Backend 'self' (fullstack) currently only supports Next.js and TanStack Start. Please use --frontend next or --frontend tanstack-start.",
       );
     }
 
@@ -136,7 +108,7 @@ export function validateSelfBackendCompatibility(
   const hasFullstackFrontend = frontends.some((f) => FULLSTACK_FRONTENDS.includes(f));
   if (providedFlags.has("backend") && !hasFullstackFrontend && backend === "self") {
     return validationErr(
-      "Backend 'self' (fullstack) currently only supports Next.js, TanStack Start, Nuxt, SvelteKit, and Astro frontends. Please use --frontend next, --frontend tanstack-start, --frontend nuxt, --frontend svelte, --frontend astro, or choose a different backend.",
+      "Backend 'self' (fullstack) currently only supports Next.js and TanStack Start. Please use --frontend next or --frontend tanstack-start, or choose a different backend.",
     );
   }
 
@@ -194,93 +166,38 @@ export function validateWorkersCompatibility(
 }
 
 export function validateApiFrontendCompatibility(
-  api: API | undefined,
-  frontends: Frontend[] = [],
+  _api: API | undefined,
+  _frontends: Frontend[] = [],
 ): ValidationResult {
-  const includesNuxt = frontends.includes("nuxt");
-  const includesSvelte = frontends.includes("svelte");
-  const includesSolid = frontends.includes("solid");
-  const includesAstro = frontends.includes("astro");
-  if ((includesNuxt || includesSvelte || includesSolid || includesAstro) && api === "trpc") {
-    return validationErr(
-      `tRPC API is not supported with '${includesNuxt ? "nuxt" : includesSvelte ? "svelte" : includesSolid ? "solid" : "astro"}' frontend. Please use --api orpc or --api none or remove '${includesNuxt ? "nuxt" : includesSvelte ? "svelte" : includesSolid ? "solid" : "astro"}' from --frontend.`,
-    );
-  }
   return Result.ok(undefined);
 }
 
 export function isFrontendAllowedWithBackend(
-  frontend: Frontend,
-  backend?: ProjectConfig["backend"],
-  auth?: string,
+  _frontend: Frontend,
+  _backend?: ProjectConfig["backend"],
+  _auth?: string,
 ) {
-  if (backend === "convex") {
-    if (
-      auth === "better-auth" &&
-      CONVEX_BETTER_AUTH_INCOMPATIBLE_FRONTENDS.includes(
-        frontend as (typeof CONVEX_BETTER_AUTH_INCOMPATIBLE_FRONTENDS)[number],
-      )
-    ) {
-      return false;
-    }
-
-    if (frontend === "solid" || frontend === "astro") return false;
-  }
-
-  if (auth === "clerk") {
-    const incompatibleFrontends = ["nuxt", "svelte", "solid", "astro"];
-    if (incompatibleFrontends.includes(frontend)) return false;
-  }
-
   return true;
 }
 
-export function supportsConvexBetterAuth(frontends: readonly Frontend[] = []) {
-  return frontends.some((frontend) =>
-    CONVEX_BETTER_AUTH_SUPPORTED_FRONTENDS.includes(
-      frontend as (typeof CONVEX_BETTER_AUTH_SUPPORTED_FRONTENDS)[number],
-    ),
-  );
-}
-
-export function allowedApisForFrontends(frontends: Frontend[] = []) {
-  const includesNuxt = frontends.includes("nuxt");
-  const includesSvelte = frontends.includes("svelte");
-  const includesSolid = frontends.includes("solid");
-  const includesAstro = frontends.includes("astro");
-  const base: API[] = ["trpc", "orpc", "none"];
-  if (includesNuxt || includesSvelte || includesSolid || includesAstro) {
-    return ["orpc", "none"];
-  }
-  return base;
+export function allowedApisForFrontends(_frontends: Frontend[] = []) {
+  return ["orpc", "none"] as const satisfies readonly API[];
 }
 
 export function isExampleTodoAllowed(
-  backend?: ProjectConfig["backend"],
+  _backend?: ProjectConfig["backend"],
   database?: ProjectConfig["database"],
   api?: API,
 ) {
-  // Convex handles its own data layer, no need for database or API
-  if (backend === "convex") return true;
-  // Todo requires both database and API to communicate
   if (database === "none" || api === "none") return false;
   return true;
 }
 
-export function isExampleAIAllowed(backend?: ProjectConfig["backend"], frontends: Frontend[] = []) {
+export function isExampleAIAllowed(
+  backend?: ProjectConfig["backend"],
+  _frontends: Frontend[] = [],
+) {
   if (backend === "none") return false;
-
-  const includesSolid = frontends.includes("solid");
-  const includesAstro = frontends.includes("astro");
-  if (includesSolid || includesAstro) return false;
-
-  // Convex AI example only supports React-based frontends (not Svelte or Nuxt)
-  if (backend === "convex") {
-    const includesNuxt = frontends.includes("nuxt");
-    const includesSvelte = frontends.includes("svelte");
-    if (includesNuxt || includesSvelte) return false;
-  }
-
   return true;
 }
 
@@ -315,9 +232,9 @@ export function validateDockerServerDeploy(
 ): ValidationResult {
   if (serverDeploy !== "docker") return Result.ok(undefined);
 
-  if (backend === "convex" || backend === "self") {
+  if (backend === "self") {
     return validationErr(
-      "'--server-deploy docker' requires a separate server backend (hono, express, fastify, elysia). For a fullstack 'self' backend, use '--web-deploy docker' instead.",
+      "'--server-deploy docker' requires a separate server backend (hono). For a fullstack 'self' backend, use '--web-deploy docker' instead.",
     );
   }
 
@@ -337,9 +254,9 @@ export function validateVercelServerDeploy(
 ): ValidationResult {
   if (serverDeploy !== "vercel") return Result.ok(undefined);
 
-  if (backend === "convex" || backend === "self") {
+  if (backend === "self") {
     return validationErr(
-      "'--server-deploy vercel' requires a separate server backend (hono, express, fastify, elysia). For a fullstack 'self' backend, use '--web-deploy vercel' instead.",
+      "'--server-deploy vercel' requires a separate server backend (hono). For a fullstack 'self' backend, use '--web-deploy vercel' instead.",
     );
   }
 
@@ -352,20 +269,14 @@ export function validateVercelServerDeploy(
   return Result.ok(undefined);
 }
 
-// Frontends whose docker image needs server output, which desktop addons replace with a static export
-const DOCKER_SERVER_OUTPUT_FRONTENDS: readonly Frontend[] = [
-  "next",
-  "svelte",
-  "astro",
-  "react-router",
-];
+const DOCKER_SERVER_OUTPUT_FRONTENDS: readonly Frontend[] = ["next", "react-router"];
 
 export function validateDockerWebDeployDesktopAddons(
   webDeploy: WebDeploy | undefined,
   addons: Addons[] | undefined,
   frontend: Frontend[] | undefined,
-  backend: Backend | undefined,
-  auth: Auth | undefined,
+  _backend: Backend | undefined,
+  _auth: Auth | undefined,
 ): ValidationResult {
   if (webDeploy !== "docker" || !addons || !frontend) return Result.ok(undefined);
 
@@ -375,16 +286,8 @@ export function validateDockerWebDeployDesktopAddons(
   const affected = frontend.find((f) => DOCKER_SERVER_OUTPUT_FRONTENDS.includes(f));
   if (!affected) return Result.ok(undefined);
 
-  // next + electrobun keeps standalone output when Convex Better Auth forces server bootstrap
-  const keepsServerOutput =
-    affected === "next" &&
-    !desktopAddons.includes("tauri") &&
-    backend === "convex" &&
-    auth === "better-auth";
-  if (keepsServerOutput) return Result.ok(undefined);
-
   return validationErr(
-    `'--web-deploy docker' is not compatible with the ${desktopAddons.join(", ")} addon on '${affected}' because desktop addons switch the web build to a static export, which the docker image cannot serve. Remove the addon or use a static-serving frontend (tanstack-router, solid).`,
+    `'--web-deploy docker' is not compatible with the ${desktopAddons.join(", ")} addon on '${affected}' because desktop addons switch the web build to a static export, which the docker image cannot serve. Remove the addon or use a static-serving frontend (tanstack-router).`,
   );
 }
 
@@ -402,34 +305,10 @@ export function validateAddonCompatibility(
     };
   }
 
-  if (
-    STATIC_DESKTOP_ADDONS.includes(addon) &&
-    auth === "clerk" &&
-    frontend.includes("react-router")
-  ) {
-    return {
-      isCompatible: false,
-      reason: `${addon} addon forces React Router into a static export, but Clerk on React Router requires SSR middleware. Remove the addon or use a different auth/frontend.`,
-    };
-  }
-
   if (backend === "self" && STATIC_DESKTOP_ADDONS.includes(addon)) {
     return {
       isCompatible: false,
       reason: `${addon} addon requires a separate backend or no backend because backend 'self' emits server routes that cannot be bundled as static desktop assets.`,
-    };
-  }
-
-  if (
-    addon === "tauri" &&
-    backend === "convex" &&
-    auth === "better-auth" &&
-    frontend.some((f) => TAURI_STATIC_EXPORT_FRONTENDS.includes(f))
-  ) {
-    return {
-      isCompatible: false,
-      reason:
-        "tauri addon is not compatible with Convex Better Auth on Next.js or TanStack Start because those templates use server auth bootstrap and cannot be exported as static desktop assets.",
     };
   }
 
@@ -526,20 +405,11 @@ export function validateAddonsAgainstConfig(
 
 export function validatePaymentsCompatibility(
   payments: Payments | undefined,
-  auth: Auth | undefined,
+  _auth: Auth | undefined,
   _backend: Backend | undefined,
   _frontends: Frontend[] = [],
 ): ValidationResult {
   if (!payments || payments === "none") return Result.ok(undefined);
-
-  if (payments === "polar") {
-    if (!auth || auth === "none" || auth !== "better-auth") {
-      return validationErr(
-        "Polar payments requires Better Auth. Please use '--auth better-auth' or choose a different payments provider.",
-      );
-    }
-  }
-
   return Result.ok(undefined);
 }
 
@@ -547,13 +417,13 @@ export function validateExamplesCompatibility(
   examples: string[] | undefined,
   backend: ProjectConfig["backend"] | undefined,
   database: ProjectConfig["database"] | undefined,
-  frontend?: Frontend[],
+  _frontend?: Frontend[],
   api?: API,
 ): ValidationResult {
   const examplesArr = examples ?? [];
   if (examplesArr.length === 0 || examplesArr.includes("none")) return Result.ok(undefined);
 
-  if (examplesArr.includes("todo") && backend !== "convex") {
+  if (examplesArr.includes("todo")) {
     if (database === "none") {
       return validationErr(
         "The 'todo' example requires a database. Cannot use --examples todo when database is 'none'.",
@@ -561,33 +431,13 @@ export function validateExamplesCompatibility(
     }
     if (api === "none") {
       return validationErr(
-        "The 'todo' example requires an API layer (tRPC or oRPC). Cannot use --examples todo when api is 'none'.",
+        "The 'todo' example requires an API layer (oRPC). Cannot use --examples todo when api is 'none'.",
       );
     }
-  }
-
-  if (examplesArr.includes("ai") && (frontend ?? []).includes("solid")) {
-    return validationErr("The 'ai' example is not compatible with the Solid frontend.");
-  }
-
-  if (examplesArr.includes("ai") && (frontend ?? []).includes("astro")) {
-    return validationErr("The 'ai' example is not compatible with the Astro frontend.");
   }
 
   if (examplesArr.includes("ai") && backend === "none") {
     return validationErr("The 'ai' example requires a backend.");
-  }
-
-  // Convex AI example only supports React-based frontends
-  if (examplesArr.includes("ai") && backend === "convex") {
-    const frontendArr = frontend ?? [];
-    const includesNuxt = frontendArr.includes("nuxt");
-    const includesSvelte = frontendArr.includes("svelte");
-    if (includesNuxt || includesSvelte) {
-      return validationErr(
-        "The 'ai' example with Convex backend only supports React-based frontends (Next.js, TanStack Router, TanStack Start, React Router). Svelte and Nuxt are not supported with Convex AI.",
-      );
-    }
   }
 
   return Result.ok(undefined);

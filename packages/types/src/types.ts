@@ -58,15 +58,7 @@ export type InitResult = z.infer<typeof InitResultSchema>;
 
 export type WebFrontend = Extract<
   Frontend,
-  | "tanstack-router"
-  | "react-router"
-  | "tanstack-start"
-  | "next"
-  | "nuxt"
-  | "svelte"
-  | "solid"
-  | "astro"
-  | "none"
+  "tanstack-router" | "react-router" | "tanstack-start" | "next" | "none"
 >;
 
 export type DesktopWebFrontend = Exclude<WebFrontend, "none">;
