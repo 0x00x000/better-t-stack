@@ -1,34 +1,13 @@
 "use client";
 
-import { usePathname } from "fumadocs-core/framework";
-import Link from "fumadocs-core/link";
-import { SidebarCollapseTrigger, SidebarTrigger } from "fumadocs-ui/layouts/notebook/slots/sidebar";
-import { type LinkItemType, LinkItem, resolveLinkItems } from "fumadocs-ui/layouts/shared";
-import { FullSearchTrigger, SearchTrigger } from "fumadocs-ui/layouts/shared/slots/search-trigger";
-import { Menu, Moon, PanelLeft, Sun, X } from "lucide-react";
+import { Menu, Moon, Sun, X } from "lucide-react";
 import { useTheme } from "next-themes";
-import { type ComponentProps, type ReactNode, useEffect, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { type ComponentProps, useEffect, useState } from "react";
 
-import { baseOptions } from "@/app/layout.config";
+import { navLinks, navTitle, type SiteNavLink } from "@/app/layout.config";
 import { cn } from "@/lib/utils";
-
-type HrefItem = Extract<LinkItemType, { url: string }>;
-
-function isSecondary(item: LinkItemType) {
-  if ("secondary" in item && item.secondary != null) return item.secondary;
-  return item.type === "icon";
-}
-
-/* One source of truth: nav items come from layout.config, github is appended by fumadocs. */
-const items = resolveLinkItems({
-  links: baseOptions.links,
-  githubUrl: baseOptions.githubUrl,
-}).filter((item): item is HrefItem => "url" in item && typeof item.url === "string");
-
-const primaryItems = items.filter((item) => !isSecondary(item));
-const secondaryItems = items.filter(isSecondary);
-
-const navTitle = baseOptions.nav?.title;
 
 const labelClass = "font-mono text-[11px] uppercase tracking-[0.08em]";
 const iconButtonClass =
@@ -38,60 +17,38 @@ function Sep({ className }: { className?: string }) {
   return <span aria-hidden="true" className={cn("h-3 w-px shrink-0 bg-fd-border", className)} />;
 }
 
+function isActive(pathname: string, href: string) {
+  if (href === "/") return pathname === "/";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 function NavLink({
   item,
   className,
   onClick,
 }: {
-  item: HrefItem;
+  item: SiteNavLink;
   className?: string;
   onClick?: () => void;
 }) {
+  const pathname = usePathname();
+  const active = !item.external && isActive(pathname, item.url);
+
   return (
-    <LinkItem
-      item={item}
+    <Link
+      href={item.url}
+      target={item.external ? "_blank" : undefined}
+      rel={item.external ? "noopener noreferrer" : undefined}
       onClick={onClick}
+      aria-current={active ? "page" : undefined}
       className={cn(
         labelClass,
-        "text-fd-muted-foreground transition-colors hover:text-fd-foreground data-[active=true]:text-primary",
+        "text-fd-muted-foreground transition-colors hover:text-fd-foreground",
+        active && "text-primary",
         className,
       )}
     >
       {item.text}
-    </LinkItem>
-  );
-}
-
-function IconLink({
-  item,
-  className,
-  onClick,
-}: {
-  item: HrefItem;
-  className?: string;
-  onClick?: () => void;
-}) {
-  return (
-    <LinkItem
-      item={item}
-      aria-label={item.type === "icon" ? item.label : undefined}
-      onClick={onClick}
-      className={cn(iconButtonClass, className)}
-    >
-      {"icon" in item ? item.icon : item.text}
-    </LinkItem>
-  );
-}
-
-function NavTitle() {
-  const className = "inline-flex shrink-0 items-center gap-2.5 text-fd-foreground";
-  if (typeof navTitle === "function") {
-    const Title = navTitle;
-    return <Title className={className} href="/" />;
-  }
-  return (
-    <Link aria-label="Better T Stack home" className={className} href="/">
-      {navTitle}
     </Link>
   );
 }
@@ -118,14 +75,7 @@ function ThemeToggle({ className }: { className?: string }) {
   );
 }
 
-export interface SiteHeaderProps extends ComponentProps<"header"> {
-  /** Rendered before the logo, desktop only. Used for the docs sidebar collapse control. */
-  leading?: ReactNode;
-  /** Rendered at the end of the bar, mobile only. Used for the docs sidebar drawer control. */
-  trailing?: ReactNode;
-}
-
-export function SiteHeader({ leading, trailing, className, ...props }: SiteHeaderProps) {
+export function SiteHeader({ className, ...props }: ComponentProps<"header">) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -145,40 +95,25 @@ export function SiteHeader({ leading, trailing, className, ...props }: SiteHeade
   return (
     <header {...props} className={cn("h-14 shrink-0", className)}>
       <div className="flex h-14 items-center gap-2 border-b px-4 md:px-6">
-        {leading}
-
-        <NavTitle />
+        <Link
+          aria-label="Better T Stack home"
+          className="inline-flex shrink-0 items-center gap-2.5 text-fd-foreground"
+          href="/"
+        >
+          {navTitle}
+        </Link>
 
         <Sep className="mx-1 max-md:hidden" />
 
         <nav aria-label="Main" className="flex items-center gap-4 max-md:hidden">
-          {primaryItems.map((item) => (
+          {navLinks.map((item) => (
             <NavLink item={item} key={item.url} />
           ))}
         </nav>
 
         <span className="flex-1" />
 
-        <FullSearchTrigger
-          hideIfDisabled
-          className={cn(
-            labelClass,
-            "h-7 w-full max-w-[180px] rounded-[4px] border bg-transparent px-2 py-0 text-fd-muted-foreground transition-colors hover:bg-transparent hover:text-fd-foreground max-lg:hidden [&_kbd]:rounded-[4px] [&_kbd]:border [&_kbd]:bg-transparent [&_kbd]:px-1 [&_svg]:size-3.5",
-          )}
-        />
-        <SearchTrigger hideIfDisabled className={cn(iconButtonClass, "lg:hidden")} />
-
-        <Sep className="mx-1 max-md:hidden" />
-
-        <div className="flex items-center gap-1 max-md:hidden">
-          {secondaryItems.map((item) => (
-            <IconLink item={item} key={item.url} />
-          ))}
-        </div>
-
         <ThemeToggle className="max-md:hidden" />
-
-        {trailing}
 
         <button
           type="button"
@@ -194,7 +129,6 @@ export function SiteHeader({ leading, trailing, className, ...props }: SiteHeade
 
       {open && (
         <div className="md:hidden">
-          {/* Absolute, not fixed: backdrop-filter on the header makes it the containing block. */}
           <button
             type="button"
             aria-label="Close menu"
@@ -207,7 +141,7 @@ export function SiteHeader({ leading, trailing, className, ...props }: SiteHeade
             className="absolute inset-x-0 top-14 max-h-[calc(100svh-3.5rem)] overflow-y-auto border-b bg-fd-background px-4 pt-1 pb-3"
           >
             <nav aria-label="Mobile" className="flex flex-col">
-              {primaryItems.map((item) => (
+              {navLinks.map((item) => (
                 <NavLink
                   className="py-2.5"
                   item={item}
@@ -216,11 +150,7 @@ export function SiteHeader({ leading, trailing, className, ...props }: SiteHeade
                 />
               ))}
             </nav>
-            <div className="mt-1 flex items-center gap-1 border-t pt-2">
-              {secondaryItems.map((item) => (
-                <IconLink item={item} key={item.url} onClick={() => setOpen(false)} />
-              ))}
-              <span className="flex-1" />
+            <div className="mt-1 flex items-center justify-end border-t pt-2">
               <ThemeToggle />
             </div>
           </div>
@@ -234,33 +164,8 @@ export function HomeSiteHeader(props: ComponentProps<"header">) {
   return (
     <SiteHeader
       {...props}
-      id="nd-nav"
+      id="site-header"
       className={cn("sticky top-0 z-40 bg-fd-background/80 backdrop-blur-lg", props.className)}
-    />
-  );
-}
-
-/* `layout:` resolves to `#nd-notebook-layout:has(&)`, so the sidebar and TOC keep
-   positioning off a 3.5rem header. */
-export function DocsSiteHeader(props: ComponentProps<"header">) {
-  return (
-    <SiteHeader
-      {...props}
-      id="nd-subnav"
-      className={cn(
-        "sticky top-(--fd-docs-row-1) z-20 [grid-area:header] bg-fd-background/80 backdrop-blur-sm layout:[--fd-header-height:--spacing(14)]",
-        props.className,
-      )}
-      trailing={
-        <>
-          <SidebarCollapseTrigger className={cn(iconButtonClass, "max-md:hidden")}>
-            <PanelLeft />
-          </SidebarCollapseTrigger>
-          <SidebarTrigger className={cn(iconButtonClass, "md:hidden")}>
-            <PanelLeft />
-          </SidebarTrigger>
-        </>
-      }
     />
   );
 }

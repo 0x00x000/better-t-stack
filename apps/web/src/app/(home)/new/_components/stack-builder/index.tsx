@@ -14,22 +14,16 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { formatStackCommandForDisplay, getDesktopBuildNote } from "@/lib/stack-utils";
-import type { Sponsor } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 import { ActionButtons } from "../action-buttons";
 import { PreviewPanel } from "../preview-panel";
-import { SpecialSponsorsPanel } from "../special-sponsors-panel";
 import { CategoryNav, scrollToCategorySection } from "./category-nav";
 import { SelectedStackBadges } from "./selected-stack-badges";
 import { TechCategories } from "./tech-categories";
 import { useStackBuilder } from "./use-stack-builder";
 
-type StackBuilderProps = {
-  specialSponsors?: Sponsor[];
-};
-
-export function StackBuilder({ specialSponsors = [] }: StackBuilderProps) {
+export function StackBuilder() {
   const {
     applyPreset,
     categoryProgress,
@@ -272,13 +266,7 @@ export function StackBuilder({ specialSponsors = [] }: StackBuilderProps) {
             </ScrollArea>
 
             <div className="border-t bg-fd-background p-2">
-              <div className="@container p-2">
-                <SpecialSponsorsPanel sponsors={specialSponsors} />
-                {specialSponsors.length > 0 ? (
-                  <span aria-hidden="true" className="my-3 block h-px w-full bg-fd-border" />
-                ) : null}
-                {actionButtons}
-              </div>
+              <div className="@container p-2">{actionButtons}</div>
             </div>
           </aside>
 
@@ -481,13 +469,7 @@ export function StackBuilder({ specialSponsors = [] }: StackBuilderProps) {
               </ScrollArea>
 
               <div className="border-t bg-fd-background p-2">
-                <div className="@container p-2">
-                  <SpecialSponsorsPanel sponsors={specialSponsors} compact />
-                  {specialSponsors.length > 0 ? (
-                    <span aria-hidden="true" className="my-3 block h-px w-full bg-fd-border" />
-                  ) : null}
-                  {actionButtons}
-                </div>
+                <div className="@container p-2">{actionButtons}</div>
               </div>
             </div>
           )}

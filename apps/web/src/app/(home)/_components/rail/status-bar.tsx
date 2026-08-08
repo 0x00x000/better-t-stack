@@ -3,26 +3,13 @@
 import { cn } from "@/lib/utils";
 
 import { useNpmVersion } from "./_hooks/use-npm-version";
-import { useProjectStats } from "./_hooks/use-project-stats";
 import { Keycap, Sep } from "./chrome";
 import { PANES } from "./panes-config";
 import { useRail } from "./rail-context";
 
-function Metric({ value, unit }: { value: number | null; unit: string }) {
-  return (
-    <span className="inline-flex items-baseline gap-1">
-      <span className="min-w-[7ch] text-right tabular-nums">
-        {value === null ? "—" : value.toLocaleString("en-US")}
-      </span>
-      <span>{unit}</span>
-    </span>
-  );
-}
-
 export default function StatusBar() {
   const { activeIndex, atStart, atEnd, goTo } = useRail();
   const version = useNpmVersion();
-  const stats = useProjectStats();
 
   return (
     <footer className="flex h-7 shrink-0 items-center gap-x-3 gap-y-0.5 border-t px-4 font-mono text-[10px] uppercase tracking-[0.10em] max-md:sticky max-md:bottom-0 max-md:z-30 max-md:h-auto max-md:flex-wrap max-md:bg-fd-background max-md:py-1">
@@ -64,16 +51,6 @@ export default function StatusBar() {
       </span>
 
       <span className="flex-1" />
-
-      <span className="hidden items-center gap-2 text-fd-muted-foreground md:flex">
-        <Metric value={stats.totalProjects} unit="projects" />
-        <span aria-hidden="true">·</span>
-        <Metric value={stats.starCount} unit="stars" />
-        <span aria-hidden="true">·</span>
-        <Metric value={stats.downloadCount} unit="dl" />
-      </span>
-
-      <Sep className="hidden md:inline-block" />
 
       <span className="shrink-0 text-primary">v{version}</span>
 

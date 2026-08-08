@@ -1,7 +1,4 @@
-import { createMDX } from "fumadocs-mdx/next";
 import type { NextConfig } from "next";
-
-const withMDX = createMDX();
 
 const config: NextConfig = {
   reactCompiler: true,
@@ -17,15 +14,7 @@ const config: NextConfig = {
   outputFileTracingExcludes: {
     "*": ["./**/*.js.map", "./**/*.mjs.map", "./**/*.cjs.map"],
   },
-  async rewrites() {
-    return [
-      {
-        source: "/docs/:path*.mdx",
-        destination: "/llms.mdx/:path*",
-      },
-    ];
-  },
   serverExternalPackages: ["create-better-t-stack", "fs-extra", "tinyglobby", "handlebars"],
 };
 
-export default withMDX(config);
+export default config;

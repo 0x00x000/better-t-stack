@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
-/** The one page-heading shape shared by /analytics, /showcase and /sponsors. */
+/** Shared page heading for secondary marketing routes. */
 export function PageHeader({
   icon: Icon,
   title,

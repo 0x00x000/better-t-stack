@@ -23,24 +23,6 @@ const PAGES: Record<
     description: "Pick your stack, get a ready-to-run command",
     command: "bun create better-t-stack@latest my-app --yes",
   },
-  showcase: {
-    path: "~/showcase",
-    section: "showcase",
-    title: "Showcase",
-    description: "Projects built with Better-T-Stack",
-  },
-  analytics: {
-    path: "~/analytics",
-    section: "analytics",
-    title: "Analytics",
-    description: "Live usage insights from the create-better-t-stack CLI",
-  },
-  sponsors: {
-    path: "~/sponsors",
-    section: "sponsors",
-    title: "Sponsors",
-    description: "The companies and developers funding Better-T-Stack development",
-  },
 };
 
 export async function GET(_req: Request, { params }: RouteContext<"/og/site/[page]">) {
