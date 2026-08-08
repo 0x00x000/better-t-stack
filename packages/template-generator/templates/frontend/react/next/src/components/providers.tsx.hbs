@@ -1,2 +1,32 @@
 "use client";
 
+{{#unless (eq api "none")}}
+import { QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+{{#if (eq api "orpc")}}
+import { queryClient } from "@/utils/orpc";
+{{/if}}
+{{/unless}}
+import { ThemeProvider } from "./theme-provider";
+import { Toaster } from "@{{projectName}}/ui/components/sonner";
+
+export default function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
+    >
+      {{#unless (eq api "none")}}
+      <QueryClientProvider client={queryClient}>
+        {children}
+        <ReactQueryDevtools />
+      </QueryClientProvider>
+      {{else}}
+      {children}
+      {{/unless}}
+      <Toaster richColors />
+    </ThemeProvider>
+  );
+}

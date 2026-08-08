@@ -614,16 +614,41 @@ export async function createContext() {
 
 export type Context = Awaited<ReturnType<typeof createContext>>;
 `],
-  ["api/orpc/server/src/index.ts.hbs", `import { os } from "@orpc/server";
+  ["api/orpc/server/src/index.ts.hbs", `import { {{#if (or (eq auth "better-auth") (eq auth "clerk"))}}ORPCError, {{/if}}os } from "@orpc/server";
 import type { Context } from "./context";
 
 export const o = os.$context<Context>();
 
 export const publicProcedure = o;
 
+{{#if (or (eq auth "better-auth") (eq auth "clerk"))}}
+const requireAuth = o.middleware(async ({ context, next }) => {
+  {{#if (eq auth "better-auth")}}
+  if (!context.session?.user) {
+    throw new ORPCError("UNAUTHORIZED");
+  }
+  return next({
+    context: {
+      session: context.session,
+    },
+  });
+  {{else}}
+  if (!context.auth?.userId) {
+    throw new ORPCError("UNAUTHORIZED");
+  }
+  return next({
+    context: {
+      auth: context.auth,
+    },
+  });
+  {{/if}}
+});
+
+export const protectedProcedure = publicProcedure.use(requireAuth);
+{{/if}}
 `],
   ["api/orpc/server/src/routers/index.ts.hbs", `{{#if (eq api "orpc")}}
-import { publicProcedure } from "../index";
+import { {{#if (or (eq auth "better-auth") (eq auth "clerk"))}}protectedProcedure, {{/if}}publicProcedure } from "../index";
 import type { RouterClient } from "@orpc/server";
 {{#if (includes examples "todo")}}
 import { todoRouter } from "./todo";
@@ -633,13 +658,50 @@ export const appRouter = {
   healthCheck: publicProcedure.handler(() => {
     return "OK";
   }),
-
+  {{#if (or (eq auth "better-auth") (eq auth "clerk"))}}
+  privateData: protectedProcedure.handler(({ context }) => {
+    return {
+      message: "This is private",
+      {{#if (eq auth "better-auth")}}
+      user: context.session?.user,
+      {{else}}
+      userId: context.auth?.userId,
+      {{/if}}
+    };
+  }),
+  {{/if}}
   {{#if (includes examples "todo")}}
   todo: todoRouter,
   {{/if}}
 };
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<typeof appRouter>;
+{{else if (eq api "trpc")}}
+import {
+  {{#if (eq auth "better-auth")}}protectedProcedure, {{/if}}publicProcedure,
+  router,
+} from "../index";
+{{#if (includes examples "todo")}}
+import { todoRouter } from "./todo";
+{{/if}}
+
+export const appRouter = router({
+  healthCheck: publicProcedure.query(() => {
+    return "OK";
+  }),
+  {{#if (eq auth "better-auth")}}
+  privateData: protectedProcedure.query(({ ctx }) => {
+    return {
+      message: "This is private",
+      user: ctx.session.user,
+    };
+  }),
+  {{/if}}
+  {{#if (includes examples "todo")}}
+  todo: todoRouter,
+  {{/if}}
+});
+export type AppRouter = typeof appRouter;
 {{else}}
 export const appRouter = {};
 export type AppRouter = typeof appRouter;
@@ -5911,8 +5973,39 @@ export default defineConfig({
 });
 `],
   ["db/drizzle/mysql/src/index.ts.hbs", `{{#if (or (eq runtime "bun") (eq runtime "node") (eq runtime "none"))}}
-
+{{#if (and (eq backend "self") (eq webDeploy "cloudflare") (includes frontend "svelte"))}}
+import type {} from "@{{projectName}}/env/server";
+{{else}}
+import { env } from "@{{projectName}}/env/server";
+{{/if}}
 import * as schema from "./schema";
+
+{{#if (eq dbSetup "planetscale")}}
+import { drizzle } from "drizzle-orm/planetscale-serverless";
+
+export function createDb({{#if (and (eq backend "self") (eq webDeploy "cloudflare") (includes frontend "svelte"))}}env: Env{{/if}}) {
+	return drizzle({
+		connection: {
+			host: env.DATABASE_HOST,
+			username: env.DATABASE_USERNAME,
+			password: env.DATABASE_PASSWORD,
+		},
+		schema,
+	});
+}
+{{else}}
+import { drizzle } from "drizzle-orm/mysql2";
+
+export function createDb({{#if (and (eq backend "self") (eq webDeploy "cloudflare") (includes frontend "svelte"))}}env: Env{{/if}}) {
+	return drizzle({
+		connection: {
+			uri: env.DATABASE_URL,
+		},
+		schema,
+		mode: "default",
+	});
+}
+{{/if}}
 
 {{#if (and (ne serverDeploy "cloudflare") (or (ne backend "self") (ne webDeploy "cloudflare")))}}
 export const db = createDb();
@@ -5922,6 +6015,34 @@ export const db = createDb();
 {{#if (eq runtime "workers")}}
 import * as schema from "./schema";
 
+{{#if (eq dbSetup "planetscale")}}
+import { drizzle } from "drizzle-orm/planetscale-serverless";
+import { env } from "@{{projectName}}/env/server";
+
+export function createDb() {
+	return drizzle({
+		connection: {
+			host: env.DATABASE_HOST,
+			username: env.DATABASE_USERNAME,
+			password: env.DATABASE_PASSWORD,
+		},
+		schema,
+	});
+}
+{{else}}
+import { drizzle } from "drizzle-orm/mysql2";
+import { env } from "@{{projectName}}/env/server";
+
+export function createDb() {
+	return drizzle({
+		connection: {
+			uri: env.DATABASE_URL,
+		},
+		schema,
+		mode: "default",
+	});
+}
+{{/if}}
 {{/if}}
 `],
   ["db/drizzle/postgres/drizzle.config.ts.hbs", `import { defineConfig } from "drizzle-kit";
@@ -6176,8 +6297,64 @@ datasource db {
 import { PrismaClient } from "../prisma/generated/client";
 import { env } from "@{{projectName}}/env/server";
 
+{{#if (eq dbSetup "planetscale")}}
+import { PrismaPlanetScale } from "@prisma/adapter-planetscale";
+
+export function createPrismaClient() {
+	const adapter = new PrismaPlanetScale({ url: env.DATABASE_URL });
+	return new PrismaClient({ adapter });
+}
+{{else}}
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
+
+export function createPrismaClient() {
+	const databaseUrl: string = env.DATABASE_URL;
+	const url: URL = new URL(databaseUrl);
+	const connectionConfig = {
+		host: url.hostname,
+		port: parseInt(url.port || "3306"),
+		user: url.username,
+		password: url.password,
+		database: url.pathname.slice(1),
+	};
+
+	const adapter = new PrismaMariaDb(connectionConfig);
+	return new PrismaClient({ adapter });
+}
+{{/if}}
 {{else}}
 import { PrismaClient } from "../prisma/generated/client";
+{{#if (and (eq backend "self") (eq webDeploy "cloudflare") (includes frontend "svelte"))}}
+import type {} from "@{{projectName}}/env/server";
+{{else}}
+import { env } from "@{{projectName}}/env/server";
+{{/if}}
+
+{{#if (eq dbSetup "planetscale")}}
+import { PrismaPlanetScale } from "@prisma/adapter-planetscale";
+
+export function createPrismaClient({{#if (and (eq backend "self") (eq webDeploy "cloudflare") (includes frontend "svelte"))}}env: Env{{/if}}) {
+	const adapter = new PrismaPlanetScale({ url: env.DATABASE_URL });
+	return new PrismaClient({ adapter });
+}
+{{else}}
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
+
+export function createPrismaClient({{#if (and (eq backend "self") (eq webDeploy "cloudflare") (includes frontend "svelte"))}}env: Env{{/if}}) {
+	const databaseUrl: string = env.DATABASE_URL;
+	const url: URL = new URL(databaseUrl);
+	const connectionConfig = {
+		host: url.hostname,
+		port: parseInt(url.port || "3306"),
+		user: url.username,
+		password: url.password,
+		database: url.pathname.slice(1),
+	};
+
+	const adapter = new PrismaMariaDb(connectionConfig);
+	return new PrismaClient({ adapter });
+}
+{{/if}}
 
 {{#if (and (ne serverDeploy "cloudflare") (or (ne backend "self") (ne webDeploy "cloudflare")))}}
 const prisma = createPrismaClient();
@@ -6994,7 +7171,1072 @@ export const Route = createFileRoute("/api/ai/$")({
   },
 });
 `],
-  ["examples/ai/native/bare/app/(drawer)/ai.tsx.hbs", `
+  ["examples/ai/native/bare/app/(drawer)/ai.tsx.hbs", `{{#if (eq backend "convex")}}
+import { Ionicons } from "@expo/vector-icons";
+import {
+  useUIMessages,
+  useSmoothText,
+} from "@convex-dev/agent/react";
+import { api } from "@{{projectName}}/backend/convex/_generated/api";
+import { useMutation } from "convex/react";
+import { useRef, useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  ActivityIndicator,
+} from "react-native";
+
+import { Container } from "@/components/container";
+import { useColorScheme } from "@/lib/use-color-scheme";
+import { NAV_THEME } from "@/lib/constants";
+
+const starterPrompts = [
+  {
+    label: "Plan a feature",
+    prompt: "Help me plan the first version of a habit tracking feature.",
+  },
+  {
+    label: "Draft an API",
+    prompt: "Sketch a clean API contract for projects, tasks, and comments.",
+  },
+  {
+    label: "Debug an issue",
+    prompt: "Walk me through debugging a slow mobile screen.",
+  },
+];
+
+function MessageContent({
+  text,
+  isStreaming,
+  textColor,
+}: {
+  text: string;
+  isStreaming: boolean;
+  textColor: string;
+}) {
+  const [visibleText] = useSmoothText(text, {
+    startStreaming: isStreaming,
+  });
+
+  return (
+    <Text selectable style={[styles.messageText, { color: textColor }]}>
+      {visibleText}
+    </Text>
+  );
+}
+
+export default function AIScreen() {
+  const { colorScheme } = useColorScheme();
+  const theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
+  const [input, setInput] = useState("");
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  const createThread = useMutation(api.chat.createNewThread);
+  const sendMessage = useMutation(api.chat.sendMessage);
+
+  const { results: messages } = useUIMessages(
+    api.chat.listMessages,
+    threadId ? { threadId } : "skip",
+    { initialNumItems: 50, stream: true },
+  );
+
+  const hasStreamingMessage = messages?.some(
+    (m) => m.status === "streaming",
+  );
+  const hasMessages = Boolean(messages?.length);
+  const isBusy = isLoading || Boolean(hasStreamingMessage);
+  const canSend = Boolean(input.trim()) && !isBusy;
+
+  useEffect(() => {
+    scrollViewRef.current?.scrollToEnd({ animated: true });
+  }, [messages, isLoading]);
+
+  async function sendPrompt(prompt: string) {
+    const value = prompt.trim();
+    if (!value || isBusy) return;
+
+    setIsLoading(true);
+    setInput("");
+
+    try {
+      let currentThreadId = threadId;
+      if (!currentThreadId) {
+        currentThreadId = await createThread();
+        setThreadId(currentThreadId);
+      }
+
+      await sendMessage({ threadId: currentThreadId, prompt: value });
+    } catch (error) {
+      console.error("Failed to send message:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  function onNewChat() {
+    if (isBusy) return;
+    setInput("");
+    setThreadId(null);
+  }
+
+  return (
+    <Container>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <View style={styles.content}>
+          <View style={[styles.toolbar, { borderBottomColor: theme.border }]}>
+            <View style={styles.statusGroup}>
+              <View
+                style={[
+                  styles.statusDot,
+                  { backgroundColor: isBusy ? theme.primary : theme.border },
+                ]}
+              />
+              <Text style={[styles.statusText, { color: theme.text }]}>
+                {isBusy
+                  ? "Streaming"
+                  : hasMessages
+                    ? \`\${messages?.length ?? 0} messages\`
+                    : "Ready"}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={onNewChat}
+              disabled={isBusy || (!hasMessages && !threadId)}
+              style={[
+                styles.toolbarAction,
+                { borderColor: theme.border },
+                (isBusy || (!hasMessages && !threadId)) &&
+                  styles.toolbarActionDisabled,
+              ]}
+            >
+              <Ionicons name="add" size={16} color={theme.text} />
+              <Text style={[styles.toolbarActionText, { color: theme.text }]}>
+                New
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.scrollView}
+            contentContainerStyle={styles.messagesContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {!hasMessages ? (
+              <View style={styles.emptyContainer}>
+                <View style={[styles.emptyIcon, { borderColor: theme.border }]}>
+                  <Ionicons
+                    name="chatbubble-ellipses-outline"
+                    size={28}
+                    color={theme.text}
+                  />
+                </View>
+                <Text style={[styles.emptyTitle, { color: theme.text }]}>
+                  Start a conversation
+                </Text>
+                <Text
+                  style={[styles.emptyText, { color: theme.text }]}
+                  selectable
+                >
+                  Use a starter prompt or ask your own question.
+                </Text>
+                <View style={styles.promptList}>
+                  {starterPrompts.map((item) => (
+                    <TouchableOpacity
+                      key={item.label}
+                      onPress={() => sendPrompt(item.prompt)}
+                      disabled={isBusy}
+                      style={[
+                        styles.promptButton,
+                        {
+                          backgroundColor: theme.card,
+                          borderColor: theme.border,
+                        },
+                        isBusy && styles.toolbarActionDisabled,
+                      ]}
+                    >
+                      <Text
+                        style={[styles.promptLabel, { color: theme.text }]}
+                      >
+                        {item.label}
+                      </Text>
+                      <Text
+                        style={[styles.promptText, { color: theme.text }]}
+                      >
+                        {item.prompt}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ) : (
+              <View style={styles.messagesList}>
+                {messages?.map((message) => {
+                  const isUser = message.role === "user";
+                  const messageText = (message.parts ?? [])
+                    .map((part) => (part.type === "text" ? part.text : ""))
+                    .join("");
+
+	                  return (
+	                    <View
+	                      key={\`\${message.order}-\${message.stepOrder}\`}
+	                      style={[
+                        styles.messageRow,
+                        isUser ? styles.userRow : styles.assistantRow,
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.messageBubble,
+                          isUser
+                            ? [
+                                styles.userBubble,
+                                { backgroundColor: theme.primary },
+                              ]
+                            : [
+                                styles.assistantBubble,
+                                {
+                                  backgroundColor: theme.card,
+                                  borderColor: theme.border,
+                                },
+                              ],
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.messageRole,
+                            { color: isUser ? "#ffffff" : theme.text },
+                          ]}
+                        >
+                          {isUser ? "You" : "AI"}
+                        </Text>
+                        <MessageContent
+                          text={messageText}
+                          isStreaming={message.status === "streaming"}
+                          textColor={isUser ? "#ffffff" : theme.text}
+                        />
+                      </View>
+                    </View>
+                  );
+                })}
+                {isLoading && !hasStreamingMessage && (
+                  <View style={[styles.messageRow, styles.assistantRow]}>
+                    <View
+                      style={[
+                        styles.messageBubble,
+                        styles.assistantBubble,
+                        {
+                          backgroundColor: theme.card,
+                          borderColor: theme.border,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.messageRole, { color: theme.text }]}>
+                        AI
+                      </Text>
+                      <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="small" color={theme.primary} />
+                        <Text style={[styles.loadingText, { color: theme.text }]}>
+                          Thinking...
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+              </View>
+            )}
+          </ScrollView>
+
+          <View style={[styles.inputContainer, { borderTopColor: theme.border }]}>
+            <View style={styles.inputRow}>
+              <TextInput
+                value={input}
+                onChangeText={setInput}
+                placeholder="Message AI..."
+                placeholderTextColor={theme.border}
+                style={[
+                  styles.input,
+                  {
+                    color: theme.text,
+                    borderColor: theme.border,
+                    backgroundColor: theme.card,
+                  },
+                ]}
+                onSubmitEditing={(e) => {
+                  e.preventDefault();
+                  sendPrompt(input);
+                }}
+                editable={!isBusy}
+                returnKeyType="send"
+                multiline
+              />
+              <TouchableOpacity
+                onPress={() => sendPrompt(input)}
+                disabled={!canSend}
+                style={[
+                  styles.sendButton,
+                  {
+                    backgroundColor: canSend ? theme.primary : theme.card,
+                    borderColor: theme.border,
+                  },
+                  !canSend && styles.sendButtonDisabled,
+                ]}
+              >
+                <Ionicons
+                  name="arrow-up"
+                  size={20}
+                  color={canSend ? "#ffffff" : theme.text}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Container>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  toolbar: {
+    alignItems: "center",
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingBottom: 12,
+    paddingTop: 8,
+  },
+  statusGroup: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  statusDot: {
+    borderRadius: 999,
+    height: 8,
+    width: 8,
+  },
+  statusText: {
+    fontSize: 13,
+    fontVariant: ["tabular-nums"],
+    fontWeight: "600",
+  },
+  toolbarAction: {
+    alignItems: "center",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 4,
+    minHeight: 32,
+    paddingHorizontal: 10,
+  },
+  toolbarActionDisabled: {
+    opacity: 0.45,
+  },
+  toolbarActionText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  scrollView: {
+    flex: 1,
+  },
+  messagesContent: {
+    flexGrow: 1,
+    paddingVertical: 16,
+  },
+  emptyContainer: {
+    alignItems: "center",
+    flex: 1,
+    justifyContent: "center",
+    gap: 12,
+  },
+  emptyIcon: {
+    alignItems: "center",
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 56,
+    justifyContent: "center",
+    width: 56,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  emptyText: {
+    fontSize: 14,
+    lineHeight: 20,
+    opacity: 0.68,
+    textAlign: "center",
+  },
+  promptList: {
+    gap: 8,
+    marginTop: 8,
+    width: "100%",
+  },
+  promptButton: {
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  promptLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  promptText: {
+    fontSize: 13,
+    lineHeight: 18,
+    opacity: 0.68,
+  },
+  messagesList: {
+    gap: 12,
+  },
+  messageRow: {
+    flexDirection: "row",
+  },
+  userRow: {
+    justifyContent: "flex-end",
+  },
+  assistantRow: {
+    justifyContent: "flex-start",
+  },
+  messageBubble: {
+    borderRadius: 18,
+    maxWidth: "86%",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  userBubble: {
+    borderTopRightRadius: 6,
+  },
+  assistantBubble: {
+    borderTopLeftRadius: 6,
+    borderWidth: 1,
+  },
+  messageRole: {
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 4,
+    opacity: 0.72,
+  },
+  messageText: {
+    fontSize: 15,
+    lineHeight: 21,
+  },
+  loadingContainer: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 14,
+    opacity: 0.68,
+  },
+  inputContainer: {
+    borderTopWidth: 1,
+    paddingBottom: 12,
+    paddingTop: 12,
+  },
+  inputRow: {
+    alignItems: "flex-end",
+    flexDirection: "row",
+    gap: 8,
+  },
+  input: {
+    borderRadius: 18,
+    borderWidth: 1,
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 20,
+    maxHeight: 120,
+    minHeight: 44,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  sendButton: {
+    alignItems: "center",
+    borderRadius: 999,
+    height: 44,
+    justifyContent: "center",
+    width: 44,
+  },
+  sendButtonDisabled: {
+    borderWidth: 1,
+    opacity: 0.55,
+  },
+});
+{{else}}
+import { useRef, useEffect, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  ActivityIndicator,
+} from "react-native";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
+import { Container } from "@/components/container";
+import { useColorScheme } from "@/lib/use-color-scheme";
+import { NAV_THEME } from "@/lib/constants";
+import { env } from "@{{projectName}}/env/native";
+
+const starterPrompts = [
+  {
+    label: "Plan a feature",
+    prompt: "Help me plan the first version of a habit tracking feature.",
+  },
+  {
+    label: "Draft an API",
+    prompt: "Sketch a clean API contract for projects, tasks, and comments.",
+  },
+  {
+    label: "Debug an issue",
+    prompt: "Walk me through debugging a slow mobile screen.",
+  },
+];
+
+const generateAPIUrl = (relativePath: string) => {
+  const serverUrl = env.EXPO_PUBLIC_SERVER_URL;
+  if (!serverUrl) {
+    throw new Error(
+      "EXPO_PUBLIC_SERVER_URL environment variable is not defined"
+    );
+  }
+  const path = relativePath.startsWith("/") ? relativePath : \`/\${relativePath}\`;
+  return serverUrl.concat(path);
+};
+
+export default function AIScreen() {
+  const { colorScheme } = useColorScheme();
+  const theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
+  const [input, setInput] = useState("");
+  const { messages, error, sendMessage, status, setMessages } = useChat({
+    transport: new DefaultChatTransport({
+      api: generateAPIUrl("/ai"),
+    }),
+    onError: (error) => console.error(error, "AI Chat Error"),
+  });
+  const scrollViewRef = useRef<ScrollView>(null);
+  const isBusy = status === "submitted" || status === "streaming";
+  const hasMessages = messages.length > 0;
+  const canSend = Boolean(input.trim()) && !isBusy;
+
+  useEffect(() => {
+    scrollViewRef.current?.scrollToEnd({ animated: true });
+  }, [messages, isBusy]);
+
+  function sendPrompt(prompt: string) {
+    const value = prompt.trim();
+    if (!value || isBusy) return;
+
+    sendMessage({ text: value });
+    setInput("");
+  }
+
+  function onNewChat() {
+    if (isBusy) return;
+    setInput("");
+    setMessages([]);
+  }
+
+  return (
+    <Container>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <View style={styles.content}>
+          <View style={[styles.toolbar, { borderBottomColor: theme.border }]}>
+            <View style={styles.statusGroup}>
+              <View
+                style={[
+                  styles.statusDot,
+                  { backgroundColor: isBusy ? theme.primary : theme.border },
+                ]}
+              />
+              <Text style={[styles.statusText, { color: theme.text }]}>
+                {isBusy
+                  ? status === "submitted"
+                    ? "Sending"
+                    : "Streaming"
+                  : hasMessages
+                    ? \`\${messages.length} messages\`
+                    : "Ready"}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={onNewChat}
+              disabled={isBusy || !hasMessages}
+              style={[
+                styles.toolbarAction,
+                { borderColor: theme.border },
+                (isBusy || !hasMessages) && styles.toolbarActionDisabled,
+              ]}
+            >
+              <Ionicons name="add" size={16} color={theme.text} />
+              <Text style={[styles.toolbarActionText, { color: theme.text }]}>
+                New
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.scrollView}
+            contentContainerStyle={styles.messagesContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {!hasMessages ? (
+              <View style={styles.emptyContainer}>
+                <View style={[styles.emptyIcon, { borderColor: theme.border }]}>
+                  <Ionicons
+                    name="chatbubble-ellipses-outline"
+                    size={28}
+                    color={theme.text}
+                  />
+                </View>
+                <Text style={[styles.emptyTitle, { color: theme.text }]}>
+                  Start a conversation
+                </Text>
+                <Text
+                  style={[styles.emptyText, { color: theme.text }]}
+                  selectable
+                >
+                  Use a starter prompt or ask your own question.
+                </Text>
+                <View style={styles.promptList}>
+                  {starterPrompts.map((item) => (
+                    <TouchableOpacity
+                      key={item.label}
+                      onPress={() => sendPrompt(item.prompt)}
+                      disabled={isBusy}
+                      style={[
+                        styles.promptButton,
+                        {
+                          backgroundColor: theme.card,
+                          borderColor: theme.border,
+                        },
+                        isBusy && styles.toolbarActionDisabled,
+                      ]}
+                    >
+                      <Text
+                        style={[styles.promptLabel, { color: theme.text }]}
+                      >
+                        {item.label}
+                      </Text>
+                      <Text
+                        style={[styles.promptText, { color: theme.text }]}
+                      >
+                        {item.prompt}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ) : (
+              <View style={styles.messagesList}>
+                {messages.map((message) => (
+                  <View
+                    key={message.id}
+                    style={[
+                      styles.messageRow,
+                      message.role === "user"
+                        ? styles.userRow
+                        : styles.assistantRow,
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.messageBubble,
+                        message.role === "user"
+                          ? [
+                              styles.userBubble,
+                              { backgroundColor: theme.primary },
+                            ]
+                          : [
+                              styles.assistantBubble,
+                              {
+                                backgroundColor: theme.card,
+                                borderColor: theme.border,
+                              },
+                            ],
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.messageRole,
+                          {
+                            color:
+                              message.role === "user" ? "#ffffff" : theme.text,
+                          },
+                        ]}
+                      >
+                        {message.role === "user" ? "You" : "AI"}
+                      </Text>
+                      <View style={styles.messageParts}>
+                        {(message.parts ?? []).map((part, i) =>
+                          part.type === "text" ? (
+                            <Text
+                              key={\`\${message.id}-\${i}\`}
+                              selectable
+                              style={[
+                                styles.messageText,
+                                {
+                                  color:
+                                    message.role === "user"
+                                      ? "#ffffff"
+                                      : theme.text,
+                                },
+                              ]}
+                            >
+                              {part.text}
+                            </Text>
+                          ) : (
+                            <Text
+                              key={\`\${message.id}-\${i}\`}
+                              selectable
+                              style={[
+                                styles.messageText,
+                                {
+                                  color:
+                                    message.role === "user"
+                                      ? "#ffffff"
+                                      : theme.text,
+                                },
+                              ]}
+                            >
+                              {JSON.stringify(part)}
+                            </Text>
+                          )
+                        )}
+                      </View>
+                    </View>
+                  </View>
+                ))}
+                {isBusy && (
+                  <View style={[styles.messageRow, styles.assistantRow]}>
+                    <View
+                      style={[
+                        styles.messageBubble,
+                        styles.assistantBubble,
+                        {
+                          backgroundColor: theme.card,
+                          borderColor: theme.border,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.messageRole, { color: theme.text }]}>
+                        AI
+                      </Text>
+                      <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="small" color={theme.primary} />
+                        <Text style={[styles.loadingText, { color: theme.text }]}>
+                          Thinking...
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+              </View>
+            )}
+          </ScrollView>
+
+          {error && (
+            <View
+              style={[
+                styles.errorBanner,
+                {
+                  backgroundColor: theme.card,
+                  borderColor: theme.notification,
+                },
+              ]}
+            >
+              <Ionicons
+                name="alert-circle-outline"
+                size={18}
+                color={theme.notification}
+              />
+              <Text
+                selectable
+                style={[styles.errorText, { color: theme.text }]}
+              >
+                {error.message}
+              </Text>
+            </View>
+          )}
+
+          <View style={[styles.inputContainer, { borderTopColor: theme.border }]}>
+            <View style={styles.inputRow}>
+              <TextInput
+                value={input}
+                onChangeText={setInput}
+                placeholder="Message AI..."
+                placeholderTextColor={theme.border}
+                style={[
+                  styles.input,
+                  {
+                    color: theme.text,
+                    borderColor: theme.border,
+                    backgroundColor: theme.card,
+                  },
+                ]}
+                onSubmitEditing={(e) => {
+                  e.preventDefault();
+                  sendPrompt(input);
+                }}
+                editable={!isBusy}
+                returnKeyType="send"
+                multiline
+              />
+              <TouchableOpacity
+                onPress={() => sendPrompt(input)}
+                disabled={!canSend}
+                style={[
+                  styles.sendButton,
+                  {
+                    backgroundColor: canSend ? theme.primary : theme.card,
+                    borderColor: theme.border,
+                  },
+                  !canSend && styles.sendButtonDisabled,
+                ]}
+              >
+                <Ionicons
+                  name="arrow-up"
+                  size={20}
+                  color={canSend ? "#ffffff" : theme.text}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Container>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  toolbar: {
+    alignItems: "center",
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingBottom: 12,
+    paddingTop: 8,
+  },
+  statusGroup: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  statusDot: {
+    borderRadius: 999,
+    height: 8,
+    width: 8,
+  },
+  statusText: {
+    fontSize: 13,
+    fontVariant: ["tabular-nums"],
+    fontWeight: "600",
+  },
+  toolbarAction: {
+    alignItems: "center",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 4,
+    minHeight: 32,
+    paddingHorizontal: 10,
+  },
+  toolbarActionDisabled: {
+    opacity: 0.45,
+  },
+  toolbarActionText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  scrollView: {
+    flex: 1,
+  },
+  messagesContent: {
+    flexGrow: 1,
+    paddingVertical: 16,
+  },
+  emptyContainer: {
+    alignItems: "center",
+    flex: 1,
+    justifyContent: "center",
+    gap: 12,
+  },
+  emptyIcon: {
+    alignItems: "center",
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 56,
+    justifyContent: "center",
+    width: 56,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  emptyText: {
+    fontSize: 14,
+    lineHeight: 20,
+    opacity: 0.68,
+    textAlign: "center",
+  },
+  promptList: {
+    gap: 8,
+    marginTop: 8,
+    width: "100%",
+  },
+  promptButton: {
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  promptLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  promptText: {
+    fontSize: 13,
+    lineHeight: 18,
+    opacity: 0.68,
+  },
+  messagesList: {
+    gap: 12,
+  },
+  messageRow: {
+    flexDirection: "row",
+  },
+  userRow: {
+    justifyContent: "flex-end",
+  },
+  assistantRow: {
+    justifyContent: "flex-start",
+  },
+  messageBubble: {
+    borderRadius: 18,
+    maxWidth: "86%",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  userBubble: {
+    borderTopRightRadius: 6,
+  },
+  assistantBubble: {
+    borderTopLeftRadius: 6,
+    borderWidth: 1,
+  },
+  messageRole: {
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 4,
+    opacity: 0.72,
+  },
+  messageParts: {
+    gap: 4,
+  },
+  messageText: {
+    fontSize: 15,
+    lineHeight: 21,
+  },
+  loadingContainer: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 14,
+    opacity: 0.68,
+  },
+  errorBanner: {
+    alignItems: "center",
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  inputContainer: {
+    borderTopWidth: 1,
+    paddingBottom: 12,
+    paddingTop: 12,
+  },
+  inputRow: {
+    alignItems: "flex-end",
+    flexDirection: "row",
+    gap: 8,
+  },
+  input: {
+    borderRadius: 18,
+    borderWidth: 1,
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 20,
+    maxHeight: 120,
+    minHeight: 44,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  sendButton: {
+    alignItems: "center",
+    borderRadius: 999,
+    height: 44,
+    justifyContent: "center",
+    width: 44,
+  },
+  sendButtonDisabled: {
+    borderWidth: 1,
+    opacity: 0.55,
+  },
+});
+{{/if}}
 `],
   ["examples/ai/native/bare/polyfills.js", `import structuredClone from "@ungap/structured-clone";
 import { Platform } from "react-native";
@@ -7021,6 +8263,1070 @@ export {};
 `],
   ["examples/ai/native/unistyles/app/(drawer)/ai.tsx.hbs", `import "@/unistyles";
 
+{{#if (eq backend "convex")}}
+import { Ionicons } from "@expo/vector-icons";
+import {
+  useUIMessages,
+  useSmoothText,
+} from "@convex-dev/agent/react";
+import { api } from "@{{projectName}}/backend/convex/_generated/api";
+import { useMutation } from "convex/react";
+import { useRef, useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+} from "react-native";
+import { StyleSheet, useUnistyles } from "react-native-unistyles";
+
+import { Container } from "@/components/container";
+
+const starterPrompts = [
+  {
+    label: "Plan a feature",
+    prompt: "Help me plan the first version of a habit tracking feature.",
+  },
+  {
+    label: "Draft an API",
+    prompt: "Sketch a clean API contract for projects, tasks, and comments.",
+  },
+  {
+    label: "Debug an issue",
+    prompt: "Walk me through debugging a slow mobile screen.",
+  },
+];
+
+function MessageContent({
+  text,
+  isStreaming,
+  style,
+}: {
+  text: string;
+  isStreaming: boolean;
+  style: object;
+}) {
+  const [visibleText] = useSmoothText(text, {
+    startStreaming: isStreaming,
+  });
+
+  return (
+    <Text selectable style={style}>
+      {visibleText}
+    </Text>
+  );
+}
+
+export default function AIScreen() {
+  const { theme } = useUnistyles();
+  const [input, setInput] = useState("");
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  const createThread = useMutation(api.chat.createNewThread);
+  const sendMessage = useMutation(api.chat.sendMessage);
+
+  const { results: messages } = useUIMessages(
+    api.chat.listMessages,
+    threadId ? { threadId } : "skip",
+    { initialNumItems: 50, stream: true },
+  );
+
+  const hasStreamingMessage = messages?.some(
+    (m) => m.status === "streaming",
+  );
+  const hasMessages = Boolean(messages?.length);
+  const isBusy = isLoading || Boolean(hasStreamingMessage);
+  const canSend = Boolean(input.trim()) && !isBusy;
+
+  useEffect(() => {
+    scrollViewRef.current?.scrollToEnd({ animated: true });
+  }, [messages, isLoading]);
+
+  const sendPrompt = async (prompt: string) => {
+    const value = prompt.trim();
+    if (!value || isBusy) return;
+
+    setIsLoading(true);
+    setInput("");
+
+    try {
+      let currentThreadId = threadId;
+      if (!currentThreadId) {
+        currentThreadId = await createThread();
+        setThreadId(currentThreadId);
+      }
+
+      await sendMessage({ threadId: currentThreadId, prompt: value });
+    } catch (error) {
+      console.error("Failed to send message:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const onNewChat = () => {
+    if (isBusy) return;
+    setInput("");
+    setThreadId(null);
+  };
+
+  return (
+    <Container>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <View style={styles.content}>
+          <View style={styles.toolbar}>
+            <View style={styles.statusGroup}>
+              <View
+                style={[
+                  styles.statusDot,
+                  isBusy ? styles.statusDotBusy : styles.statusDotIdle,
+                ]}
+              />
+              <Text style={styles.statusText}>
+                {isBusy
+                  ? "Streaming"
+                  : hasMessages
+                    ? \`\${messages?.length ?? 0} messages\`
+                    : "Ready"}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={onNewChat}
+              disabled={isBusy || (!hasMessages && !threadId)}
+              style={[
+                styles.toolbarAction,
+                (isBusy || (!hasMessages && !threadId)) &&
+                  styles.disabledAction,
+              ]}
+            >
+              <Ionicons
+                name="add"
+                size={16}
+                color={theme.colors.foreground}
+              />
+              <Text style={styles.toolbarActionText}>New</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.messagesContainer}
+            contentContainerStyle={styles.messagesContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {!hasMessages ? (
+              <View style={styles.emptyContainer}>
+                <View style={styles.emptyIcon}>
+                  <Ionicons
+                    name="chatbubble-ellipses-outline"
+                    size={28}
+                    color={theme.colors.foreground}
+                  />
+                </View>
+                <Text style={styles.emptyTitle}>Start a conversation</Text>
+                <Text selectable style={styles.emptyText}>
+                  Use a starter prompt or ask your own question.
+                </Text>
+                <View style={styles.promptList}>
+                  {starterPrompts.map((item) => (
+                    <TouchableOpacity
+                      key={item.label}
+                      onPress={() => sendPrompt(item.prompt)}
+                      disabled={isBusy}
+                      style={[
+                        styles.promptButton,
+                        isBusy && styles.disabledAction,
+                      ]}
+                    >
+                      <Text style={styles.promptLabel}>{item.label}</Text>
+                      <Text style={styles.promptText}>{item.prompt}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ) : (
+              <View style={styles.messagesWrapper}>
+                {messages?.map((message) => {
+                  const isUser = message.role === "user";
+                  const messageText = (message.parts ?? [])
+                    .map((part) => (part.type === "text" ? part.text : ""))
+                    .join("");
+
+	                  return (
+	                    <View
+	                      key={\`\${message.order}-\${message.stepOrder}\`}
+	                      style={[
+                        styles.messageRow,
+                        isUser ? styles.userRow : styles.assistantRow,
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.messageBubble,
+                          isUser ? styles.userBubble : styles.assistantBubble,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.messageRole,
+                            isUser
+                              ? styles.userMessageText
+                              : styles.assistantMessageText,
+                          ]}
+                        >
+                          {isUser ? "You" : "AI"}
+                        </Text>
+                        <MessageContent
+                          text={messageText}
+                          isStreaming={message.status === "streaming"}
+                          style={
+                            isUser
+                              ? styles.userMessageText
+                              : styles.assistantMessageText
+                          }
+                        />
+                      </View>
+                    </View>
+                  );
+                })}
+                {isLoading && !hasStreamingMessage && (
+                  <View style={[styles.messageRow, styles.assistantRow]}>
+                    <View style={[styles.messageBubble, styles.assistantBubble]}>
+                      <Text
+                        style={[
+                          styles.messageRole,
+                          styles.assistantMessageText,
+                        ]}
+                      >
+                        AI
+                      </Text>
+                      <View style={styles.loadingContainer}>
+                        <ActivityIndicator
+                          size="small"
+                          color={theme.colors.primary}
+                        />
+                        <Text style={styles.loadingText}>Thinking...</Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+              </View>
+            )}
+          </ScrollView>
+
+          <View style={styles.inputSection}>
+            <View style={styles.inputContainer}>
+              <TextInput
+                value={input}
+                onChangeText={setInput}
+                placeholder="Message AI..."
+                placeholderTextColor={theme.colors.mutedForeground}
+                style={styles.textInput}
+                onSubmitEditing={(e) => {
+                  e.preventDefault();
+                  sendPrompt(input);
+                }}
+                editable={!isBusy}
+                returnKeyType="send"
+                multiline
+              />
+              <TouchableOpacity
+                onPress={() => sendPrompt(input)}
+                disabled={!canSend}
+                style={[
+                  styles.sendButton,
+                  !canSend && styles.sendButtonDisabled,
+                ]}
+              >
+                <Ionicons
+                  name="arrow-up"
+                  size={20}
+                  color={
+                    canSend
+                      ? theme.colors.primaryForeground
+                      : theme.colors.mutedForeground
+                  }
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Container>
+  );
+}
+
+const styles = StyleSheet.create((theme) => ({
+  container: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: theme.spacing.md,
+  },
+  toolbar: {
+    alignItems: "center",
+    borderBottomColor: theme.colors.border,
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingBottom: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
+  },
+  statusGroup: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: theme.spacing.sm,
+  },
+  statusDot: {
+    borderRadius: 999,
+    height: 8,
+    width: 8,
+  },
+  statusDotBusy: {
+    backgroundColor: theme.colors.primary,
+  },
+  statusDotIdle: {
+    backgroundColor: theme.colors.border,
+  },
+  statusText: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.sm,
+    fontVariant: ["tabular-nums"],
+    fontWeight: "600",
+  },
+  toolbarAction: {
+    alignItems: "center",
+    borderColor: theme.colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: theme.spacing.xs,
+    minHeight: 32,
+    paddingHorizontal: 10,
+  },
+  toolbarActionText: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.sm,
+    fontWeight: "600",
+  },
+  disabledAction: {
+    opacity: 0.45,
+  },
+  messagesContainer: {
+    flex: 1,
+  },
+  messagesContent: {
+    flexGrow: 1,
+    paddingVertical: theme.spacing.md,
+  },
+  emptyContainer: {
+    alignItems: "center",
+    flex: 1,
+    gap: theme.spacing.md,
+    justifyContent: "center",
+  },
+  emptyIcon: {
+    alignItems: "center",
+    borderColor: theme.colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 56,
+    justifyContent: "center",
+    width: 56,
+  },
+  emptyTitle: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize["2xl"],
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  emptyText: {
+    color: theme.colors.mutedForeground,
+    fontSize: theme.fontSize.sm,
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  promptList: {
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.xs,
+    width: "100%",
+  },
+  promptButton: {
+    backgroundColor: theme.colors.card,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    gap: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 12,
+  },
+  promptLabel: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.sm,
+    fontWeight: "700",
+  },
+  promptText: {
+    color: theme.colors.mutedForeground,
+    fontSize: theme.fontSize.sm,
+    lineHeight: 18,
+  },
+  messagesWrapper: {
+    gap: theme.spacing.md,
+  },
+  messageRow: {
+    flexDirection: "row",
+  },
+  userRow: {
+    justifyContent: "flex-end",
+  },
+  assistantRow: {
+    justifyContent: "flex-start",
+  },
+  messageBubble: {
+    borderRadius: theme.borderRadius.xl,
+    maxWidth: "86%",
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 10,
+  },
+  userBubble: {
+    backgroundColor: theme.colors.primary,
+    borderTopRightRadius: theme.borderRadius.sm,
+  },
+  assistantBubble: {
+    backgroundColor: theme.colors.card,
+    borderColor: theme.colors.border,
+    borderTopLeftRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+  },
+  messageRole: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: "700",
+    marginBottom: theme.spacing.xs,
+    opacity: 0.72,
+  },
+  userMessageText: {
+    color: theme.colors.primaryForeground,
+    fontSize: theme.fontSize.sm,
+    lineHeight: 21,
+  },
+  assistantMessageText: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.sm,
+    lineHeight: 21,
+  },
+  loadingContainer: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: theme.spacing.sm,
+  },
+  loadingText: {
+    color: theme.colors.mutedForeground,
+    fontSize: theme.fontSize.sm,
+  },
+  inputSection: {
+    borderTopColor: theme.colors.border,
+    borderTopWidth: 1,
+    paddingBottom: theme.spacing.md,
+    paddingTop: theme.spacing.md,
+  },
+  inputContainer: {
+    alignItems: "flex-end",
+    flexDirection: "row",
+    gap: theme.spacing.sm,
+  },
+  textInput: {
+    backgroundColor: theme.colors.card,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    color: theme.colors.foreground,
+    flex: 1,
+    fontSize: theme.fontSize.sm,
+    lineHeight: 20,
+    maxHeight: 120,
+    minHeight: 44,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 11,
+  },
+  placeholder: {
+    color: theme.colors.mutedForeground,
+  },
+  sendButton: {
+    alignItems: "center",
+    backgroundColor: theme.colors.primary,
+    borderRadius: 999,
+    height: 44,
+    justifyContent: "center",
+    width: 44,
+  },
+  sendButtonIcon: {
+    color: theme.colors.primaryForeground,
+  },
+  sendButtonDisabled: {
+    backgroundColor: theme.colors.card,
+    borderColor: theme.colors.border,
+    borderWidth: 1,
+    opacity: 0.55,
+  },
+  sendButtonDisabledIcon: {
+    color: theme.colors.mutedForeground,
+  },
+}));
+{{else}}
+import { useRef, useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+} from "react-native";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
+import { Ionicons } from "@expo/vector-icons";
+import { StyleSheet, useUnistyles } from "react-native-unistyles";
+import { Container } from "@/components/container";
+import { env } from "@{{projectName}}/env/native";
+
+const starterPrompts = [
+  {
+    label: "Plan a feature",
+    prompt: "Help me plan the first version of a habit tracking feature.",
+  },
+  {
+    label: "Draft an API",
+    prompt: "Sketch a clean API contract for projects, tasks, and comments.",
+  },
+  {
+    label: "Debug an issue",
+    prompt: "Walk me through debugging a slow mobile screen.",
+  },
+];
+
+const generateAPIUrl = (relativePath: string) => {
+  const serverUrl = env.EXPO_PUBLIC_SERVER_URL;
+  if (!serverUrl) {
+    throw new Error(
+      "EXPO_PUBLIC_SERVER_URL environment variable is not defined"
+    );
+  }
+  const path = relativePath.startsWith("/") ? relativePath : \`/\${relativePath}\`;
+  return serverUrl.concat(path);
+};
+
+export default function AIScreen() {
+  const { theme } = useUnistyles();
+  const [input, setInput] = useState("");
+  const { messages, error, sendMessage, status, setMessages } = useChat({
+    transport: new DefaultChatTransport({
+      api: generateAPIUrl("/ai"),
+    }),
+    onError: (error) => console.error(error, "AI Chat Error"),
+  });
+
+  const scrollViewRef = useRef<ScrollView>(null);
+  const isBusy = status === "submitted" || status === "streaming";
+  const hasMessages = messages.length > 0;
+  const canSend = Boolean(input.trim()) && !isBusy;
+
+  useEffect(() => {
+    scrollViewRef.current?.scrollToEnd({ animated: true });
+  }, [messages, isBusy]);
+
+  const sendPrompt = (prompt: string) => {
+    const value = prompt.trim();
+    if (!value || isBusy) return;
+
+    sendMessage({ text: value });
+    setInput("");
+  };
+
+  const onNewChat = () => {
+    if (isBusy) return;
+    setInput("");
+    setMessages([]);
+  };
+
+  return (
+    <Container>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <View style={styles.content}>
+          <View style={styles.toolbar}>
+            <View style={styles.statusGroup}>
+              <View
+                style={[
+                  styles.statusDot,
+                  isBusy ? styles.statusDotBusy : styles.statusDotIdle,
+                ]}
+              />
+              <Text style={styles.statusText}>
+                {isBusy
+                  ? status === "submitted"
+                    ? "Sending"
+                    : "Streaming"
+                  : hasMessages
+                    ? \`\${messages.length} messages\`
+                    : "Ready"}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={onNewChat}
+              disabled={isBusy || !hasMessages}
+              style={[
+                styles.toolbarAction,
+                (isBusy || !hasMessages) && styles.disabledAction,
+              ]}
+            >
+              <Ionicons
+                name="add"
+                size={16}
+                color={theme.colors.foreground}
+              />
+              <Text style={styles.toolbarActionText}>New</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.messagesContainer}
+            contentContainerStyle={styles.messagesContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {!hasMessages ? (
+              <View style={styles.emptyContainer}>
+                <View style={styles.emptyIcon}>
+                  <Ionicons
+                    name="chatbubble-ellipses-outline"
+                    size={28}
+                    color={theme.colors.foreground}
+                  />
+                </View>
+                <Text style={styles.emptyTitle}>Start a conversation</Text>
+                <Text selectable style={styles.emptyText}>
+                  Use a starter prompt or ask your own question.
+                </Text>
+                <View style={styles.promptList}>
+                  {starterPrompts.map((item) => (
+                    <TouchableOpacity
+                      key={item.label}
+                      onPress={() => sendPrompt(item.prompt)}
+                      disabled={isBusy}
+                      style={[
+                        styles.promptButton,
+                        isBusy && styles.disabledAction,
+                      ]}
+                    >
+                      <Text style={styles.promptLabel}>{item.label}</Text>
+                      <Text style={styles.promptText}>{item.prompt}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ) : (
+              <View style={styles.messagesWrapper}>
+                {messages.map((message) => {
+                  const isUser = message.role === "user";
+
+                  return (
+                    <View
+                      key={message.id}
+                      style={[
+                        styles.messageRow,
+                        isUser ? styles.userRow : styles.assistantRow,
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.messageBubble,
+                          isUser ? styles.userBubble : styles.assistantBubble,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.messageRole,
+                            isUser
+                              ? styles.userMessageText
+                              : styles.assistantMessageText,
+                          ]}
+                        >
+                          {isUser ? "You" : "AI"}
+                        </Text>
+                        <View style={styles.messageContentWrapper}>
+                          {(message.parts ?? []).map((part, i) => {
+                            if (part.type === "text") {
+                              return (
+                                <Text
+                                  key={\`\${message.id}-\${i}\`}
+                                  selectable
+                                  style={
+                                    isUser
+                                      ? styles.userMessageText
+                                      : styles.assistantMessageText
+                                  }
+                                >
+                                  {part.text}
+                                </Text>
+                              );
+                            }
+                            return (
+                              <Text
+                                key={\`\${message.id}-\${i}\`}
+                                selectable
+                                style={
+                                  isUser
+                                    ? styles.userMessageText
+                                    : styles.assistantMessageText
+                                }
+                              >
+                                {JSON.stringify(part)}
+                              </Text>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
+                {isBusy && (
+                  <View style={[styles.messageRow, styles.assistantRow]}>
+                    <View style={[styles.messageBubble, styles.assistantBubble]}>
+                      <Text
+                        style={[
+                          styles.messageRole,
+                          styles.assistantMessageText,
+                        ]}
+                      >
+                        AI
+                      </Text>
+                      <View style={styles.loadingContainer}>
+                        <ActivityIndicator
+                          size="small"
+                          color={theme.colors.primary}
+                        />
+                        <Text style={styles.loadingText}>Thinking...</Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+              </View>
+            )}
+          </ScrollView>
+
+          {error && (
+            <View style={styles.errorBanner}>
+              <Ionicons
+                name="alert-circle-outline"
+                size={18}
+                color={theme.colors.destructive}
+              />
+              <Text selectable style={styles.errorText}>
+                {error.message}
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.inputSection}>
+            <View style={styles.inputContainer}>
+              <TextInput
+                value={input}
+                onChangeText={setInput}
+                placeholder="Message AI..."
+                placeholderTextColor={theme.colors.mutedForeground}
+                style={styles.textInput}
+                onSubmitEditing={(e) => {
+                  e.preventDefault();
+                  sendPrompt(input);
+                }}
+                editable={!isBusy}
+                returnKeyType="send"
+                multiline
+              />
+              <TouchableOpacity
+                onPress={() => sendPrompt(input)}
+                disabled={!canSend}
+                style={[
+                  styles.sendButton,
+                  !canSend && styles.sendButtonDisabled,
+                ]}
+              >
+                <Ionicons
+                  name="arrow-up"
+                  size={20}
+                  color={
+                    canSend
+                      ? theme.colors.primaryForeground
+                      : theme.colors.mutedForeground
+                  }
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Container>
+  );
+}
+
+const styles = StyleSheet.create((theme) => ({
+  container: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: theme.spacing.md,
+  },
+  toolbar: {
+    alignItems: "center",
+    borderBottomColor: theme.colors.border,
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingBottom: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
+  },
+  statusGroup: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: theme.spacing.sm,
+  },
+  statusDot: {
+    borderRadius: 999,
+    height: 8,
+    width: 8,
+  },
+  statusDotBusy: {
+    backgroundColor: theme.colors.primary,
+  },
+  statusDotIdle: {
+    backgroundColor: theme.colors.border,
+  },
+  statusText: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.sm,
+    fontVariant: ["tabular-nums"],
+    fontWeight: "600",
+  },
+  toolbarAction: {
+    alignItems: "center",
+    borderColor: theme.colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: theme.spacing.xs,
+    minHeight: 32,
+    paddingHorizontal: 10,
+  },
+  toolbarActionText: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.sm,
+    fontWeight: "600",
+  },
+  disabledAction: {
+    opacity: 0.45,
+  },
+  messagesContainer: {
+    flex: 1,
+  },
+  messagesContent: {
+    flexGrow: 1,
+    paddingVertical: theme.spacing.md,
+  },
+  emptyContainer: {
+    alignItems: "center",
+    flex: 1,
+    gap: theme.spacing.md,
+    justifyContent: "center",
+  },
+  emptyIcon: {
+    alignItems: "center",
+    borderColor: theme.colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 56,
+    justifyContent: "center",
+    width: 56,
+  },
+  emptyTitle: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize["2xl"],
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  emptyText: {
+    color: theme.colors.mutedForeground,
+    fontSize: theme.fontSize.sm,
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  promptList: {
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.xs,
+    width: "100%",
+  },
+  promptButton: {
+    backgroundColor: theme.colors.card,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    gap: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 12,
+  },
+  promptLabel: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.sm,
+    fontWeight: "700",
+  },
+  promptText: {
+    color: theme.colors.mutedForeground,
+    fontSize: theme.fontSize.sm,
+    lineHeight: 18,
+  },
+  messagesWrapper: {
+    gap: theme.spacing.md,
+  },
+  messageRow: {
+    flexDirection: "row",
+  },
+  userRow: {
+    justifyContent: "flex-end",
+  },
+  assistantRow: {
+    justifyContent: "flex-start",
+  },
+  messageBubble: {
+    borderRadius: theme.borderRadius.xl,
+    maxWidth: "86%",
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 10,
+  },
+  userBubble: {
+    backgroundColor: theme.colors.primary,
+    borderTopRightRadius: theme.borderRadius.sm,
+  },
+  assistantBubble: {
+    backgroundColor: theme.colors.card,
+    borderColor: theme.colors.border,
+    borderTopLeftRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+  },
+  messageRole: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: "700",
+    marginBottom: theme.spacing.xs,
+    opacity: 0.72,
+  },
+  messageContentWrapper: {
+    gap: theme.spacing.xs,
+  },
+  userMessageText: {
+    color: theme.colors.primaryForeground,
+    fontSize: theme.fontSize.sm,
+    lineHeight: 21,
+  },
+  assistantMessageText: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.sm,
+    lineHeight: 21,
+  },
+  loadingContainer: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: theme.spacing.sm,
+  },
+  loadingText: {
+    color: theme.colors.mutedForeground,
+    fontSize: theme.fontSize.sm,
+  },
+  errorBanner: {
+    alignItems: "center",
+    backgroundColor: theme.colors.card,
+    borderColor: theme.colors.destructive,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: theme.spacing.sm,
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  errorIcon: {
+    color: theme.colors.destructive,
+  },
+  errorText: {
+    color: theme.colors.foreground,
+    flex: 1,
+    fontSize: theme.fontSize.sm,
+    lineHeight: 18,
+  },
+  inputSection: {
+    borderTopColor: theme.colors.border,
+    borderTopWidth: 1,
+    paddingBottom: theme.spacing.md,
+    paddingTop: theme.spacing.md,
+  },
+  inputContainer: {
+    alignItems: "flex-end",
+    flexDirection: "row",
+    gap: theme.spacing.sm,
+  },
+  textInput: {
+    backgroundColor: theme.colors.card,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    color: theme.colors.foreground,
+    flex: 1,
+    fontSize: theme.fontSize.sm,
+    lineHeight: 20,
+    maxHeight: 120,
+    minHeight: 44,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 11,
+  },
+  placeholder: {
+    color: theme.colors.mutedForeground,
+  },
+  sendButton: {
+    alignItems: "center",
+    backgroundColor: theme.colors.primary,
+    borderRadius: 999,
+    height: 44,
+    justifyContent: "center",
+    width: 44,
+  },
+  sendButtonIcon: {
+    color: theme.colors.primaryForeground,
+  },
+  sendButtonDisabled: {
+    backgroundColor: theme.colors.card,
+    borderColor: theme.colors.border,
+    borderWidth: 1,
+    opacity: 0.55,
+  },
+  sendButtonDisabledIcon: {
+    color: theme.colors.mutedForeground,
+  },
+}));
+{{/if}}
 `],
   ["examples/ai/native/unistyles/polyfills.js", `import structuredClone from "@ungap/structured-clone";
 import { Platform } from "react-native";
@@ -7045,7 +9351,554 @@ if (Platform.OS !== "web") {
 
 export {};
 `],
-  ["examples/ai/native/uniwind/app/(drawer)/ai.tsx.hbs", `
+  ["examples/ai/native/uniwind/app/(drawer)/ai.tsx.hbs", `{{#if (eq backend "convex")}}
+import { Ionicons } from "@expo/vector-icons";
+import {
+  useUIMessages,
+  useSmoothText,
+} from "@convex-dev/agent/react";
+import { api } from "@{{projectName}}/backend/convex/_generated/api";
+import { useMutation } from "convex/react";
+import { Button, Separator, Spinner, Surface, Input, TextField, useThemeColor } from "heroui-native";
+import { useRef, useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+} from "react-native";
+
+import { Container } from "@/components/container";
+
+const starterPrompts = [
+  {
+    label: "Plan a feature",
+    prompt: "Help me plan the first version of a habit tracking feature.",
+  },
+  {
+    label: "Draft an API",
+    prompt: "Sketch a clean API contract for projects, tasks, and comments.",
+  },
+  {
+    label: "Debug an issue",
+    prompt: "Walk me through debugging a slow mobile screen.",
+  },
+];
+
+function MessageContent({
+  text,
+  isStreaming,
+}: {
+  text: string;
+  isStreaming: boolean;
+}) {
+  const [visibleText] = useSmoothText(text, {
+    startStreaming: isStreaming,
+  });
+
+  return (
+    <Text selectable className="text-foreground text-sm leading-relaxed">
+      {visibleText}
+    </Text>
+  );
+}
+
+export default function AIScreen() {
+  const [input, setInput] = useState("");
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const mutedColor = useThemeColor("muted");
+  const foregroundColor = useThemeColor("foreground");
+
+  const createThread = useMutation(api.chat.createNewThread);
+  const sendMessage = useMutation(api.chat.sendMessage);
+
+  const { results: messages } = useUIMessages(
+    api.chat.listMessages,
+    threadId ? { threadId } : "skip",
+    { initialNumItems: 50, stream: true },
+  );
+
+  const hasStreamingMessage = messages?.some(
+    (m) => m.status === "streaming",
+  );
+  const hasMessages = Boolean(messages?.length);
+  const isBusy = isLoading || Boolean(hasStreamingMessage);
+  const canSend = Boolean(input.trim()) && !isBusy;
+
+  useEffect(() => {
+    scrollViewRef.current?.scrollToEnd({ animated: true });
+  }, [messages, isLoading]);
+
+  const sendPrompt = async (prompt: string) => {
+    const value = prompt.trim();
+    if (!value || isBusy) return;
+
+    setIsLoading(true);
+    setInput("");
+
+    try {
+      let currentThreadId = threadId;
+      if (!currentThreadId) {
+        currentThreadId = await createThread();
+        setThreadId(currentThreadId);
+      }
+
+      await sendMessage({ threadId: currentThreadId, prompt: value });
+    } catch (error) {
+      console.error("Failed to send message:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const onNewChat = () => {
+    if (isBusy) return;
+    setInput("");
+    setThreadId(null);
+  };
+
+  return (
+    <Container isScrollable={false}>
+      <KeyboardAvoidingView
+        className="flex-1"
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <View className="flex-1 px-4">
+          <View className="flex-row items-center justify-between py-3">
+            <View className="flex-row items-center gap-2">
+              <View
+                className={\`h-2 w-2 rounded-full \${
+                  isBusy ? "bg-primary" : "bg-border"
+                }\`}
+              />
+              <Text className="text-sm font-semibold text-foreground tabular-nums">
+                {isBusy
+                  ? "Streaming"
+                  : hasMessages
+                    ? \`\${messages?.length ?? 0} messages\`
+                    : "Ready"}
+              </Text>
+            </View>
+            <Button
+              size="sm"
+              variant="secondary"
+              onPress={onNewChat}
+              isDisabled={isBusy || (!hasMessages && !threadId)}
+            >
+              <Ionicons name="add" size={16} color={foregroundColor} />
+              <Text className="text-sm font-medium text-foreground">New</Text>
+            </Button>
+          </View>
+
+          <Separator className="mb-1" />
+
+          <ScrollView
+            ref={scrollViewRef}
+            className="flex-1"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle=\\{{ flexGrow: 1, paddingVertical: 16 }}
+            keyboardShouldPersistTaps="handled"
+          >
+            {!hasMessages ? (
+              <View className="flex-1 justify-center gap-3">
+                <View className="items-center gap-3">
+                  <Surface
+                    variant="secondary"
+                    className="h-14 w-14 items-center justify-center rounded-full"
+                  >
+                    <Ionicons
+                      name="chatbubble-ellipses-outline"
+                      size={28}
+                      color={mutedColor}
+                    />
+                  </Surface>
+                  <Text className="text-center text-xl font-semibold text-foreground">
+                    Start a conversation
+                  </Text>
+                  <Text selectable className="text-center text-sm leading-5 text-muted">
+                    Use a starter prompt or ask your own question.
+                  </Text>
+                </View>
+                <View className="gap-2">
+                  {starterPrompts.map((item) => (
+                    <Pressable
+                      key={item.label}
+                      onPress={() => sendPrompt(item.prompt)}
+                      disabled={isBusy}
+                    >
+                      <Surface
+                        variant="secondary"
+                        className={\`gap-1 rounded-xl p-3 \${
+                          isBusy ? "opacity-50" : ""
+                        }\`}
+                      >
+                        <Text className="text-sm font-semibold text-foreground">
+                          {item.label}
+                        </Text>
+                        <Text className="text-sm leading-5 text-muted">
+                          {item.prompt}
+                        </Text>
+                      </Surface>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            ) : (
+              <View className="gap-3">
+	                {messages?.map((message) => (
+	                  <View
+	                    key={\`\${message.order}-\${message.stepOrder}\`}
+	                    className={\`flex-row \${
+                      message.role === "user" ? "justify-end" : "justify-start"
+                    }\`}
+                  >
+                    <Surface
+                      variant={message.role === "user" ? "tertiary" : "secondary"}
+                      style=\\{{ maxWidth: "86%" }}
+                      className={\`rounded-2xl p-3 \${
+                        message.role === "user" ? "rounded-tr-md" : "rounded-tl-md"
+                      }\`}
+                    >
+                      <Text className="mb-1 text-xs font-semibold text-muted">
+                        {message.role === "user" ? "You" : "AI"}
+                      </Text>
+                      <MessageContent
+                        text={(message.parts ?? [])
+                          .map((part) => (part.type === "text" ? part.text : ""))
+                          .join("")}
+                        isStreaming={message.status === "streaming"}
+                      />
+                    </Surface>
+                  </View>
+                ))}
+                {isLoading && !hasStreamingMessage && (
+                  <View className="flex-row justify-start">
+                    <Surface
+                      variant="secondary"
+                      style=\\{{ maxWidth: "86%" }}
+                      className="rounded-2xl rounded-tl-md p-3"
+                    >
+                      <Text className="mb-1 text-xs font-semibold text-muted">AI</Text>
+                      <View className="flex-row items-center gap-2">
+                        <Spinner size="sm" />
+                        <Text className="text-sm text-muted">Thinking...</Text>
+                      </View>
+                    </Surface>
+                  </View>
+                )}
+              </View>
+            )}
+          </ScrollView>
+
+          <Separator className="mb-3" />
+
+          <View className="flex-row items-end gap-2 pb-4">
+            <View className="flex-1">
+              <TextField>
+                <Input
+                  value={input}
+                  onChangeText={setInput}
+                  placeholder="Message AI..."
+                  onSubmitEditing={() => sendPrompt(input)}
+                  editable={!isBusy}
+                  returnKeyType="send"
+                />
+              </TextField>
+            </View>
+            <Button
+              isIconOnly
+              variant={canSend ? "primary" : "secondary"}
+              onPress={() => sendPrompt(input)}
+              isDisabled={!canSend}
+              size="sm"
+            >
+              <Ionicons
+                name="arrow-up"
+                size={18}
+                color={canSend ? foregroundColor : mutedColor}
+              />
+            </Button>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Container>
+  );
+}
+{{else}}
+import { useRef, useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+} from "react-native";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
+import { Ionicons } from "@expo/vector-icons";
+import { Container } from "@/components/container";
+import { Button, Separator, FieldError, Spinner, Surface, Input, TextField, useThemeColor } from "heroui-native";
+import { env } from "@{{projectName}}/env/native";
+
+const starterPrompts = [
+  {
+    label: "Plan a feature",
+    prompt: "Help me plan the first version of a habit tracking feature.",
+  },
+  {
+    label: "Draft an API",
+    prompt: "Sketch a clean API contract for projects, tasks, and comments.",
+  },
+  {
+    label: "Debug an issue",
+    prompt: "Walk me through debugging a slow mobile screen.",
+  },
+];
+
+const generateAPIUrl = (relativePath: string) => {
+  const serverUrl = env.EXPO_PUBLIC_SERVER_URL;
+  if (!serverUrl) {
+    throw new Error(
+      "EXPO_PUBLIC_SERVER_URL environment variable is not defined"
+    );
+  }
+  const path = relativePath.startsWith("/") ? relativePath : \`/\${relativePath}\`;
+  return serverUrl.concat(path);
+};
+
+export default function AIScreen() {
+  const [input, setInput] = useState("");
+  const { messages, error, sendMessage, status, setMessages } = useChat({
+    transport: new DefaultChatTransport({
+      api: generateAPIUrl("/ai"),
+    }),
+    onError: (error) => console.error(error, "AI Chat Error"),
+  });
+  const scrollViewRef = useRef<ScrollView>(null);
+  const foregroundColor = useThemeColor("foreground");
+  const mutedColor = useThemeColor("muted");
+  const isBusy = status === "submitted" || status === "streaming";
+  const hasMessages = messages.length > 0;
+  const canSend = Boolean(input.trim()) && !isBusy;
+
+  useEffect(() => {
+    scrollViewRef.current?.scrollToEnd({ animated: true });
+  }, [messages, isBusy]);
+
+  const sendPrompt = (prompt: string) => {
+    const value = prompt.trim();
+    if (!value || isBusy) return;
+
+    sendMessage({ text: value });
+    setInput("");
+  };
+
+  const onNewChat = () => {
+    if (isBusy) return;
+    setInput("");
+    setMessages([]);
+  };
+
+  return (
+    <Container isScrollable={false}>
+      <KeyboardAvoidingView
+        className="flex-1"
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <View className="flex-1 px-4">
+          <View className="flex-row items-center justify-between py-3">
+            <View className="flex-row items-center gap-2">
+              <View
+                className={\`h-2 w-2 rounded-full \${
+                  isBusy ? "bg-primary" : "bg-border"
+                }\`}
+              />
+              <Text className="text-sm font-semibold text-foreground tabular-nums">
+                {isBusy
+                  ? status === "submitted"
+                    ? "Sending"
+                    : "Streaming"
+                  : hasMessages
+                    ? \`\${messages.length} messages\`
+                    : "Ready"}
+              </Text>
+            </View>
+            <Button
+              size="sm"
+              variant="secondary"
+              onPress={onNewChat}
+              isDisabled={isBusy || !hasMessages}
+            >
+              <Ionicons name="add" size={16} color={foregroundColor} />
+              <Text className="text-sm font-medium text-foreground">New</Text>
+            </Button>
+          </View>
+
+          <Separator className="mb-1" />
+
+          <ScrollView
+            ref={scrollViewRef}
+            className="flex-1"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle=\\{{ flexGrow: 1, paddingVertical: 16 }}
+            keyboardShouldPersistTaps="handled"
+          >
+            {!hasMessages ? (
+              <View className="flex-1 justify-center gap-3">
+                <View className="items-center gap-3">
+                  <Surface
+                    variant="secondary"
+                    className="h-14 w-14 items-center justify-center rounded-full"
+                  >
+                    <Ionicons
+                      name="chatbubble-ellipses-outline"
+                      size={28}
+                      color={mutedColor}
+                    />
+                  </Surface>
+                  <Text className="text-center text-xl font-semibold text-foreground">
+                    Start a conversation
+                  </Text>
+                  <Text selectable className="text-center text-sm leading-5 text-muted">
+                    Use a starter prompt or ask your own question.
+                  </Text>
+                </View>
+                <View className="gap-2">
+                  {starterPrompts.map((item) => (
+                    <Pressable
+                      key={item.label}
+                      onPress={() => sendPrompt(item.prompt)}
+                      disabled={isBusy}
+                    >
+                      <Surface
+                        variant="secondary"
+                        className={\`gap-1 rounded-xl p-3 \${
+                          isBusy ? "opacity-50" : ""
+                        }\`}
+                      >
+                        <Text className="text-sm font-semibold text-foreground">
+                          {item.label}
+                        </Text>
+                        <Text className="text-sm leading-5 text-muted">
+                          {item.prompt}
+                        </Text>
+                      </Surface>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            ) : (
+              <View className="gap-3">
+                {messages.map((message) => (
+                  <View
+                    key={message.id}
+                    className={\`flex-row \${
+                      message.role === "user" ? "justify-end" : "justify-start"
+                    }\`}
+                  >
+                    <Surface
+                      variant={message.role === "user" ? "tertiary" : "secondary"}
+                      style=\\{{ maxWidth: "86%" }}
+                      className={\`rounded-2xl p-3 \${
+                        message.role === "user" ? "rounded-tr-md" : "rounded-tl-md"
+                      }\`}
+                    >
+                      <Text className="mb-1 text-xs font-semibold text-muted">
+                        {message.role === "user" ? "You" : "AI"}
+                      </Text>
+                      <View className="gap-1">
+                        {(message.parts ?? []).map((part, i) =>
+                          part.type === "text" ? (
+                            <Text
+                              key={\`\${message.id}-\${i}\`}
+                              selectable
+                              className="text-sm leading-relaxed text-foreground"
+                            >
+                              {part.text}
+                            </Text>
+                          ) : (
+                            <Text
+                              key={\`\${message.id}-\${i}\`}
+                              selectable
+                              className="text-sm leading-relaxed text-foreground"
+                            >
+                              {JSON.stringify(part)}
+                            </Text>
+                          )
+                        )}
+                      </View>
+                    </Surface>
+                  </View>
+                ))}
+                {isBusy && (
+                  <View className="flex-row justify-start">
+                    <Surface
+                      variant="secondary"
+                      style=\\{{ maxWidth: "86%" }}
+                      className="rounded-2xl rounded-tl-md p-3"
+                    >
+                      <Text className="mb-1 text-xs font-semibold text-muted">AI</Text>
+                      <View className="flex-row items-center gap-2">
+                        <Spinner size="sm" />
+                        <Text className="text-sm text-muted">Thinking...</Text>
+                      </View>
+                    </Surface>
+                  </View>
+                )}
+              </View>
+            )}
+          </ScrollView>
+
+          {error && (
+            <Surface variant="secondary" className="mb-3 rounded-xl p-3">
+              <FieldError isInvalid>
+                <Text selectable className="text-sm font-medium text-danger">
+                  {error.message}
+                </Text>
+              </FieldError>
+            </Surface>
+          )}
+
+          <Separator className="mb-3" />
+
+          <View className="flex-row items-end gap-2 pb-4">
+            <View className="flex-1">
+              <TextField>
+                <Input
+                  value={input}
+                  onChangeText={setInput}
+                  placeholder="Message AI..."
+                  onSubmitEditing={() => sendPrompt(input)}
+                  returnKeyType="send"
+                  editable={!isBusy}
+                />
+              </TextField>
+            </View>
+            <Button
+              isIconOnly
+              variant={canSend ? "primary" : "secondary"}
+              onPress={() => sendPrompt(input)}
+              isDisabled={!canSend}
+              size="sm"
+            >
+              <Ionicons
+                name="arrow-up"
+                size={18}
+                color={canSend ? foregroundColor : mutedColor}
+              />
+            </Button>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Container>
+  );
+}
+{{/if}}
 `],
   ["examples/ai/native/uniwind/polyfills.js", `import structuredClone from "@ungap/structured-clone";
 import { Platform } from "react-native";
@@ -7070,12 +9923,2030 @@ if (Platform.OS !== "web") {
 
 export {};
 `],
-  ["examples/ai/web/react/next/src/app/ai/page.tsx.hbs", `
+  ["examples/ai/web/react/next/src/app/ai/page.tsx.hbs", `{{#if (eq backend "convex")}}
+"use client";
+
+import { api } from "@{{projectName}}/backend/convex/_generated/api";
+import {
+  useSmoothText,
+  useUIMessages,
+} from "@convex-dev/agent/react";
+import { useMutation } from "convex/react";
+import {
+  ArrowUpIcon,
+  Loader2,
+  MessageCircleDashedIcon,
+  RotateCwIcon,
+} from "lucide-react";
+{{#if (eq webDeploy "cloudflare")}}
+import dynamic from "next/dynamic";
+
+const Streamdown = dynamic(
+  () => import("streamdown").then((mod) => ({ default: mod.Streamdown })),
+  {
+    loading: () => (
+      <div className="flex h-full items-center justify-center">
+        <div className="text-muted-foreground">Loading response...</div>
+      </div>
+    ),
+    ssr: false,
+  }
+);
+{{else}}
+import { Streamdown } from "streamdown";
+{{/if}}
+import { useState, type FormEvent, type KeyboardEvent } from "react";
+
+import { Bubble, BubbleContent } from "@{{projectName}}/ui/components/bubble";
+import { Button } from "@{{projectName}}/ui/components/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@{{projectName}}/ui/components/empty";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupTextarea,
+} from "@{{projectName}}/ui/components/input-group";
+import {
+  Message,
+  MessageContent as MessageBody,
+  MessageHeader,
+} from "@{{projectName}}/ui/components/message";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@{{projectName}}/ui/components/message-scroller";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@{{projectName}}/ui/components/tooltip";
+
+function StreamingMessageText({
+  text,
+  isStreaming,
+}: {
+  text: string;
+  isStreaming: boolean;
+}) {
+  const [visibleText] = useSmoothText(text, {
+    startStreaming: isStreaming,
+  });
+
+  return <Streamdown>{visibleText}</Streamdown>;
+}
+
+export default function AIPage() {
+  const [input, setInput] = useState("");
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const createThread = useMutation(api.chat.createNewThread);
+  const sendMessage = useMutation(api.chat.sendMessage);
+
+  const { results: messages } = useUIMessages(
+    api.chat.listMessages,
+    threadId ? { threadId } : "skip",
+    { initialNumItems: 50, stream: true },
+  );
+
+  const hasStreamingMessage = messages?.some(
+    (m) => m.status === "streaming",
+  );
+  const isBusy = isLoading || Boolean(hasStreamingMessage);
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const text = input.trim();
+    if (!text || isBusy) return;
+
+    setIsLoading(true);
+    setInput("");
+
+    try {
+      let currentThreadId = threadId;
+      if (!currentThreadId) {
+        currentThreadId = await createThread();
+        setThreadId(currentThreadId);
+      }
+
+      await sendMessage({ threadId: currentThreadId, prompt: text });
+    } catch (error) {
+      console.error("Failed to send message:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePromptKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      e.currentTarget.form?.requestSubmit();
+    }
+  };
+
+  const resetConversation = () => {
+    setInput("");
+    setThreadId(null);
+  };
+
+  return (
+    <MessageScrollerProvider>
+      <div className="flex h-full min-h-0 w-full flex-col">
+        <header className="shrink-0 border-b px-4 py-3">
+          <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-sm font-medium">New Chat</h1>
+              <p className="text-xs/relaxed text-muted-foreground">
+                How can I help you today?
+              </p>
+            </div>
+            <div className="shrink-0">
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon-sm"
+                        aria-label="Reset conversation"
+                        onClick={resetConversation}
+                        disabled={isBusy}
+                      />
+                    }
+                  >
+                    <RotateCwIcon />
+                  </TooltipTrigger>
+                  <TooltipContent>Reset</TooltipContent>
+                </Tooltip>
+            </div>
+          </div>
+        </header>
+        <main className="min-h-0 flex-1">
+              {(!messages || messages.length === 0) && !isLoading ? (
+                <Empty className="mx-auto h-full max-w-3xl px-4">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <MessageCircleDashedIcon />
+                    </EmptyMedia>
+                    <EmptyTitle>Morning, {{projectName}}!</EmptyTitle>
+                    <EmptyDescription>
+                      What are we working on today?
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                <MessageScroller>
+                  <MessageScrollerViewport>
+                    <MessageScrollerContent
+                      aria-busy={isBusy}
+                      className="mx-auto w-full max-w-3xl px-4 py-6"
+                    >
+                      {messages.map((message) => {
+                        const isUser = message.role === "user";
+
+	                        return (
+	                          <MessageScrollerItem
+	                            key={\`\${message.order}-\${message.stepOrder}\`}
+	                            scrollAnchor={isUser}
+	                          >
+                            <Message align={isUser ? "end" : "start"}>
+                              <MessageBody>
+                                <MessageHeader>
+                                  {isUser ? "You" : "AI Assistant"}
+                                </MessageHeader>
+                                <Bubble
+                                  align={isUser ? "end" : "start"}
+                                  variant={isUser ? "default" : "secondary"}
+                                >
+                                  <BubbleContent>
+                                    <StreamingMessageText
+                                      text={(message.parts ?? [])
+                                        .map((part) => (part.type === "text" ? part.text : ""))
+                                        .join("")}
+                                      isStreaming={message.status === "streaming"}
+                                    />
+                                  </BubbleContent>
+                                </Bubble>
+                              </MessageBody>
+                            </Message>
+                          </MessageScrollerItem>
+                        );
+                      })}
+                      {isLoading && !hasStreamingMessage && (
+                        <MessageScrollerItem>
+                          <Message align="start">
+                            <MessageBody>
+                              <Bubble variant="secondary">
+                                <BubbleContent className="flex items-center gap-2">
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                  <span className="shimmer">Thinking...</span>
+                                </BubbleContent>
+                              </Bubble>
+                            </MessageBody>
+                          </Message>
+                        </MessageScrollerItem>
+                      )}
+                      <MessageScrollerItem scrollAnchor />
+                    </MessageScrollerContent>
+                  </MessageScrollerViewport>
+                  <MessageScrollerButton />
+                </MessageScroller>
+              )}
+        </main>
+        <footer className="shrink-0 border-t px-4 py-3">
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
+              <form onSubmit={handleSubmit} className="w-full">
+                <InputGroup>
+                  <InputGroupTextarea
+                    name="prompt"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handlePromptKeyDown}
+                    placeholder="Type your message..."
+                    className="max-h-32 min-h-14"
+                    rows={1}
+                    autoComplete="off"
+                    autoFocus
+                    disabled={isBusy}
+                  />
+                  <InputGroupAddon align="block-end" className="pt-1">
+                    <InputGroupButton
+                      type="submit"
+                      variant="default"
+                      size="icon-sm"
+                      disabled={isBusy || !input.trim()}
+                      className="ml-auto"
+                    >
+                      {isBusy ? (
+                        <Loader2 className="animate-spin" />
+                      ) : (
+                        <ArrowUpIcon />
+                      )}
+                      <span className="sr-only">Send</span>
+                    </InputGroupButton>
+                  </InputGroupAddon>
+                </InputGroup>
+            </form>
+          </div>
+        </footer>
+      </div>
+    </MessageScrollerProvider>
+  );
+}
+{{else}}
+"use client";
+
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
+import {
+  ArrowUpIcon,
+  Loader2,
+  MessageCircleDashedIcon,
+  RotateCwIcon,
+} from "lucide-react";
+{{#if (eq webDeploy "cloudflare")}}
+import dynamic from "next/dynamic";
+
+const Streamdown = dynamic(
+  () => import("streamdown").then((mod) => ({ default: mod.Streamdown })),
+  {
+    loading: () => (
+      <div className="flex h-full items-center justify-center">
+        <div className="text-muted-foreground">Loading response...</div>
+      </div>
+    ),
+    ssr: false,
+  }
+);
+{{else}}
+import { Streamdown } from "streamdown";
+{{/if}}
+import { useState, type FormEvent, type KeyboardEvent } from "react";
+
+import { Bubble, BubbleContent } from "@{{projectName}}/ui/components/bubble";
+import { Button } from "@{{projectName}}/ui/components/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@{{projectName}}/ui/components/empty";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupTextarea,
+} from "@{{projectName}}/ui/components/input-group";
+import {
+  Message,
+  MessageContent as MessageBody,
+  MessageHeader,
+} from "@{{projectName}}/ui/components/message";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@{{projectName}}/ui/components/message-scroller";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@{{projectName}}/ui/components/tooltip";
+import { env } from "@{{projectName}}/env/web";
+
+export default function AIPage() {
+  const [input, setInput] = useState("");
+  const { messages, sendMessage, status, setMessages } = useChat({
+    transport: new DefaultChatTransport({
+      api: {{#if (eq backend "self")}}"/api/ai"{{else}}\`\${env.NEXT_PUBLIC_SERVER_URL}/ai\`{{/if}},
+    }),
+  });
+  const isSending = status === "submitted" || status === "streaming";
+
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const text = input.trim();
+    if (!text || isSending) return;
+    sendMessage({ text });
+    setInput("");
+  };
+
+  const handlePromptKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      e.currentTarget.form?.requestSubmit();
+    }
+  };
+
+  const resetConversation = () => {
+    setInput("");
+    setMessages([]);
+  };
+
+  return (
+    <MessageScrollerProvider>
+      <div className="flex h-full min-h-0 w-full flex-col">
+        <header className="shrink-0 border-b px-4 py-3">
+          <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-sm font-medium">New Chat</h1>
+              <p className="text-xs/relaxed text-muted-foreground">
+                How can I help you today?
+              </p>
+            </div>
+            <div className="shrink-0">
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon-sm"
+                        aria-label="Reset conversation"
+                        onClick={resetConversation}
+                        disabled={isSending}
+                      />
+                    }
+                  >
+                    <RotateCwIcon />
+                  </TooltipTrigger>
+                  <TooltipContent>Reset</TooltipContent>
+                </Tooltip>
+            </div>
+          </div>
+        </header>
+        <main className="min-h-0 flex-1">
+              {messages.length === 0 && !isSending ? (
+                <Empty className="mx-auto h-full max-w-3xl px-4">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <MessageCircleDashedIcon />
+                    </EmptyMedia>
+                    <EmptyTitle>Morning, {{projectName}}!</EmptyTitle>
+                    <EmptyDescription>
+                      What are we working on today?
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                <MessageScroller>
+                  <MessageScrollerViewport>
+                    <MessageScrollerContent
+                      aria-busy={isSending}
+                      className="mx-auto w-full max-w-3xl px-4 py-6"
+                    >
+                      {messages.map((message) => {
+                        const isUser = message.role === "user";
+
+                        return (
+                          <MessageScrollerItem
+                            key={message.id}
+                            scrollAnchor={isUser}
+                          >
+                            <Message align={isUser ? "end" : "start"}>
+                              <MessageBody>
+                                <MessageHeader>
+                                  {isUser ? "You" : "AI Assistant"}
+                                </MessageHeader>
+                                <Bubble
+                                  align={isUser ? "end" : "start"}
+                                  variant={isUser ? "default" : "secondary"}
+                                >
+                                  <BubbleContent>
+                                    {message.parts?.map((part, index) => {
+                                      if (part.type === "text") {
+                                        return (
+                                          <Streamdown
+                                            key={index}
+                                            isAnimating={status === "streaming" && message.role === "assistant"}
+                                          >
+                                            {part.text}
+                                          </Streamdown>
+                                        );
+                                      }
+                                      return null;
+                                    })}
+                                  </BubbleContent>
+                                </Bubble>
+                              </MessageBody>
+                            </Message>
+                          </MessageScrollerItem>
+                        );
+                      })}
+                      {status === "submitted" && (
+                        <MessageScrollerItem>
+                          <Message align="start">
+                            <MessageBody>
+                              <Bubble variant="secondary">
+                                <BubbleContent className="flex items-center gap-2">
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                  <span className="shimmer">Thinking...</span>
+                                </BubbleContent>
+                              </Bubble>
+                            </MessageBody>
+                          </Message>
+                        </MessageScrollerItem>
+                      )}
+                      <MessageScrollerItem scrollAnchor />
+                    </MessageScrollerContent>
+                  </MessageScrollerViewport>
+                  <MessageScrollerButton />
+                </MessageScroller>
+              )}
+        </main>
+        <footer className="shrink-0 border-t px-4 py-3">
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
+              <form onSubmit={handleSubmit} className="w-full">
+                <InputGroup>
+                  <InputGroupTextarea
+                    name="prompt"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handlePromptKeyDown}
+                    placeholder="Type your message..."
+                    className="max-h-32 min-h-14"
+                    rows={1}
+                    autoComplete="off"
+                    autoFocus
+                    disabled={isSending}
+                  />
+                  <InputGroupAddon align="block-end" className="pt-1">
+                    <InputGroupButton
+                      type="submit"
+                      variant="default"
+                      size="icon-sm"
+                      disabled={isSending || !input.trim()}
+                      className="ml-auto"
+                    >
+                      {isSending ? (
+                        <Loader2 className="animate-spin" />
+                      ) : (
+                        <ArrowUpIcon />
+                      )}
+                      <span className="sr-only">Send</span>
+                    </InputGroupButton>
+                  </InputGroupAddon>
+                </InputGroup>
+            </form>
+          </div>
+        </footer>
+      </div>
+    </MessageScrollerProvider>
+  );
+}
+{{/if}}
 `],
-  ["examples/ai/web/react/react-router/src/routes/ai.tsx.hbs", `
+  ["examples/ai/web/react/react-router/src/routes/ai.tsx.hbs", `{{#if (eq backend "convex")}}
+import { api } from "@{{projectName}}/backend/convex/_generated/api";
+import {
+  useSmoothText,
+  useUIMessages,
+} from "@convex-dev/agent/react";
+import { useMutation } from "convex/react";
+import {
+  ArrowUpIcon,
+  Loader2,
+  MessageCircleDashedIcon,
+  RotateCwIcon,
+} from "lucide-react";
+import { useState, type FormEvent, type KeyboardEvent } from "react";
+import { Streamdown } from "streamdown";
+
+import { Bubble, BubbleContent } from "@{{projectName}}/ui/components/bubble";
+import { Button } from "@{{projectName}}/ui/components/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@{{projectName}}/ui/components/empty";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupTextarea,
+} from "@{{projectName}}/ui/components/input-group";
+import {
+  Message,
+  MessageContent as MessageBody,
+  MessageHeader,
+} from "@{{projectName}}/ui/components/message";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@{{projectName}}/ui/components/message-scroller";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@{{projectName}}/ui/components/tooltip";
+
+function StreamingMessageText({
+  text,
+  isStreaming,
+}: {
+  text: string;
+  isStreaming: boolean;
+}) {
+  const [visibleText] = useSmoothText(text, {
+    startStreaming: isStreaming,
+  });
+
+  return <Streamdown>{visibleText}</Streamdown>;
+}
+
+export default function AI() {
+  const [input, setInput] = useState("");
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const createThread = useMutation(api.chat.createNewThread);
+  const sendMessage = useMutation(api.chat.sendMessage);
+
+  const { results: messages } = useUIMessages(
+    api.chat.listMessages,
+    threadId ? { threadId } : "skip",
+    { initialNumItems: 50, stream: true },
+  );
+
+  const hasStreamingMessage = messages?.some(
+    (m) => m.status === "streaming",
+  );
+  const isBusy = isLoading || Boolean(hasStreamingMessage);
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const text = input.trim();
+    if (!text || isBusy) return;
+
+    setIsLoading(true);
+    setInput("");
+
+    try {
+      let currentThreadId = threadId;
+      if (!currentThreadId) {
+        currentThreadId = await createThread();
+        setThreadId(currentThreadId);
+      }
+
+      await sendMessage({ threadId: currentThreadId, prompt: text });
+    } catch (error) {
+      console.error("Failed to send message:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePromptKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      e.currentTarget.form?.requestSubmit();
+    }
+  };
+
+  const resetConversation = () => {
+    setInput("");
+    setThreadId(null);
+  };
+
+  return (
+    <MessageScrollerProvider>
+      <div className="flex h-full min-h-0 w-full flex-col">
+        <header className="shrink-0 border-b px-4 py-3">
+          <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-sm font-medium">New Chat</h1>
+              <p className="text-xs/relaxed text-muted-foreground">
+                How can I help you today?
+              </p>
+            </div>
+            <div className="shrink-0">
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon-sm"
+                        aria-label="Reset conversation"
+                        onClick={resetConversation}
+                        disabled={isBusy}
+                      />
+                    }
+                  >
+                    <RotateCwIcon />
+                  </TooltipTrigger>
+                  <TooltipContent>Reset</TooltipContent>
+                </Tooltip>
+            </div>
+          </div>
+        </header>
+        <main className="min-h-0 flex-1">
+              {(!messages || messages.length === 0) && !isLoading ? (
+                <Empty className="mx-auto h-full max-w-3xl px-4">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <MessageCircleDashedIcon />
+                    </EmptyMedia>
+                    <EmptyTitle>Morning, {{projectName}}!</EmptyTitle>
+                    <EmptyDescription>
+                      What are we working on today?
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                <MessageScroller>
+                  <MessageScrollerViewport>
+                    <MessageScrollerContent
+                      aria-busy={isBusy}
+                      className="mx-auto w-full max-w-3xl px-4 py-6"
+                    >
+                      {messages.map((message) => {
+                        const isUser = message.role === "user";
+
+	                        return (
+	                          <MessageScrollerItem
+	                            key={\`\${message.order}-\${message.stepOrder}\`}
+	                            scrollAnchor={isUser}
+	                          >
+                            <Message align={isUser ? "end" : "start"}>
+                              <MessageBody>
+                                <MessageHeader>
+                                  {isUser ? "You" : "AI Assistant"}
+                                </MessageHeader>
+                                <Bubble
+                                  align={isUser ? "end" : "start"}
+                                  variant={isUser ? "default" : "secondary"}
+                                >
+                                  <BubbleContent>
+                                    <StreamingMessageText
+                                      text={(message.parts ?? [])
+                                        .map((part) => (part.type === "text" ? part.text : ""))
+                                        .join("")}
+                                      isStreaming={message.status === "streaming"}
+                                    />
+                                  </BubbleContent>
+                                </Bubble>
+                              </MessageBody>
+                            </Message>
+                          </MessageScrollerItem>
+                        );
+                      })}
+                      {isLoading && !hasStreamingMessage && (
+                        <MessageScrollerItem>
+                          <Message align="start">
+                            <MessageBody>
+                              <Bubble variant="secondary">
+                                <BubbleContent className="flex items-center gap-2">
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                  <span className="shimmer">Thinking...</span>
+                                </BubbleContent>
+                              </Bubble>
+                            </MessageBody>
+                          </Message>
+                        </MessageScrollerItem>
+                      )}
+                      <MessageScrollerItem scrollAnchor />
+                    </MessageScrollerContent>
+                  </MessageScrollerViewport>
+                  <MessageScrollerButton />
+                </MessageScroller>
+              )}
+        </main>
+        <footer className="shrink-0 border-t px-4 py-3">
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
+              <form onSubmit={handleSubmit} className="w-full">
+                <InputGroup>
+                  <InputGroupTextarea
+                    name="prompt"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handlePromptKeyDown}
+                    placeholder="Type your message..."
+                    className="max-h-32 min-h-14"
+                    rows={1}
+                    autoComplete="off"
+                    autoFocus
+                    disabled={isBusy}
+                  />
+                  <InputGroupAddon align="block-end" className="pt-1">
+                    <InputGroupButton
+                      type="submit"
+                      variant="default"
+                      size="icon-sm"
+                      disabled={isBusy || !input.trim()}
+                      className="ml-auto"
+                    >
+                      {isBusy ? (
+                        <Loader2 className="animate-spin" />
+                      ) : (
+                        <ArrowUpIcon />
+                      )}
+                      <span className="sr-only">Send</span>
+                    </InputGroupButton>
+                  </InputGroupAddon>
+                </InputGroup>
+            </form>
+          </div>
+        </footer>
+      </div>
+    </MessageScrollerProvider>
+  );
+}
+{{else}}
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
+import {
+  ArrowUpIcon,
+  Loader2,
+  MessageCircleDashedIcon,
+  RotateCwIcon,
+} from "lucide-react";
+import { useState, type FormEvent, type KeyboardEvent } from "react";
+import { Streamdown } from "streamdown";
+import { env } from "@{{projectName}}/env/web";
+
+import { Bubble, BubbleContent } from "@{{projectName}}/ui/components/bubble";
+import { Button } from "@{{projectName}}/ui/components/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@{{projectName}}/ui/components/empty";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupTextarea,
+} from "@{{projectName}}/ui/components/input-group";
+import {
+  Message,
+  MessageContent as MessageBody,
+  MessageHeader,
+} from "@{{projectName}}/ui/components/message";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@{{projectName}}/ui/components/message-scroller";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@{{projectName}}/ui/components/tooltip";
+
+export default function AI() {
+  const [input, setInput] = useState("");
+  const { messages, sendMessage, status, setMessages } = useChat({
+    transport: new DefaultChatTransport({
+      api: \`\${env.VITE_SERVER_URL}/ai\`,
+    }),
+  });
+  const isSending = status === "submitted" || status === "streaming";
+
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const text = input.trim();
+    if (!text || isSending) return;
+    sendMessage({ text });
+    setInput("");
+  };
+
+  const handlePromptKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      e.currentTarget.form?.requestSubmit();
+    }
+  };
+
+  const resetConversation = () => {
+    setInput("");
+    setMessages([]);
+  };
+
+  return (
+    <MessageScrollerProvider>
+      <div className="flex h-full min-h-0 w-full flex-col">
+        <header className="shrink-0 border-b px-4 py-3">
+          <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-sm font-medium">New Chat</h1>
+              <p className="text-xs/relaxed text-muted-foreground">
+                How can I help you today?
+              </p>
+            </div>
+            <div className="shrink-0">
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon-sm"
+                        aria-label="Reset conversation"
+                        onClick={resetConversation}
+                        disabled={isSending}
+                      />
+                    }
+                  >
+                    <RotateCwIcon />
+                  </TooltipTrigger>
+                  <TooltipContent>Reset</TooltipContent>
+                </Tooltip>
+            </div>
+          </div>
+        </header>
+        <main className="min-h-0 flex-1">
+              {messages.length === 0 && !isSending ? (
+                <Empty className="mx-auto h-full max-w-3xl px-4">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <MessageCircleDashedIcon />
+                    </EmptyMedia>
+                    <EmptyTitle>Morning, {{projectName}}!</EmptyTitle>
+                    <EmptyDescription>
+                      What are we working on today?
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                <MessageScroller>
+                  <MessageScrollerViewport>
+                    <MessageScrollerContent
+                      aria-busy={isSending}
+                      className="mx-auto w-full max-w-3xl px-4 py-6"
+                    >
+                      {messages.map((message) => {
+                        const isUser = message.role === "user";
+
+                        return (
+                          <MessageScrollerItem
+                            key={message.id}
+                            scrollAnchor={isUser}
+                          >
+                            <Message align={isUser ? "end" : "start"}>
+                              <MessageBody>
+                                <MessageHeader>
+                                  {isUser ? "You" : "AI Assistant"}
+                                </MessageHeader>
+                                <Bubble
+                                  align={isUser ? "end" : "start"}
+                                  variant={isUser ? "default" : "secondary"}
+                                >
+                                  <BubbleContent>
+                                    {message.parts?.map((part, index) => {
+                                      if (part.type === "text") {
+                                        return (
+                                          <Streamdown
+                                            key={index}
+                                            isAnimating={status === "streaming" && message.role === "assistant"}
+                                          >
+                                            {part.text}
+                                          </Streamdown>
+                                        );
+                                      }
+                                      return null;
+                                    })}
+                                  </BubbleContent>
+                                </Bubble>
+                              </MessageBody>
+                            </Message>
+                          </MessageScrollerItem>
+                        );
+                      })}
+                      {status === "submitted" && (
+                        <MessageScrollerItem>
+                          <Message align="start">
+                            <MessageBody>
+                              <Bubble variant="secondary">
+                                <BubbleContent className="flex items-center gap-2">
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                  <span className="shimmer">Thinking...</span>
+                                </BubbleContent>
+                              </Bubble>
+                            </MessageBody>
+                          </Message>
+                        </MessageScrollerItem>
+                      )}
+                      <MessageScrollerItem scrollAnchor />
+                    </MessageScrollerContent>
+                  </MessageScrollerViewport>
+                  <MessageScrollerButton />
+                </MessageScroller>
+              )}
+        </main>
+        <footer className="shrink-0 border-t px-4 py-3">
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
+              <form onSubmit={handleSubmit} className="w-full">
+                <InputGroup>
+                  <InputGroupTextarea
+                    name="prompt"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handlePromptKeyDown}
+                    placeholder="Type your message..."
+                    className="max-h-32 min-h-14"
+                    rows={1}
+                    autoComplete="off"
+                    autoFocus
+                    disabled={isSending}
+                  />
+                  <InputGroupAddon align="block-end" className="pt-1">
+                    <InputGroupButton
+                      type="submit"
+                      variant="default"
+                      size="icon-sm"
+                      disabled={isSending || !input.trim()}
+                      className="ml-auto"
+                    >
+                      {isSending ? (
+                        <Loader2 className="animate-spin" />
+                      ) : (
+                        <ArrowUpIcon />
+                      )}
+                      <span className="sr-only">Send</span>
+                    </InputGroupButton>
+                  </InputGroupAddon>
+                </InputGroup>
+            </form>
+          </div>
+        </footer>
+      </div>
+    </MessageScrollerProvider>
+  );
+}
+{{/if}}
 `],
-  ["examples/ai/web/react/tanstack-router/src/routes/ai.tsx.hbs", ``],
-  ["examples/ai/web/react/tanstack-start/src/routes/ai.tsx.hbs", ``],
+  ["examples/ai/web/react/tanstack-router/src/routes/ai.tsx.hbs", `{{#if (eq backend "convex")}}
+import { api } from "@{{projectName}}/backend/convex/_generated/api";
+import {
+  useSmoothText,
+  useUIMessages,
+} from "@convex-dev/agent/react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useMutation } from "convex/react";
+import {
+  ArrowUpIcon,
+  Loader2,
+  MessageCircleDashedIcon,
+  RotateCwIcon,
+} from "lucide-react";
+import { useState, type FormEvent, type KeyboardEvent } from "react";
+import { Streamdown } from "streamdown";
+
+import { Bubble, BubbleContent } from "@{{projectName}}/ui/components/bubble";
+import { Button } from "@{{projectName}}/ui/components/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@{{projectName}}/ui/components/empty";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupTextarea,
+} from "@{{projectName}}/ui/components/input-group";
+import {
+  Message,
+  MessageContent as MessageBody,
+  MessageHeader,
+} from "@{{projectName}}/ui/components/message";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@{{projectName}}/ui/components/message-scroller";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@{{projectName}}/ui/components/tooltip";
+
+export const Route = createFileRoute("/ai")({
+  component: RouteComponent,
+});
+
+function StreamingMessageText({
+  text,
+  isStreaming,
+}: {
+  text: string;
+  isStreaming: boolean;
+}) {
+  const [visibleText] = useSmoothText(text, {
+    startStreaming: isStreaming,
+  });
+
+  return <Streamdown>{visibleText}</Streamdown>;
+}
+
+function RouteComponent() {
+  const [input, setInput] = useState("");
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const createThread = useMutation(api.chat.createNewThread);
+  const sendMessage = useMutation(api.chat.sendMessage);
+
+  const { results: messages } = useUIMessages(
+    api.chat.listMessages,
+    threadId ? { threadId } : "skip",
+    { initialNumItems: 50, stream: true },
+  );
+
+  const hasStreamingMessage = messages?.some(
+    (m) => m.status === "streaming",
+  );
+  const isBusy = isLoading || Boolean(hasStreamingMessage);
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const text = input.trim();
+    if (!text || isBusy) return;
+
+    setIsLoading(true);
+    setInput("");
+
+    try {
+      let currentThreadId = threadId;
+      if (!currentThreadId) {
+        currentThreadId = await createThread();
+        setThreadId(currentThreadId);
+      }
+
+      await sendMessage({ threadId: currentThreadId, prompt: text });
+    } catch (error) {
+      console.error("Failed to send message:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePromptKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      e.currentTarget.form?.requestSubmit();
+    }
+  };
+
+  const resetConversation = () => {
+    setInput("");
+    setThreadId(null);
+  };
+
+  return (
+    <MessageScrollerProvider>
+      <div className="flex h-full min-h-0 w-full flex-col">
+        <header className="shrink-0 border-b px-4 py-3">
+          <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-sm font-medium">New Chat</h1>
+              <p className="text-xs/relaxed text-muted-foreground">
+                How can I help you today?
+              </p>
+            </div>
+            <div className="shrink-0">
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon-sm"
+                        aria-label="Reset conversation"
+                        onClick={resetConversation}
+                        disabled={isBusy}
+                      />
+                    }
+                  >
+                    <RotateCwIcon />
+                  </TooltipTrigger>
+                  <TooltipContent>Reset</TooltipContent>
+                </Tooltip>
+            </div>
+          </div>
+        </header>
+        <main className="min-h-0 flex-1">
+              {(!messages || messages.length === 0) && !isLoading ? (
+                <Empty className="mx-auto h-full max-w-3xl px-4">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <MessageCircleDashedIcon />
+                    </EmptyMedia>
+                    <EmptyTitle>Morning, {{projectName}}!</EmptyTitle>
+                    <EmptyDescription>
+                      What are we working on today?
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                <MessageScroller>
+                  <MessageScrollerViewport>
+                    <MessageScrollerContent
+                      aria-busy={isBusy}
+                      className="mx-auto w-full max-w-3xl px-4 py-6"
+                    >
+                      {messages.map((message) => {
+                        const isUser = message.role === "user";
+
+	                        return (
+	                          <MessageScrollerItem
+	                            key={\`\${message.order}-\${message.stepOrder}\`}
+	                            scrollAnchor={isUser}
+	                          >
+                            <Message align={isUser ? "end" : "start"}>
+                              <MessageBody>
+                                <MessageHeader>
+                                  {isUser ? "You" : "AI Assistant"}
+                                </MessageHeader>
+                                <Bubble
+                                  align={isUser ? "end" : "start"}
+                                  variant={isUser ? "default" : "secondary"}
+                                >
+                                  <BubbleContent>
+                                    <StreamingMessageText
+                                      text={(message.parts ?? [])
+                                        .map((part) => (part.type === "text" ? part.text : ""))
+                                        .join("")}
+                                      isStreaming={message.status === "streaming"}
+                                    />
+                                  </BubbleContent>
+                                </Bubble>
+                              </MessageBody>
+                            </Message>
+                          </MessageScrollerItem>
+                        );
+                      })}
+                      {isLoading && !hasStreamingMessage && (
+                        <MessageScrollerItem>
+                          <Message align="start">
+                            <MessageBody>
+                              <Bubble variant="secondary">
+                                <BubbleContent className="flex items-center gap-2">
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                  <span className="shimmer">Thinking...</span>
+                                </BubbleContent>
+                              </Bubble>
+                            </MessageBody>
+                          </Message>
+                        </MessageScrollerItem>
+                      )}
+                      <MessageScrollerItem scrollAnchor />
+                    </MessageScrollerContent>
+                  </MessageScrollerViewport>
+                  <MessageScrollerButton />
+                </MessageScroller>
+              )}
+        </main>
+        <footer className="shrink-0 border-t px-4 py-3">
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
+              <form onSubmit={handleSubmit} className="w-full">
+                <InputGroup>
+                  <InputGroupTextarea
+                    name="prompt"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handlePromptKeyDown}
+                    placeholder="Type your message..."
+                    className="max-h-32 min-h-14"
+                    rows={1}
+                    autoComplete="off"
+                    autoFocus
+                    disabled={isBusy}
+                  />
+                  <InputGroupAddon align="block-end" className="pt-1">
+                    <InputGroupButton
+                      type="submit"
+                      variant="default"
+                      size="icon-sm"
+                      disabled={isBusy || !input.trim()}
+                      className="ml-auto"
+                    >
+                      {isBusy ? (
+                        <Loader2 className="animate-spin" />
+                      ) : (
+                        <ArrowUpIcon />
+                      )}
+                      <span className="sr-only">Send</span>
+                    </InputGroupButton>
+                  </InputGroupAddon>
+                </InputGroup>
+            </form>
+          </div>
+        </footer>
+      </div>
+    </MessageScrollerProvider>
+  );
+}
+{{else}}
+import { useChat } from "@ai-sdk/react";
+import { createFileRoute } from "@tanstack/react-router";
+import { DefaultChatTransport } from "ai";
+import {
+  ArrowUpIcon,
+  Loader2,
+  MessageCircleDashedIcon,
+  RotateCwIcon,
+} from "lucide-react";
+import { useState, type FormEvent, type KeyboardEvent } from "react";
+import { Streamdown } from "streamdown";
+{{#unless (eq backend "self")}}
+import { env } from "@{{projectName}}/env/web";
+{{/unless}}
+
+import { Bubble, BubbleContent } from "@{{projectName}}/ui/components/bubble";
+import { Button } from "@{{projectName}}/ui/components/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@{{projectName}}/ui/components/empty";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupTextarea,
+} from "@{{projectName}}/ui/components/input-group";
+import {
+  Message,
+  MessageContent as MessageBody,
+  MessageHeader,
+} from "@{{projectName}}/ui/components/message";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@{{projectName}}/ui/components/message-scroller";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@{{projectName}}/ui/components/tooltip";
+
+export const Route = createFileRoute("/ai")({
+  component: RouteComponent,
+});
+
+function RouteComponent() {
+  const [input, setInput] = useState("");
+  const { messages, sendMessage, status, setMessages } = useChat({
+    transport: new DefaultChatTransport({
+      api: {{#if (eq backend "self")}}"/api/ai"{{else}}\`\${env.VITE_SERVER_URL}/ai\`{{/if}},
+    }),
+  });
+  const isSending = status === "submitted" || status === "streaming";
+
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const text = input.trim();
+    if (!text || isSending) return;
+    sendMessage({ text });
+    setInput("");
+  };
+
+  const handlePromptKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      e.currentTarget.form?.requestSubmit();
+    }
+  };
+
+  const resetConversation = () => {
+    setInput("");
+    setMessages([]);
+  };
+
+  return (
+    <MessageScrollerProvider>
+      <div className="flex h-full min-h-0 w-full flex-col">
+        <header className="shrink-0 border-b px-4 py-3">
+          <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-sm font-medium">New Chat</h1>
+              <p className="text-xs/relaxed text-muted-foreground">
+                How can I help you today?
+              </p>
+            </div>
+            <div className="shrink-0">
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon-sm"
+                        aria-label="Reset conversation"
+                        onClick={resetConversation}
+                        disabled={isSending}
+                      />
+                    }
+                  >
+                    <RotateCwIcon />
+                  </TooltipTrigger>
+                  <TooltipContent>Reset</TooltipContent>
+                </Tooltip>
+            </div>
+          </div>
+        </header>
+        <main className="min-h-0 flex-1">
+              {messages.length === 0 && !isSending ? (
+                <Empty className="mx-auto h-full max-w-3xl px-4">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <MessageCircleDashedIcon />
+                    </EmptyMedia>
+                    <EmptyTitle>Morning, {{projectName}}!</EmptyTitle>
+                    <EmptyDescription>
+                      What are we working on today?
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                <MessageScroller>
+                  <MessageScrollerViewport>
+                    <MessageScrollerContent
+                      aria-busy={isSending}
+                      className="mx-auto w-full max-w-3xl px-4 py-6"
+                    >
+                      {messages.map((message) => {
+                        const isUser = message.role === "user";
+
+                        return (
+                          <MessageScrollerItem
+                            key={message.id}
+                            scrollAnchor={isUser}
+                          >
+                            <Message align={isUser ? "end" : "start"}>
+                              <MessageBody>
+                                <MessageHeader>
+                                  {isUser ? "You" : "AI Assistant"}
+                                </MessageHeader>
+                                <Bubble
+                                  align={isUser ? "end" : "start"}
+                                  variant={isUser ? "default" : "secondary"}
+                                >
+                                  <BubbleContent>
+                                    {message.parts?.map((part, index) => {
+                                      if (part.type === "text") {
+                                        return (
+                                          <Streamdown
+                                            key={index}
+                                            isAnimating={status === "streaming" && message.role === "assistant"}
+                                          >
+                                            {part.text}
+                                          </Streamdown>
+                                        );
+                                      }
+                                      return null;
+                                    })}
+                                  </BubbleContent>
+                                </Bubble>
+                              </MessageBody>
+                            </Message>
+                          </MessageScrollerItem>
+                        );
+                      })}
+                      {status === "submitted" && (
+                        <MessageScrollerItem>
+                          <Message align="start">
+                            <MessageBody>
+                              <Bubble variant="secondary">
+                                <BubbleContent className="flex items-center gap-2">
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                  <span className="shimmer">Thinking...</span>
+                                </BubbleContent>
+                              </Bubble>
+                            </MessageBody>
+                          </Message>
+                        </MessageScrollerItem>
+                      )}
+                      <MessageScrollerItem scrollAnchor />
+                    </MessageScrollerContent>
+                  </MessageScrollerViewport>
+                  <MessageScrollerButton />
+                </MessageScroller>
+              )}
+        </main>
+        <footer className="shrink-0 border-t px-4 py-3">
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
+              <form onSubmit={handleSubmit} className="w-full">
+                <InputGroup>
+                  <InputGroupTextarea
+                    name="prompt"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handlePromptKeyDown}
+                    placeholder="Type your message..."
+                    className="max-h-32 min-h-14"
+                    rows={1}
+                    autoComplete="off"
+                    autoFocus
+                    disabled={isSending}
+                  />
+                  <InputGroupAddon align="block-end" className="pt-1">
+                    <InputGroupButton
+                      type="submit"
+                      variant="default"
+                      size="icon-sm"
+                      disabled={isSending || !input.trim()}
+                      className="ml-auto"
+                    >
+                      {isSending ? (
+                        <Loader2 className="animate-spin" />
+                      ) : (
+                        <ArrowUpIcon />
+                      )}
+                      <span className="sr-only">Send</span>
+                    </InputGroupButton>
+                  </InputGroupAddon>
+                </InputGroup>
+            </form>
+          </div>
+        </footer>
+      </div>
+    </MessageScrollerProvider>
+  );
+}
+{{/if}}
+`],
+  ["examples/ai/web/react/tanstack-start/src/routes/ai.tsx.hbs", `{{#if (eq backend "convex")}}
+import { api } from "@{{projectName}}/backend/convex/_generated/api";
+import {
+  useSmoothText,
+  useUIMessages,
+} from "@convex-dev/agent/react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useMutation } from "convex/react";
+import {
+  ArrowUpIcon,
+  Loader2,
+  MessageCircleDashedIcon,
+  RotateCwIcon,
+} from "lucide-react";
+import { useState, type FormEvent, type KeyboardEvent } from "react";
+import { Streamdown } from "streamdown";
+
+import { Bubble, BubbleContent } from "@{{projectName}}/ui/components/bubble";
+import { Button } from "@{{projectName}}/ui/components/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@{{projectName}}/ui/components/empty";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupTextarea,
+} from "@{{projectName}}/ui/components/input-group";
+import {
+  Message,
+  MessageContent as MessageBody,
+  MessageHeader,
+} from "@{{projectName}}/ui/components/message";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@{{projectName}}/ui/components/message-scroller";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@{{projectName}}/ui/components/tooltip";
+
+export const Route = createFileRoute("/ai")({
+  component: RouteComponent,
+});
+
+function StreamingMessageText({
+  text,
+  isStreaming,
+}: {
+  text: string;
+  isStreaming: boolean;
+}) {
+  const [visibleText] = useSmoothText(text, {
+    startStreaming: isStreaming,
+  });
+
+  return <Streamdown>{visibleText}</Streamdown>;
+}
+
+function RouteComponent() {
+  const [input, setInput] = useState("");
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const createThread = useMutation(api.chat.createNewThread);
+  const sendMessage = useMutation(api.chat.sendMessage);
+
+  const { results: messages } = useUIMessages(
+    api.chat.listMessages,
+    threadId ? { threadId } : "skip",
+    { initialNumItems: 50, stream: true },
+  );
+
+  const hasStreamingMessage = messages?.some(
+    (m) => m.status === "streaming",
+  );
+  const isBusy = isLoading || Boolean(hasStreamingMessage);
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const text = input.trim();
+    if (!text || isBusy) return;
+
+    setIsLoading(true);
+    setInput("");
+
+    try {
+      let currentThreadId = threadId;
+      if (!currentThreadId) {
+        currentThreadId = await createThread();
+        setThreadId(currentThreadId);
+      }
+
+      await sendMessage({ threadId: currentThreadId, prompt: text });
+    } catch (error) {
+      console.error("Failed to send message:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePromptKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      e.currentTarget.form?.requestSubmit();
+    }
+  };
+
+  const resetConversation = () => {
+    setInput("");
+    setThreadId(null);
+  };
+
+  return (
+    <MessageScrollerProvider>
+      <div className="flex h-full min-h-0 w-full flex-col">
+        <header className="shrink-0 border-b px-4 py-3">
+          <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-sm font-medium">New Chat</h1>
+              <p className="text-xs/relaxed text-muted-foreground">
+                How can I help you today?
+              </p>
+            </div>
+            <div className="shrink-0">
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon-sm"
+                        aria-label="Reset conversation"
+                        onClick={resetConversation}
+                        disabled={isBusy}
+                      />
+                    }
+                  >
+                    <RotateCwIcon />
+                  </TooltipTrigger>
+                  <TooltipContent>Reset</TooltipContent>
+                </Tooltip>
+            </div>
+          </div>
+        </header>
+        <main className="min-h-0 flex-1">
+              {(!messages || messages.length === 0) && !isLoading ? (
+                <Empty className="mx-auto h-full max-w-3xl px-4">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <MessageCircleDashedIcon />
+                    </EmptyMedia>
+                    <EmptyTitle>Morning, {{projectName}}!</EmptyTitle>
+                    <EmptyDescription>
+                      What are we working on today?
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                <MessageScroller>
+                  <MessageScrollerViewport>
+                    <MessageScrollerContent
+                      aria-busy={isBusy}
+                      className="mx-auto w-full max-w-3xl px-4 py-6"
+                    >
+                      {messages.map((message) => {
+                        const isUser = message.role === "user";
+
+	                        return (
+	                          <MessageScrollerItem
+	                            key={\`\${message.order}-\${message.stepOrder}\`}
+	                            scrollAnchor={isUser}
+	                          >
+                            <Message align={isUser ? "end" : "start"}>
+                              <MessageBody>
+                                <MessageHeader>
+                                  {isUser ? "You" : "AI Assistant"}
+                                </MessageHeader>
+                                <Bubble
+                                  align={isUser ? "end" : "start"}
+                                  variant={isUser ? "default" : "secondary"}
+                                >
+                                  <BubbleContent>
+                                    <StreamingMessageText
+                                      text={(message.parts ?? [])
+                                        .map((part) => (part.type === "text" ? part.text : ""))
+                                        .join("")}
+                                      isStreaming={message.status === "streaming"}
+                                    />
+                                  </BubbleContent>
+                                </Bubble>
+                              </MessageBody>
+                            </Message>
+                          </MessageScrollerItem>
+                        );
+                      })}
+                      {isLoading && !hasStreamingMessage && (
+                        <MessageScrollerItem>
+                          <Message align="start">
+                            <MessageBody>
+                              <Bubble variant="secondary">
+                                <BubbleContent className="flex items-center gap-2">
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                  <span className="shimmer">Thinking...</span>
+                                </BubbleContent>
+                              </Bubble>
+                            </MessageBody>
+                          </Message>
+                        </MessageScrollerItem>
+                      )}
+                      <MessageScrollerItem scrollAnchor />
+                    </MessageScrollerContent>
+                  </MessageScrollerViewport>
+                  <MessageScrollerButton />
+                </MessageScroller>
+              )}
+        </main>
+        <footer className="shrink-0 border-t px-4 py-3">
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
+              <form onSubmit={handleSubmit} className="w-full">
+                <InputGroup>
+                  <InputGroupTextarea
+                    name="prompt"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handlePromptKeyDown}
+                    placeholder="Type your message..."
+                    className="max-h-32 min-h-14"
+                    rows={1}
+                    autoComplete="off"
+                    autoFocus
+                    disabled={isBusy}
+                  />
+                  <InputGroupAddon align="block-end" className="pt-1">
+                    <InputGroupButton
+                      type="submit"
+                      variant="default"
+                      size="icon-sm"
+                      disabled={isBusy || !input.trim()}
+                      className="ml-auto"
+                    >
+                      {isBusy ? (
+                        <Loader2 className="animate-spin" />
+                      ) : (
+                        <ArrowUpIcon />
+                      )}
+                      <span className="sr-only">Send</span>
+                    </InputGroupButton>
+                  </InputGroupAddon>
+                </InputGroup>
+            </form>
+          </div>
+        </footer>
+      </div>
+    </MessageScrollerProvider>
+  );
+}
+{{else}}
+import { useChat } from "@ai-sdk/react";
+import { createFileRoute } from "@tanstack/react-router";
+import { DefaultChatTransport } from "ai";
+import {
+  ArrowUpIcon,
+  Loader2,
+  MessageCircleDashedIcon,
+  RotateCwIcon,
+} from "lucide-react";
+import { useState, type FormEvent, type KeyboardEvent } from "react";
+import { Streamdown } from "streamdown";
+{{#unless (eq backend "self")}}
+import { env } from "@{{projectName}}/env/web";
+{{/unless}}
+
+import { Bubble, BubbleContent } from "@{{projectName}}/ui/components/bubble";
+import { Button } from "@{{projectName}}/ui/components/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@{{projectName}}/ui/components/empty";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupTextarea,
+} from "@{{projectName}}/ui/components/input-group";
+import {
+  Message,
+  MessageContent as MessageBody,
+  MessageHeader,
+} from "@{{projectName}}/ui/components/message";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@{{projectName}}/ui/components/message-scroller";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@{{projectName}}/ui/components/tooltip";
+
+export const Route = createFileRoute("/ai")({
+  component: RouteComponent,
+});
+
+function RouteComponent() {
+  const [input, setInput] = useState("");
+  const { messages, sendMessage, status, setMessages } = useChat({
+    transport: new DefaultChatTransport({
+      api: {{#if (eq backend "self")}}"/api/ai"{{else}}\`\${env.VITE_SERVER_URL}/ai\`{{/if}},
+    }),
+  });
+  const isSending = status === "submitted" || status === "streaming";
+
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const text = input.trim();
+    if (!text || isSending) return;
+    sendMessage({ text });
+    setInput("");
+  };
+
+  const handlePromptKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      e.currentTarget.form?.requestSubmit();
+    }
+  };
+
+  const resetConversation = () => {
+    setInput("");
+    setMessages([]);
+  };
+
+  return (
+    <MessageScrollerProvider>
+      <div className="flex h-full min-h-0 w-full flex-col">
+        <header className="shrink-0 border-b px-4 py-3">
+          <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-sm font-medium">New Chat</h1>
+              <p className="text-xs/relaxed text-muted-foreground">
+                How can I help you today?
+              </p>
+            </div>
+            <div className="shrink-0">
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon-sm"
+                        aria-label="Reset conversation"
+                        onClick={resetConversation}
+                        disabled={isSending}
+                      />
+                    }
+                  >
+                    <RotateCwIcon />
+                  </TooltipTrigger>
+                  <TooltipContent>Reset</TooltipContent>
+                </Tooltip>
+            </div>
+          </div>
+        </header>
+        <main className="min-h-0 flex-1">
+              {messages.length === 0 && !isSending ? (
+                <Empty className="mx-auto h-full max-w-3xl px-4">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <MessageCircleDashedIcon />
+                    </EmptyMedia>
+                    <EmptyTitle>Morning, {{projectName}}!</EmptyTitle>
+                    <EmptyDescription>
+                      What are we working on today?
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                <MessageScroller>
+                  <MessageScrollerViewport>
+                    <MessageScrollerContent
+                      aria-busy={isSending}
+                      className="mx-auto w-full max-w-3xl px-4 py-6"
+                    >
+                      {messages.map((message) => {
+                        const isUser = message.role === "user";
+
+                        return (
+                          <MessageScrollerItem
+                            key={message.id}
+                            scrollAnchor={isUser}
+                          >
+                            <Message align={isUser ? "end" : "start"}>
+                              <MessageBody>
+                                <MessageHeader>
+                                  {isUser ? "You" : "AI Assistant"}
+                                </MessageHeader>
+                                <Bubble
+                                  align={isUser ? "end" : "start"}
+                                  variant={isUser ? "default" : "secondary"}
+                                >
+                                  <BubbleContent>
+                                    {message.parts?.map((part, index) => {
+                                      if (part.type === "text") {
+                                        return (
+                                          <Streamdown
+                                            key={index}
+                                            isAnimating={status === "streaming" && message.role === "assistant"}
+                                          >
+                                            {part.text}
+                                          </Streamdown>
+                                        );
+                                      }
+                                      return null;
+                                    })}
+                                  </BubbleContent>
+                                </Bubble>
+                              </MessageBody>
+                            </Message>
+                          </MessageScrollerItem>
+                        );
+                      })}
+                      {status === "submitted" && (
+                        <MessageScrollerItem>
+                          <Message align="start">
+                            <MessageBody>
+                              <Bubble variant="secondary">
+                                <BubbleContent className="flex items-center gap-2">
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                  <span className="shimmer">Thinking...</span>
+                                </BubbleContent>
+                              </Bubble>
+                            </MessageBody>
+                          </Message>
+                        </MessageScrollerItem>
+                      )}
+                      <MessageScrollerItem scrollAnchor />
+                    </MessageScrollerContent>
+                  </MessageScrollerViewport>
+                  <MessageScrollerButton />
+                </MessageScroller>
+              )}
+        </main>
+        <footer className="shrink-0 border-t px-4 py-3">
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
+              <form onSubmit={handleSubmit} className="w-full">
+                <InputGroup>
+                  <InputGroupTextarea
+                    name="prompt"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handlePromptKeyDown}
+                    placeholder="Type your message..."
+                    className="max-h-32 min-h-14"
+                    rows={1}
+                    autoComplete="off"
+                    autoFocus
+                    disabled={isSending}
+                  />
+                  <InputGroupAddon align="block-end" className="pt-1">
+                    <InputGroupButton
+                      type="submit"
+                      variant="default"
+                      size="icon-sm"
+                      disabled={isSending || !input.trim()}
+                      className="ml-auto"
+                    >
+                      {isSending ? (
+                        <Loader2 className="animate-spin" />
+                      ) : (
+                        <ArrowUpIcon />
+                      )}
+                      <span className="sr-only">Send</span>
+                    </InputGroupButton>
+                  </InputGroupAddon>
+                </InputGroup>
+            </form>
+          </div>
+        </footer>
+      </div>
+    </MessageScrollerProvider>
+  );
+}
+{{/if}}
+`],
   ["examples/todo/native/bare/app/(drawer)/todos.tsx.hbs", `import { useState } from "react";
 import {
   View,
@@ -7088,10 +11959,516 @@ import {
   StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-
+{{#if (eq backend "convex")}}
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@{{projectName}}/backend/convex/_generated/api";
+import type { Doc, Id } from "@{{projectName}}/backend/convex/_generated/dataModel";
+{{else}}
+import { useMutation, useQuery } from "@tanstack/react-query";
+{{/if}}
 import { Container } from "@/components/container";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { NAV_THEME } from "@/lib/constants";
+{{#unless (eq backend "convex")}}
+  {{#if (eq api "orpc")}}
+import { orpc } from "@/utils/orpc";
+  {{/if}}
+  {{#if (eq api "trpc")}}
+import { trpc } from "@/utils/trpc";
+  {{/if}}
+{{/unless}}
+
+export default function TodosScreen() {
+  const { colorScheme } = useColorScheme();
+  const theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
+  const [newTodoText, setNewTodoText] = useState("");
+
+  {{#if (eq backend "convex")}}
+  const todos = useQuery(api.todos.getAll);
+  const createTodoMutation = useMutation(api.todos.create);
+  const toggleTodoMutation = useMutation(api.todos.toggle);
+  const deleteTodoMutation = useMutation(api.todos.deleteTodo);
+
+  async function handleAddTodo() {
+    const text = newTodoText.trim();
+    if (!text) return;
+    await createTodoMutation({ text });
+    setNewTodoText("");
+  }
+
+  function handleToggleTodo(id: Id<"todos">, currentCompleted: boolean) {
+    toggleTodoMutation({ id, completed: !currentCompleted });
+  }
+
+  function handleDeleteTodo(id: Id<"todos">) {
+    Alert.alert("Delete Todo", "Are you sure you want to delete this todo?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => deleteTodoMutation({ id }),
+      },
+    ]);
+  }
+
+  const isLoading = !todos;
+  const completedCount = todos?.filter((t: Doc<"todos">) => t.completed).length || 0;
+  const totalCount = todos?.length || 0;
+  {{else}}
+    {{#if (eq api "orpc")}}
+  const todos = useQuery(orpc.todo.getAll.queryOptions());
+  const createMutation = useMutation(
+    orpc.todo.create.mutationOptions({
+      onSuccess: () => {
+        todos.refetch();
+        setNewTodoText("");
+      },
+    })
+  );
+  const toggleMutation = useMutation(
+    orpc.todo.toggle.mutationOptions({
+      onSuccess: () => {
+        todos.refetch();
+      },
+    })
+  );
+  const deleteMutation = useMutation(
+    orpc.todo.delete.mutationOptions({
+      onSuccess: () => {
+        todos.refetch();
+      },
+    })
+  );
+    {{/if}}
+    {{#if (eq api "trpc")}}
+  const todos = useQuery(trpc.todo.getAll.queryOptions());
+  const createMutation = useMutation(
+    trpc.todo.create.mutationOptions({
+      onSuccess: () => {
+        todos.refetch();
+        setNewTodoText("");
+      },
+    })
+  );
+  const toggleMutation = useMutation(
+    trpc.todo.toggle.mutationOptions({
+      onSuccess: () => {
+        todos.refetch();
+      },
+    })
+  );
+  const deleteMutation = useMutation(
+    trpc.todo.delete.mutationOptions({
+      onSuccess: () => {
+        todos.refetch();
+      },
+    })
+  );
+    {{/if}}
+
+  function handleAddTodo() {
+    if (newTodoText.trim()) {
+      createMutation.mutate({ text: newTodoText });
+    }
+  }
+
+  function handleToggleTodo(id: number, completed: boolean) {
+    toggleMutation.mutate({ id, completed: !completed });
+  }
+
+  function handleDeleteTodo(id: number) {
+    Alert.alert("Delete Todo", "Are you sure you want to delete this todo?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => deleteMutation.mutate({ id }),
+      },
+    ]);
+  }
+
+  const isLoading = todos?.isLoading;
+  const completedCount = todos?.data?.filter((t) => t.completed).length || 0;
+  const totalCount = todos?.data?.length || 0;
+  {{/if}}
+
+  return (
+    <Container>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.contentContainer}
+      >
+        <View style={styles.header}>
+          <View style={styles.headerRow}>
+            <Text style={[styles.title, { color: theme.text }]}>
+              Todo List
+            </Text>
+            {totalCount > 0 && (
+              <View style={[styles.badge, { backgroundColor: theme.primary }]}>
+                <Text style={styles.badgeText}>
+                  {completedCount}/{totalCount}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+        <View
+          style={[
+            styles.inputCard,
+            { backgroundColor: theme.card, borderColor: theme.border },
+          ]}
+        >
+          <View style={styles.inputRow}>
+            <View style={styles.inputContainer}>
+              <TextInput
+                value={newTodoText}
+                onChangeText={setNewTodoText}
+                placeholder="Add a new task..."
+                placeholderTextColor={theme.text}
+                {{#unless (eq backend "convex")}}
+                editable={!createMutation.isPending}
+                {{/unless}}
+                onSubmitEditing={handleAddTodo}
+                returnKeyType="done"
+                style={[
+                  styles.input,
+                  {
+                    color: theme.text,
+                    borderColor: theme.border,
+                    backgroundColor: theme.background,
+                  },
+                ]}
+              />
+            </View>
+            <TouchableOpacity
+              onPress={handleAddTodo}
+              {{#if (eq backend "convex")}}
+              disabled={!newTodoText.trim()}
+              style={[
+                styles.addButton,
+                {
+                  backgroundColor: !newTodoText.trim()
+                    ? theme.border
+                    : theme.primary,
+                  opacity: !newTodoText.trim() ? 0.5 : 1,
+                },
+              ]}
+            >
+              <Ionicons
+                name="add"
+                size={24}
+                color={newTodoText.trim() ? "#ffffff" : theme.text}
+              />
+              {{else}}
+              disabled={createMutation.isPending || !newTodoText.trim()}
+              style={[
+                styles.addButton,
+                {
+                  backgroundColor:
+                    createMutation.isPending || !newTodoText.trim()
+                      ? theme.border
+                      : theme.primary,
+                  opacity:
+                    createMutation.isPending || !newTodoText.trim() ? 0.5 : 1,
+                },
+              ]}
+            >
+              {createMutation.isPending ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Ionicons name="add" size={24} color="#ffffff" />
+              )}
+              {{/if}}
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {{#if (eq backend "convex")}}
+        {isLoading && (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color={theme.primary} />
+            <Text
+              style={[styles.loadingText, { color: theme.text, opacity: 0.7 }]}
+            >
+              Loading todos...
+            </Text>
+          </View>
+        )}
+
+        {todos && todos.length === 0 && !isLoading && (
+          <View
+            style={[
+              styles.emptyCard,
+              { backgroundColor: theme.card, borderColor: theme.border },
+            ]}
+          >
+            <Ionicons
+              name="checkbox-outline"
+              size={64}
+              color={theme.text}
+              style=\\{{ opacity: 0.5, marginBottom: 16 }}
+            />
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>
+              No todos yet
+            </Text>
+            <Text
+              style={[styles.emptyText, { color: theme.text, opacity: 0.7 }]}
+            >
+              Add your first task to get started!
+            </Text>
+          </View>
+        )}
+
+        {todos && todos.length > 0 && (
+          <View style={styles.todosList}>
+            {todos.map((todo: Doc<"todos">) => (
+              <View
+                key={todo._id}
+                style={[
+                  styles.todoCard,
+                  { backgroundColor: theme.card, borderColor: theme.border },
+                ]}
+              >
+                <View style={styles.todoRow}>
+                  <TouchableOpacity
+                    onPress={() => handleToggleTodo(todo._id, todo.completed)}
+                    style={[styles.checkbox, { borderColor: theme.border }]}
+                  >
+                    {todo.completed && (
+                      <Ionicons
+                        name="checkmark"
+                        size={16}
+                        color={theme.primary}
+                      />
+                    )}
+                  </TouchableOpacity>
+                  <View style={styles.todoTextContainer}>
+                    <Text
+                      style={[
+                        styles.todoText,
+                        { color: theme.text },
+                        todo.completed && {
+                          textDecorationLine: "line-through",
+                          opacity: 0.5,
+                        },
+                      ]}
+                    >
+                      {todo.text}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => handleDeleteTodo(todo._id)}
+                    style={styles.deleteButton}
+                  >
+                    <Ionicons
+                      name="trash-outline"
+                      size={24}
+                      color={theme.notification}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+        {{else}}
+        {isLoading && (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color={theme.primary} />
+            <Text
+              style={[styles.loadingText, { color: theme.text, opacity: 0.7 }]}
+            >
+              Loading todos...
+            </Text>
+          </View>
+        )}
+
+        {todos?.data && todos.data.length === 0 && !isLoading && (
+          <View
+            style={[
+              styles.emptyCard,
+              { backgroundColor: theme.card, borderColor: theme.border },
+            ]}
+          >
+            <Ionicons
+              name="checkbox-outline"
+              size={64}
+              color={theme.text}
+              style=\\{{ opacity: 0.5, marginBottom: 16 }}
+            />
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>
+              No todos yet
+            </Text>
+            <Text
+              style={[styles.emptyText, { color: theme.text, opacity: 0.7 }]}
+            >
+              Add your first task to get started!
+            </Text>
+          </View>
+        )}
+
+        {todos?.data && todos.data.length > 0 && (
+          <View style={styles.todosList}>
+            {todos.data.map((todo) => (
+              <View
+                key={todo.id}
+                style={[
+                  styles.todoCard,
+                  { backgroundColor: theme.card, borderColor: theme.border },
+                ]}
+              >
+                <View style={styles.todoRow}>
+                  <TouchableOpacity
+                    onPress={() => handleToggleTodo(todo.id, todo.completed)}
+                    style={[styles.checkbox, { borderColor: theme.border }]}
+                  >
+                    {todo.completed && (
+                      <Ionicons
+                        name="checkmark"
+                        size={16}
+                        color={theme.primary}
+                      />
+                    )}
+                  </TouchableOpacity>
+                  <View style={styles.todoTextContainer}>
+                    <Text
+                      style={[
+                        styles.todoText,
+                        { color: theme.text },
+                        todo.completed && {
+                          textDecorationLine: "line-through",
+                          opacity: 0.5,
+                        },
+                      ]}
+                    >
+                      {todo.text}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => handleDeleteTodo(todo.id)}
+                    style={styles.deleteButton}
+                  >
+                    <Ionicons
+                      name="trash-outline"
+                      size={24}
+                      color={theme.notification}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+        {{/if}}
+      </ScrollView>
+    </Container>
+  );
+}
+
+const styles = StyleSheet.create({
+  scrollView: {
+    flex: 1,
+  },
+  contentContainer: {
+    padding: 16,
+  },
+  header: {
+    marginBottom: 16,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "bold",
+  },
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  badgeText: {
+    color: "#ffffff",
+    fontSize: 12,
+  },
+  inputCard: {
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 16,
+  },
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  inputContainer: {
+    flex: 1,
+  },
+  input: {
+    borderWidth: 1,
+    padding: 12,
+    fontSize: 16,
+  },
+  addButton: {
+    width: 48,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  centerContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 32,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 14,
+  },
+  emptyCard: {
+    borderWidth: 1,
+    padding: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    textAlign: "center",
+  },
+  todosList: {
+    gap: 8,
+  },
+  todoCard: {
+    borderWidth: 1,
+    padding: 12,
+  },
+  todoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  todoTextContainer: {
+    flex: 1,
+  },
+  todoText: {
+    fontSize: 16,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  deleteButton: {
+    padding: 4,
+  },
+});
 `],
   ["examples/todo/native/unistyles/app/(drawer)/todos.tsx.hbs", `import { useState } from "react";
 import {
@@ -7106,13 +12483,616 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 
+{{#if (eq backend "convex")}}
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@{{projectName}}/backend/convex/_generated/api";
+import type { Doc, Id } from "@{{projectName}}/backend/convex/_generated/dataModel";
+{{else}}
+import { useMutation, useQuery } from "@tanstack/react-query";
+{{/if}}
+
 import { Container } from "@/components/container";
+{{#unless (eq backend "convex")}}
+{{#if (eq api "orpc")}}
+import { orpc } from "@/utils/orpc";
+{{/if}}
+{{#if (eq api "trpc")}}
+import { trpc } from "@/utils/trpc";
+{{/if}}
+{{/unless}}
+
+export default function TodosScreen() {
+  const [newTodoText, setNewTodoText] = useState("");
+  const { theme } = useUnistyles();
+
+  {{#if (eq backend "convex")}}
+  const todos = useQuery(api.todos.getAll);
+  const createTodoMutation = useMutation(api.todos.create);
+  const toggleTodoMutation = useMutation(api.todos.toggle);
+  const deleteTodoMutation = useMutation(api.todos.deleteTodo);
+
+  const handleAddTodo = async () => {
+    const text = newTodoText.trim();
+    if (!text) return;
+    await createTodoMutation({ text });
+    setNewTodoText("");
+  };
+
+  const handleToggleTodo = (id: Id<"todos">, currentCompleted: boolean) => {
+    toggleTodoMutation({ id, completed: !currentCompleted });
+  };
+
+  const handleDeleteTodo = (id: Id<"todos">) => {
+    Alert.alert("Delete Todo", "Are you sure you want to delete this todo?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => deleteTodoMutation({ id }),
+      },
+    ]);
+  };
+  {{else}}
+    {{#if (eq api "orpc")}}
+    const todos = useQuery(orpc.todo.getAll.queryOptions());
+    const createMutation = useMutation(
+      orpc.todo.create.mutationOptions({
+        onSuccess: () => {
+          todos.refetch();
+          setNewTodoText("");
+        },
+      })
+    );
+    const toggleMutation = useMutation(
+      orpc.todo.toggle.mutationOptions({
+        onSuccess: () => { todos.refetch() },
+      })
+    );
+    const deleteMutation = useMutation(
+      orpc.todo.delete.mutationOptions({
+        onSuccess: () => { todos.refetch() },
+      })
+    );
+    {{/if}}
+    {{#if (eq api "trpc")}}
+    const todos = useQuery(trpc.todo.getAll.queryOptions());
+    const createMutation = useMutation(
+      trpc.todo.create.mutationOptions({
+        onSuccess: () => {
+          todos.refetch();
+          setNewTodoText("");
+        },
+      })
+    );
+    const toggleMutation = useMutation(
+      trpc.todo.toggle.mutationOptions({
+        onSuccess: () => { todos.refetch() },
+      })
+    );
+    const deleteMutation = useMutation(
+      trpc.todo.delete.mutationOptions({
+        onSuccess: () => { todos.refetch() },
+      })
+    );
+    {{/if}}
+
+  const handleAddTodo = () => {
+    if (newTodoText.trim()) {
+      createMutation.mutate({ text: newTodoText });
+    }
+  };
+
+  const handleToggleTodo = (id: number, completed: boolean) => {
+    toggleMutation.mutate({ id, completed: !completed });
+  };
+
+  const handleDeleteTodo = (id: number) => {
+    Alert.alert("Delete Todo", "Are you sure you want to delete this todo?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => deleteMutation.mutate({ id }),
+      },
+    ]);
+  };
+  {{/if}}
+
+  const isLoading = {{#if (eq backend "convex")}}!todos{{else}}todos.isLoading{{/if}};
+  const isCreating = {{#if (eq backend "convex")}}false{{else}}createMutation.isPending{{/if}};
+  const primaryButtonTextColor = theme.colors.background;
+
+  return (
+    <Container>
+      <ScrollView style={styles.scrollView}>
+        <View style={styles.headerContainer}>
+          <Text style={styles.headerTitle}>Todo List</Text>
+          <Text style={styles.headerSubtitle}>
+            Manage your tasks efficiently
+          </Text>
+
+          <View style={styles.inputContainer}>
+            <TextInput
+              value={newTodoText}
+              onChangeText={setNewTodoText}
+              placeholder="Add a new task..."
+              placeholderTextColor={theme.colors.border}
+              editable={!isCreating}
+              style={styles.textInput}
+              onSubmitEditing={handleAddTodo}
+              returnKeyType="done"
+            />
+            <TouchableOpacity
+              onPress={handleAddTodo}
+              disabled={isCreating || !newTodoText.trim()}
+              style={[
+                styles.addButton,
+                (isCreating || !newTodoText.trim()) && styles.addButtonDisabled,
+              ]}
+            >
+              {isCreating ? (
+                <ActivityIndicator size="small" color={primaryButtonTextColor} />
+              ) : (
+                <Ionicons
+                  name="add"
+                  size={24}
+                  color={primaryButtonTextColor}
+                />
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {isLoading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <Text style={styles.loadingText}>Loading todos...</Text>
+          </View>
+        )}
+
+        {{#if (eq backend "convex")}}
+          {todos && todos.length === 0 && !isLoading && (
+            <Text style={styles.emptyText}>No todos yet. Add one!</Text>
+          )}
+          {todos?.map((todo: Doc<"todos">) => (
+            <View key={todo._id} style={styles.todoItem}>
+              <TouchableOpacity
+                onPress={() => handleToggleTodo(todo._id, todo.completed)}
+                style={styles.todoContent}
+              >
+                <Ionicons
+                  name={todo.completed ? "checkbox" : "square-outline"}
+                  size={24}
+                  color={todo.completed ? theme.colors.primary : theme.colors.typography}
+                  style={styles.checkbox}
+                />
+                <Text
+                  style={[
+                    styles.todoText,
+                    todo.completed && styles.todoTextCompleted,
+                  ]}
+                >
+                  {todo.text}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleDeleteTodo(todo._id)}>
+                <Ionicons name="trash-outline" size={24} color={theme.colors.destructive} />
+              </TouchableOpacity>
+            </View>
+          ))}
+        {{else}}
+          {todos.data && todos.data.length === 0 && !isLoading && (
+             <Text style={styles.emptyText}>No todos yet. Add one!</Text>
+          )}
+          {todos.data?.map((todo: { id: number; text: string; completed: boolean }) => (
+            <View key={todo.id} style={styles.todoItem}>
+              <TouchableOpacity
+                onPress={() => handleToggleTodo(todo.id, todo.completed)}
+                style={styles.todoContent}
+              >
+                <Ionicons
+                  name={todo.completed ? "checkbox" : "square-outline"}
+                  size={24}
+                  color={todo.completed ? theme.colors.primary : theme.colors.typography}
+                  style={styles.checkbox}
+                />
+                <Text
+                  style={[
+                    styles.todoText,
+                    todo.completed && styles.todoTextCompleted,
+                  ]}
+                >
+                  {todo.text}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleDeleteTodo(todo.id)}>
+                <Ionicons name="trash-outline" size={24} color={theme.colors.destructive} />
+              </TouchableOpacity>
+            </View>
+          ))}
+        {{/if}}
+      </ScrollView>
+    </Container>
+  );
+}
+
+const styles = StyleSheet.create((theme) => ({
+  scrollView: {
+    flex: 1,
+  },
+  headerContainer: {
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    backgroundColor: theme.colors.background,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: theme.colors.typography,
+    marginBottom: theme.spacing.sm,
+  },
+  headerSubtitle: {
+    fontSize: 16,
+    color: theme.colors.typography,
+    marginBottom: theme.spacing.md,
+  },
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: theme.spacing.md,
+  },
+  textInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 8,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    color: theme.colors.typography,
+    backgroundColor: theme.colors.background,
+    marginRight: theme.spacing.sm,
+    fontSize: 16,
+  },
+  addButton: {
+    backgroundColor: theme.colors.primary,
+    padding: theme.spacing.sm,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  addButtonDisabled: {
+    backgroundColor: theme.colors.border,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: theme.spacing.lg,
+  },
+  loadingText: {
+    marginTop: theme.spacing.sm,
+    fontSize: 16,
+    color: theme.colors.typography,
+  },
+  emptyText: {
+    textAlign: "center",
+    marginTop: theme.spacing.xl,
+    fontSize: 16,
+    color: theme.colors.typography,
+  },
+  todoItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    backgroundColor: theme.colors.background,
+  },
+  todoContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  checkbox: {
+    marginRight: theme.spacing.md,
+  },
+  todoText: {
+    fontSize: 16,
+    color: theme.colors.typography,
+    flex: 1,
+  },
+  todoTextCompleted: {
+    textDecorationLine: "line-through",
+    color: theme.colors.border,
+  },
+}));
 `],
   ["examples/todo/native/uniwind/app/(drawer)/todos.tsx.hbs", `import { useState } from "react";
 import { View, Text, ScrollView, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-
+{{#if (eq backend "convex")}}
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@{{projectName}}/backend/convex/_generated/api";
+import type { Doc, Id } from "@{{projectName}}/backend/convex/_generated/dataModel";
+{{else}}
+import { useMutation, useQuery } from "@tanstack/react-query";
+{{/if}}
 import { Container } from "@/components/container";
+{{#unless (eq backend "convex")}}
+  {{#if (eq api "orpc")}}
+    import { orpc } from "@/utils/orpc";
+  {{/if}}
+  {{#if (eq api "trpc")}}
+    import { trpc } from "@/utils/trpc";
+  {{/if}}
+{{/unless}}
+import { Button, Checkbox, Chip, Spinner, Surface, Input, TextField, useThemeColor } from "heroui-native";
+
+export default function TodosScreen() {
+  const [newTodoText, setNewTodoText] = useState("");
+  {{#if (eq backend "convex")}}
+    const todos = useQuery(api.todos.getAll);
+    const createTodoMutation = useMutation(api.todos.create);
+    const toggleTodoMutation = useMutation(api.todos.toggle);
+    const deleteTodoMutation = useMutation(api.todos.deleteTodo);
+  {{else}}
+    {{#if (eq api "orpc")}}
+      const todos = useQuery(orpc.todo.getAll.queryOptions());
+      const createMutation = useMutation(orpc.todo.create.mutationOptions({
+        onSuccess: () => {
+          todos.refetch();
+          setNewTodoText("");
+        },
+      }));
+      const toggleMutation = useMutation(orpc.todo.toggle.mutationOptions({
+        onSuccess: () => {
+          todos.refetch();
+        },
+      }));
+      const deleteMutation = useMutation(orpc.todo.delete.mutationOptions({
+        onSuccess: () => {
+          todos.refetch();
+        },
+      }));
+    {{/if}}
+    {{#if (eq api "trpc")}}
+      const todos = useQuery(trpc.todo.getAll.queryOptions());
+      const createMutation = useMutation(trpc.todo.create.mutationOptions({
+        onSuccess: () => {
+          todos.refetch();
+          setNewTodoText("");
+        },
+      }));
+      const toggleMutation = useMutation(trpc.todo.toggle.mutationOptions({
+        onSuccess: () => {
+          todos.refetch();
+        },
+      }));
+      const deleteMutation = useMutation(trpc.todo.delete.mutationOptions({
+        onSuccess: () => {
+          todos.refetch();
+        },
+      }));
+    {{/if}}
+  {{/if}}
+
+  const mutedColor = useThemeColor("muted");
+  const dangerColor = useThemeColor("danger");
+  const foregroundColor = useThemeColor("foreground");
+
+  {{#if (eq backend "convex")}}
+    const handleAddTodo = async () => {
+      const text = newTodoText.trim();
+      if (!text) return;
+      await createTodoMutation({ text });
+      setNewTodoText("");
+    };
+
+    const handleToggleTodo = (id: Id<"todos">, currentCompleted: boolean) => {
+      toggleTodoMutation({ id, completed: !currentCompleted });
+    };
+
+    const handleDeleteTodo = (id: Id<"todos">) => {
+      Alert.alert("Delete Todo", "Are you sure you want to delete this todo?", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => deleteTodoMutation({ id }),
+        },
+      ]);
+    };
+
+    const isLoading = !todos;
+    const completedCount = todos?.filter((t: Doc<"todos">) => t.completed).length || 0;
+    const totalCount = todos?.length || 0;
+  {{else}}
+    const handleAddTodo = () => {
+      if (newTodoText.trim()) {
+        createMutation.mutate({ text: newTodoText });
+      }
+    };
+
+    const handleToggleTodo = (id: number, completed: boolean) => {
+      toggleMutation.mutate({ id, completed: !completed });
+    };
+
+    const handleDeleteTodo = (id: number) => {
+      Alert.alert("Delete Todo", "Are you sure you want to delete this todo?", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => deleteMutation.mutate({ id }),
+        },
+      ]);
+    };
+
+    const isLoading = todos?.isLoading;
+    const completedCount = todos?.data?.filter((t) => t.completed).length || 0;
+    const totalCount = todos?.data?.length || 0;
+  {{/if}}
+
+  return (
+    <Container>
+      <ScrollView className="flex-1" contentContainerClassName="p-4">
+        <View className="py-4 mb-4">
+          <View className="flex-row items-center justify-between">
+            <Text className="text-2xl font-semibold text-foreground tracking-tight">Tasks</Text>
+            {totalCount > 0 && (
+              <Chip variant="secondary" color="accent" size="sm">
+                <Chip.Label>
+                  {completedCount}/{totalCount}
+                </Chip.Label>
+              </Chip>
+            )}
+          </View>
+        </View>
+
+        <Surface variant="secondary" className="mb-4 p-3 rounded-lg">
+          <View className="flex-row items-center gap-2">
+            <View className="flex-1">
+              <TextField>
+                <Input
+                  value={newTodoText}
+                  onChangeText={setNewTodoText}
+                  placeholder="Add a new task..."
+                  {{#unless (eq backend "convex")}}
+                    editable={!createMutation.isPending}
+                  {{/unless}}
+                  onSubmitEditing={handleAddTodo}
+                  returnKeyType="done"
+                />
+              </TextField>
+            </View>
+            <Button
+              isIconOnly
+              {{#if (eq backend "convex")}}
+                variant={!newTodoText.trim() ? "secondary" : "primary"}
+                isDisabled={!newTodoText.trim()}
+              {{else}}
+                variant={createMutation.isPending || !newTodoText.trim() ? "secondary" : "primary"}
+                isDisabled={createMutation.isPending || !newTodoText.trim()}
+              {{/if}}
+              onPress={handleAddTodo}
+              size="sm"
+            >
+              {{#if (eq backend "convex")}}
+                <Ionicons
+                  name="add"
+                  size={20}
+                  color={newTodoText.trim() ? foregroundColor : mutedColor}
+                />
+              {{else}}
+                {createMutation.isPending ? (
+                  <Spinner size="sm" color="default" />
+                ) : (
+                  <Ionicons
+                    name="add"
+                    size={20}
+                    color={(createMutation.isPending || !newTodoText.trim()) ? mutedColor : foregroundColor}
+                  />
+                )}
+              {{/if}}
+            </Button>
+          </View>
+        </Surface>
+
+        {{#if (eq backend "convex")}}
+          {isLoading && (
+            <View className="items-center justify-center py-12">
+              <Spinner size="lg" />
+              <Text className="text-muted text-sm mt-3">Loading tasks...</Text>
+            </View>
+          )}
+
+          {todos && todos.length === 0 && !isLoading && (
+            <Surface variant="secondary" className="items-center justify-center py-10 rounded-lg">
+              <Ionicons name="checkbox-outline" size={40} color={mutedColor} />
+              <Text className="text-foreground font-medium mt-3">No tasks yet</Text>
+              <Text className="text-muted text-xs mt-1">Add your first task to get started</Text>
+            </Surface>
+          )}
+
+          {todos && todos.length > 0 && (
+            <View className="gap-2">
+              {todos.map((todo: Doc<"todos">) => (
+                <Surface key={todo._id} variant="secondary" className="p-3 rounded-lg">
+                  <View className="flex-row items-center gap-3">
+                    <Checkbox
+                      isSelected={todo.completed}
+                      onSelectedChange={() => handleToggleTodo(todo._id, todo.completed)}
+                    />
+                    <View className="flex-1">
+                      <Text className={\`text-sm \${todo.completed ? "text-muted line-through" : "text-foreground"}\`}>
+                        {todo.text}
+                      </Text>
+                    </View>
+                    <Button
+                      isIconOnly
+                      variant="ghost"
+                      onPress={() => handleDeleteTodo(todo._id)}
+                      size="sm"
+                    >
+                      <Ionicons name="trash-outline" size={16} color={dangerColor} />
+                    </Button>
+                  </View>
+                </Surface>
+              ))}
+            </View>
+          )}
+        {{else}}
+          {isLoading && (
+            <View className="items-center justify-center py-12">
+              <Spinner size="lg" />
+              <Text className="text-muted text-sm mt-3">Loading tasks...</Text>
+            </View>
+          )}
+
+          {todos?.data && todos.data.length === 0 && !isLoading && (
+            <Surface variant="secondary" className="items-center justify-center py-10 rounded-lg">
+              <Ionicons name="checkbox-outline" size={40} color={mutedColor} />
+              <Text className="text-foreground font-medium mt-3">No tasks yet</Text>
+              <Text className="text-muted text-xs mt-1">Add your first task to get started</Text>
+            </Surface>
+          )}
+
+          {todos?.data && todos.data.length > 0 && (
+            <View className="gap-2">
+              {todos.data.map((todo) => (
+                <Surface key={todo.id} variant="secondary" className="p-3 rounded-lg">
+                  <View className="flex-row items-center gap-3">
+                    <Checkbox
+                      isSelected={todo.completed}
+                      onSelectedChange={() => handleToggleTodo(todo.id, todo.completed)}
+                    />
+                    <View className="flex-1">
+                      <Text className={\`text-sm \${todo.completed ? "text-muted line-through" : "text-foreground"}\`}>
+                        {todo.text}
+                      </Text>
+                    </View>
+                    <Button
+                      isIconOnly
+                      variant="ghost"
+                      onPress={() => handleDeleteTodo(todo.id)}
+                      size="sm"
+                    >
+                      <Ionicons name="trash-outline" size={16} color={dangerColor} />
+                    </Button>
+                  </View>
+                </Surface>
+              ))}
+            </View>
+          )}
+        {{/if}}
+      </ScrollView>
+    </Container>
+  );
+}
 `],
   ["examples/todo/server/drizzle/base/src/routers/todo.ts.hbs", `{{#if (eq api "orpc")}}
 import { eq } from "drizzle-orm";
@@ -7374,6 +13354,239 @@ import { Input } from "@{{projectName}}/ui/components/input";
 import { Loader2, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
+{{#if (eq backend "convex")}}
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@{{projectName}}/backend/convex/_generated/api";
+import type { Id } from "@{{projectName}}/backend/convex/_generated/dataModel";
+{{else}}
+import { useMutation, useQuery } from "@tanstack/react-query";
+  {{#if (eq api "orpc")}}
+import { orpc } from "@/utils/orpc";
+  {{/if}}
+  {{#if (eq api "trpc")}}
+import { trpc } from "@/utils/trpc";
+  {{/if}}
+{{/if}}
+
+{{#unless (eq backend "convex")}}
+type TodoId = {{#if (or (eq orm "mongoose") (eq database "mongodb"))}}string{{else}}number{{/if}};
+{{/unless}}
+
+export default function TodosPage() {
+  const [newTodoText, setNewTodoText] = useState("");
+
+  {{#if (eq backend "convex")}}
+  const todos = useQuery(api.todos.getAll);
+  const createTodoMutation = useMutation(api.todos.create);
+  const toggleTodoMutation = useMutation(api.todos.toggle);
+  const deleteTodoMutation = useMutation(api.todos.deleteTodo);
+
+  const handleAddTodo = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const text = newTodoText.trim();
+    if (!text) return;
+    await createTodoMutation({ text });
+    setNewTodoText("");
+  };
+
+  const handleToggleTodo = (id: Id<"todos">, currentCompleted: boolean) => {
+    toggleTodoMutation({ id, completed: !currentCompleted });
+  };
+
+  const handleDeleteTodo = (id: Id<"todos">) => {
+    deleteTodoMutation({ id });
+  };
+  {{else}}
+    {{#if (eq api "orpc")}}
+    const todos = useQuery(orpc.todo.getAll.queryOptions());
+    const createMutation = useMutation(
+      orpc.todo.create.mutationOptions({
+        onSuccess: () => {
+          todos.refetch();
+          setNewTodoText("");
+        },
+      }),
+    );
+    const toggleMutation = useMutation(
+      orpc.todo.toggle.mutationOptions({
+        onSuccess: () => { todos.refetch() },
+      }),
+    );
+    const deleteMutation = useMutation(
+      orpc.todo.delete.mutationOptions({
+        onSuccess: () => { todos.refetch() },
+      }),
+    );
+    {{/if}}
+    {{#if (eq api "trpc")}}
+    const todos = useQuery(trpc.todo.getAll.queryOptions());
+    const createMutation = useMutation(
+      trpc.todo.create.mutationOptions({
+        onSuccess: () => {
+          todos.refetch();
+          setNewTodoText("");
+        },
+      }),
+    );
+    const toggleMutation = useMutation(
+      trpc.todo.toggle.mutationOptions({
+        onSuccess: () => { todos.refetch() },
+      }),
+    );
+    const deleteMutation = useMutation(
+      trpc.todo.delete.mutationOptions({
+        onSuccess: () => { todos.refetch() },
+      }),
+    );
+    {{/if}}
+
+  const handleAddTodo = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (newTodoText.trim()) {
+      createMutation.mutate({ text: newTodoText });
+    }
+  };
+
+  const handleToggleTodo = (id: TodoId, completed: boolean) => {
+    toggleMutation.mutate({ id, completed: !completed });
+  };
+
+  const handleDeleteTodo = (id: TodoId) => {
+    deleteMutation.mutate({ id });
+  };
+  {{/if}}
+
+  return (
+    <div className="mx-auto w-full max-w-md py-10">
+      <Card>
+        <CardHeader>
+          <CardTitle>Todo List</CardTitle>
+          <CardDescription>Manage your tasks efficiently</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form
+            onSubmit={handleAddTodo}
+            className="mb-6 flex items-center space-x-2"
+          >
+            <Input
+              value={newTodoText}
+              onChange={(e) => setNewTodoText(e.target.value)}
+              placeholder="Add a new task..."
+              {{#if (eq backend "convex")}}
+              {{else}}
+              disabled={createMutation.isPending}
+              {{/if}}
+            />
+            <Button
+              type="submit"
+              {{#if (eq backend "convex")}}
+              disabled={!newTodoText.trim()}
+              {{else}}
+              disabled={createMutation.isPending || !newTodoText.trim()}
+              {{/if}}
+            >
+              {{#if (eq backend "convex")}}
+                Add
+              {{else}}
+                {createMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Add"
+                )}
+              {{/if}}
+            </Button>
+          </form>
+
+          {{#if (eq backend "convex")}}
+            {todos === undefined ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : todos.length === 0 ? (
+              <p className="py-4 text-center">No todos yet. Add one above!</p>
+            ) : (
+              <ul className="space-y-2">
+                {todos.map((todo) => (
+                  <li
+                    key={todo._id}
+                    className="flex items-center justify-between rounded-md border p-2"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        checked={todo.completed}
+                        onCheckedChange={() =>
+                          handleToggleTodo(todo._id, todo.completed)
+                        }
+                        id={\`todo-\${todo._id}\`}
+                      />
+                      <label
+                        htmlFor={\`todo-\${todo._id}\`}
+                        className={\`\${todo.completed ? "line-through text-muted-foreground" : ""}\`}
+                      >
+                        {todo.text}
+                      </label>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteTodo(todo._id)}
+                      aria-label="Delete todo"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          {{else}}
+            {todos.isLoading ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : todos.data?.length === 0 ? (
+              <p className="py-4 text-center">
+                No todos yet. Add one above!
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {todos.data?.map((todo) => (
+                  <li
+                    key={todo.id}
+                    className="flex items-center justify-between rounded-md border p-2"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        checked={todo.completed}
+                        onCheckedChange={() =>
+                          handleToggleTodo(todo.id, todo.completed)
+                        }
+                        id={\`todo-\${todo.id}\`}
+                      />
+                      <label
+                        htmlFor={\`todo-\${todo.id}\`}
+                        className={\`\${todo.completed ? "line-through text-muted-foreground" : ""}\`}
+                      >
+                        {todo.text}
+                      </label>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteTodo(todo.id)}
+                      aria-label="Delete todo"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          {{/if}}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 `],
   ["examples/todo/web/react/react-router/src/routes/todos.tsx.hbs", `import { Button } from "@{{projectName}}/ui/components/button";
 import {
@@ -7388,6 +13601,239 @@ import { Input } from "@{{projectName}}/ui/components/input";
 import { Loader2, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
+{{#if (eq backend "convex")}}
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@{{projectName}}/backend/convex/_generated/api";
+import type { Id } from "@{{projectName}}/backend/convex/_generated/dataModel";
+{{else}}
+  {{#if (eq api "orpc")}}
+  import { orpc } from "@/utils/orpc";
+  {{/if}}
+  {{#if (eq api "trpc")}}
+  import { trpc } from "@/utils/trpc";
+  {{/if}}
+import { useMutation, useQuery } from "@tanstack/react-query";
+{{/if}}
+
+{{#unless (eq backend "convex")}}
+type TodoId = {{#if (or (eq orm "mongoose") (eq database "mongodb"))}}string{{else}}number{{/if}};
+{{/unless}}
+
+export default function Todos() {
+  const [newTodoText, setNewTodoText] = useState("");
+
+  {{#if (eq backend "convex")}}
+  const todos = useQuery(api.todos.getAll);
+  const createTodo = useMutation(api.todos.create);
+  const toggleTodo = useMutation(api.todos.toggle);
+  const deleteTodo = useMutation(api.todos.deleteTodo);
+
+  const handleAddTodo = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const text = newTodoText.trim();
+    if (!text) return;
+    await createTodo({ text });
+    setNewTodoText("");
+  };
+
+  const handleToggleTodo = (id: Id<"todos">, currentCompleted: boolean) => {
+    toggleTodo({ id, completed: !currentCompleted });
+  };
+
+  const handleDeleteTodo = (id: Id<"todos">) => {
+    deleteTodo({ id });
+  };
+  {{else}}
+    {{#if (eq api "orpc")}}
+    const todos = useQuery(orpc.todo.getAll.queryOptions());
+    const createMutation = useMutation(
+      orpc.todo.create.mutationOptions({
+        onSuccess: () => {
+          todos.refetch();
+          setNewTodoText("");
+        },
+      })
+    );
+    const toggleMutation = useMutation(
+      orpc.todo.toggle.mutationOptions({
+        onSuccess: () => { todos.refetch() },
+      })
+    );
+    const deleteMutation = useMutation(
+      orpc.todo.delete.mutationOptions({
+        onSuccess: () => { todos.refetch() },
+      })
+    );
+    {{/if}}
+    {{#if (eq api "trpc")}}
+    const todos = useQuery(trpc.todo.getAll.queryOptions());
+    const createMutation = useMutation(
+      trpc.todo.create.mutationOptions({
+        onSuccess: () => {
+          todos.refetch();
+          setNewTodoText("");
+        },
+      })
+    );
+    const toggleMutation = useMutation(
+      trpc.todo.toggle.mutationOptions({
+        onSuccess: () => { todos.refetch() },
+      })
+    );
+    const deleteMutation = useMutation(
+      trpc.todo.delete.mutationOptions({
+        onSuccess: () => { todos.refetch() },
+      })
+    );
+    {{/if}}
+
+  const handleAddTodo = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (newTodoText.trim()) {
+      createMutation.mutate({ text: newTodoText });
+    }
+  };
+
+  const handleToggleTodo = (id: TodoId, completed: boolean) => {
+    toggleMutation.mutate({ id, completed: !completed });
+  };
+
+  const handleDeleteTodo = (id: TodoId) => {
+    deleteMutation.mutate({ id });
+  };
+  {{/if}}
+
+  return (
+    <div className="w-full mx-auto max-w-md py-10">
+      <Card>
+        <CardHeader>
+          <CardTitle>Todo List</CardTitle>
+          <CardDescription>Manage your tasks efficiently</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form
+            onSubmit={handleAddTodo}
+            className="mb-6 flex items-center space-x-2"
+          >
+            <Input
+              value={newTodoText}
+              onChange={(e) => setNewTodoText(e.target.value)}
+              placeholder="Add a new task..."
+              {{#if (eq backend "convex")}}
+              {{else}}
+              disabled={createMutation.isPending}
+              {{/if}}
+            />
+            <Button
+              type="submit"
+              {{#if (eq backend "convex")}}
+              disabled={!newTodoText.trim()}
+              {{else}}
+              disabled={createMutation.isPending || !newTodoText.trim()}
+              {{/if}}
+            >
+              {{#if (eq backend "convex")}}
+              Add
+              {{else}}
+                {createMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Add"
+                )}
+              {{/if}}
+            </Button>
+          </form>
+
+          {{#if (eq backend "convex")}}
+            {todos === undefined ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : todos.length === 0 ? (
+              <p className="py-4 text-center">No todos yet. Add one above!</p>
+            ) : (
+              <ul className="space-y-2">
+                {todos.map((todo) => (
+                  <li
+                    key={todo._id}
+                    className="flex items-center justify-between rounded-md border p-2"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        checked={todo.completed}
+                        onCheckedChange={() =>
+                          handleToggleTodo(todo._id, todo.completed)
+                        }
+                        id={\`todo-\${todo._id}\`}
+                      />
+                      <label
+                        htmlFor={\`todo-\${todo._id}\`}
+                        className={\`\${todo.completed ? "line-through text-muted-foreground" : ""}\`}
+                      >
+                        {todo.text}
+                      </label>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteTodo(todo._id)}
+                      aria-label="Delete todo"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          {{else}}
+            {todos.isLoading ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : todos.data?.length === 0 ? (
+              <p className="py-4 text-center">
+                No todos yet. Add one above!
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {todos.data?.map((todo) => (
+                  <li
+                    key={todo.id}
+                    className="flex items-center justify-between rounded-md border p-2"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        checked={todo.completed}
+                        onCheckedChange={() =>
+                          handleToggleTodo(todo.id, todo.completed)
+                        }
+                        id={\`todo-\${todo.id}\`}
+                      />
+                      <label
+                        htmlFor={\`todo-\${todo.id}\`}
+                        className={\`\${todo.completed ? "line-through" : ""}\`}
+                      >
+                        {todo.text}
+                      </label>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteTodo(todo.id)}
+                      aria-label="Delete todo"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          {{/if}}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 `],
   ["examples/todo/web/react/tanstack-router/src/routes/todos.tsx.hbs", `import { Button } from "@{{projectName}}/ui/components/button";
 import {
@@ -7403,6 +13849,243 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Loader2, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
+{{#if (eq backend "convex")}}
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@{{projectName}}/backend/convex/_generated/api";
+import type { Id } from "@{{projectName}}/backend/convex/_generated/dataModel";
+{{else}}
+  {{#if (eq api "orpc")}}
+  import { orpc } from "@/utils/orpc";
+  {{/if}}
+  {{#if (eq api "trpc")}}
+  import { trpc } from "@/utils/trpc";
+  {{/if}}
+import { useMutation, useQuery } from "@tanstack/react-query";
+{{/if}}
+
+{{#unless (eq backend "convex")}}
+type TodoId = {{#if (or (eq orm "mongoose") (eq database "mongodb"))}}string{{else}}number{{/if}};
+{{/unless}}
+
+export const Route = createFileRoute("/todos")({
+  component: TodosRoute,
+});
+
+function TodosRoute() {
+  const [newTodoText, setNewTodoText] = useState("");
+
+  {{#if (eq backend "convex")}}
+  const todos = useQuery(api.todos.getAll);
+  const createTodo = useMutation(api.todos.create);
+  const toggleTodo = useMutation(api.todos.toggle);
+  const deleteTodo = useMutation(api.todos.deleteTodo);
+
+  const handleAddTodo = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const text = newTodoText.trim();
+    if (!text) return;
+    await createTodo({ text });
+    setNewTodoText("");
+  };
+
+  const handleToggleTodo = (id: Id<"todos">, currentCompleted: boolean) => {
+    toggleTodo({ id, completed: !currentCompleted });
+  };
+
+  const handleDeleteTodo = (id: Id<"todos">) => {
+    deleteTodo({ id });
+  };
+  {{else}}
+    {{#if (eq api "orpc")}}
+    const todos = useQuery(orpc.todo.getAll.queryOptions());
+    const createMutation = useMutation(
+      orpc.todo.create.mutationOptions({
+        onSuccess: () => {
+          todos.refetch();
+          setNewTodoText("");
+        },
+      }),
+    );
+    const toggleMutation = useMutation(
+      orpc.todo.toggle.mutationOptions({
+        onSuccess: () => { todos.refetch() },
+      }),
+    );
+    const deleteMutation = useMutation(
+      orpc.todo.delete.mutationOptions({
+        onSuccess: () => { todos.refetch() },
+      }),
+    );
+    {{/if}}
+    {{#if (eq api "trpc")}}
+    const todos = useQuery(trpc.todo.getAll.queryOptions());
+    const createMutation = useMutation(
+      trpc.todo.create.mutationOptions({
+        onSuccess: () => {
+          todos.refetch();
+          setNewTodoText("");
+        },
+      }),
+    );
+    const toggleMutation = useMutation(
+      trpc.todo.toggle.mutationOptions({
+        onSuccess: () => { todos.refetch() },
+      }),
+    );
+    const deleteMutation = useMutation(
+      trpc.todo.delete.mutationOptions({
+        onSuccess: () => { todos.refetch() },
+      }),
+    );
+    {{/if}}
+
+  const handleAddTodo = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (newTodoText.trim()) {
+      createMutation.mutate({ text: newTodoText });
+    }
+  };
+
+  const handleToggleTodo = (id: TodoId, completed: boolean) => {
+    toggleMutation.mutate({ id, completed: !completed });
+  };
+
+  const handleDeleteTodo = (id: TodoId) => {
+    deleteMutation.mutate({ id });
+  };
+  {{/if}}
+
+  return (
+    <div className="mx-auto w-full max-w-md py-10">
+      <Card>
+        <CardHeader>
+          <CardTitle>Todo List</CardTitle>
+          <CardDescription>Manage your tasks efficiently</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form
+            onSubmit={handleAddTodo}
+            className="mb-6 flex items-center space-x-2"
+          >
+            <Input
+              value={newTodoText}
+              onChange={(e) => setNewTodoText(e.target.value)}
+              placeholder="Add a new task..."
+              {{#if (eq backend "convex")}}
+              {{else}}
+              disabled={createMutation.isPending}
+              {{/if}}
+            />
+            <Button
+              type="submit"
+              {{#if (eq backend "convex")}}
+              disabled={!newTodoText.trim()}
+              {{else}}
+              disabled={createMutation.isPending || !newTodoText.trim()}
+              {{/if}}
+            >
+              {{#if (eq backend "convex")}}
+              Add
+              {{else}}
+                {createMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Add"
+                )}
+              {{/if}}
+            </Button>
+          </form>
+
+          {{#if (eq backend "convex")}}
+            {todos === undefined ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : todos.length === 0 ? (
+              <p className="py-4 text-center">No todos yet. Add one above!</p>
+            ) : (
+              <ul className="space-y-2">
+                {todos.map((todo) => (
+                  <li
+                    key={todo._id}
+                    className="flex items-center justify-between rounded-md border p-2"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        checked={todo.completed}
+                        onCheckedChange={() =>
+                          handleToggleTodo(todo._id, todo.completed)
+                        }
+                        id={\`todo-\${todo._id}\`}
+                      />
+                      <label
+                        htmlFor={\`todo-\${todo._id}\`}
+                        className={\`\${todo.completed ? "line-through text-muted-foreground" : ""}\`}
+                      >
+                        {todo.text}
+                      </label>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteTodo(todo._id)}
+                      aria-label="Delete todo"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          {{else}}
+            {todos.isLoading ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : todos.data?.length === 0 ? (
+              <p className="py-4 text-center">
+                No todos yet. Add one above!
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {todos.data?.map((todo) => (
+                  <li
+                    key={todo.id}
+                    className="flex items-center justify-between rounded-md border p-2"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        checked={todo.completed}
+                        onCheckedChange={() =>
+                          handleToggleTodo(todo.id, todo.completed)
+                        }
+                        id={\`todo-\${todo.id}\`}
+                      />
+                      <label
+                        htmlFor={\`todo-\${todo.id}\`}
+                        className={\`\${todo.completed ? "line-through" : ""}\`}
+                      >
+                        {todo.text}
+                      </label>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteTodo(todo.id)}
+                      aria-label="Delete todo"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          {{/if}}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 `],
   ["examples/todo/web/react/tanstack-start/src/routes/todos.tsx.hbs", `import { Button } from "@{{projectName}}/ui/components/button";
 import {
@@ -7415,9 +14098,271 @@ import {
 import { Checkbox } from "@{{projectName}}/ui/components/checkbox";
 import { Input } from "@{{projectName}}/ui/components/input";
 import { createFileRoute } from "@tanstack/react-router";
-
+{{#if (eq backend "convex")}}
+import { Trash2 } from "lucide-react";
+{{else}}
+import { Loader2, Trash2 } from "lucide-react";
+{{/if}}
 import { useState, type FormEvent } from "react";
 
+{{#if (eq backend "convex")}}
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { convexQuery } from "@convex-dev/react-query";
+import { useMutation } from "convex/react";
+import { api } from "@{{projectName}}/backend/convex/_generated/api";
+import type { Id } from "@{{projectName}}/backend/convex/_generated/dataModel";
+{{else}}
+{{#if (eq api "trpc")}}
+import { useTRPC } from "@/utils/trpc";
+{{/if}}
+{{#if (eq api "orpc")}}
+import { orpc } from "@/utils/orpc";
+{{/if}}
+import { useMutation, useQuery } from "@tanstack/react-query";
+{{/if}}
+
+{{#unless (eq backend "convex")}}
+type TodoId = {{#if (or (eq orm "mongoose") (eq database "mongodb"))}}string{{else}}number{{/if}};
+{{/unless}}
+
+export const Route = createFileRoute("/todos")({
+  component: TodosRoute,
+});
+
+function TodosRoute() {
+  const [newTodoText, setNewTodoText] = useState("");
+
+  {{#if (eq backend "convex")}}
+  const todosQuery = useSuspenseQuery(convexQuery(api.todos.getAll, {}));
+  const todos = todosQuery.data;
+
+  const createTodo = useMutation(api.todos.create);
+  const toggleTodo = useMutation(api.todos.toggle);
+  const removeTodo = useMutation(api.todos.deleteTodo);
+
+  const handleAddTodo = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const text = newTodoText.trim();
+    if (text) {
+      setNewTodoText("");
+      try {
+        await createTodo({ text });
+      } catch (error) {
+        console.error("Failed to add todo:", error);
+        setNewTodoText(text);
+      }
+    }
+  };
+
+  const handleToggleTodo = async (id: Id<"todos">, completed: boolean) => {
+    try {
+      await toggleTodo({ id, completed: !completed });
+    } catch (error) {
+      console.error("Failed to toggle todo:", error);
+    }
+  };
+
+  const handleDeleteTodo = async (id: Id<"todos">) => {
+    try {
+      await removeTodo({ id });
+    } catch (error) {
+      console.error("Failed to delete todo:", error);
+    }
+  };
+  {{else}}
+    {{#if (eq api "trpc")}}
+  const trpc = useTRPC();
+    {{/if}}
+    {{#if (eq api "orpc")}}
+    {{/if}}
+
+    {{#if (eq api "trpc")}}
+  const todos = useQuery(trpc.todo.getAll.queryOptions());
+  const createMutation = useMutation(
+    trpc.todo.create.mutationOptions({
+      onSuccess: () => {
+        todos.refetch();
+        setNewTodoText("");
+      },
+    }),
+  );
+  const toggleMutation = useMutation(
+    trpc.todo.toggle.mutationOptions({
+      onSuccess: () => { todos.refetch() },
+    }),
+  );
+  const deleteMutation = useMutation(
+    trpc.todo.delete.mutationOptions({
+      onSuccess: () => { todos.refetch() },
+    }),
+  );
+    {{/if}}
+    {{#if (eq api "orpc")}}
+  const todos = useQuery(orpc.todo.getAll.queryOptions());
+  const createMutation = useMutation(
+    orpc.todo.create.mutationOptions({
+      onSuccess: () => {
+        todos.refetch();
+        setNewTodoText("");
+      },
+    }),
+  );
+  const toggleMutation = useMutation(
+    orpc.todo.toggle.mutationOptions({
+      onSuccess: () => { todos.refetch() },
+    }),
+  );
+  const deleteMutation = useMutation(
+    orpc.todo.delete.mutationOptions({
+      onSuccess: () => { todos.refetch() },
+    }),
+  );
+    {{/if}}
+
+  const handleAddTodo = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (newTodoText.trim()) {
+      createMutation.mutate({ text: newTodoText });
+    }
+  };
+
+  const handleToggleTodo = (id: TodoId, completed: boolean) => {
+    toggleMutation.mutate({ id, completed: !completed });
+  };
+
+  const handleDeleteTodo = (id: TodoId) => {
+    deleteMutation.mutate({ id });
+  };
+  {{/if}}
+
+  return (
+    <div className="mx-auto w-full max-w-md py-10">
+      <Card>
+        <CardHeader>
+          <CardTitle>Todo List{{#if (eq backend "convex")}} (Convex){{/if}}</CardTitle>
+          <CardDescription>Manage your tasks efficiently</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form
+            onSubmit={handleAddTodo}
+            className="mb-6 flex items-center space-x-2"
+          >
+            <Input
+              value={newTodoText}
+              onChange={(e) => setNewTodoText(e.target.value)}
+              placeholder="Add a new task..."
+              {{#unless (eq backend "convex")}}
+              disabled={createMutation.isPending}
+              {{/unless}}
+            />
+            <Button
+              type="submit"
+              {{#unless (eq backend "convex")}}
+              disabled={createMutation.isPending || !newTodoText.trim()}
+              {{else}}
+              disabled={!newTodoText.trim()}
+              {{/unless}}
+            >
+              {{#unless (eq backend "convex")}}
+              {createMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Add"
+              )}
+              {{else}}
+              Add
+              {{/unless}}
+            </Button>
+          </form>
+
+          {{#if (eq backend "convex")}}
+          {todos?.length === 0 ? (
+            <p className="py-4 text-center">No todos yet. Add one above!</p>
+          ) : (
+            <ul className="space-y-2">
+              {todos?.map((todo) => (
+                <li
+                  key={todo._id}
+                  className="flex items-center justify-between rounded-md border p-2"
+                >
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      checked={todo.completed}
+                      onCheckedChange={() =>
+                        handleToggleTodo(todo._id, todo.completed)
+                      }
+                      id={\`todo-\${todo._id}\`}
+                    />
+                    <label
+                      htmlFor={\`todo-\${todo._id}\`}
+                      className={\`\${
+                        todo.completed
+                          ? "text-muted-foreground line-through"
+                          : ""
+                      }\`}
+                    >
+                      {todo.text}
+                    </label>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDeleteTodo(todo._id)}
+                    aria-label="Delete todo"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {{else}}
+          {todos.isLoading ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="h-6 w-6 animate-spin" />
+            </div>
+          ) : todos.data?.length === 0 ? (
+            <p className="py-4 text-center">No todos yet. Add one above!</p>
+          ) : (
+            <ul className="space-y-2">
+              {todos.data?.map((todo) => (
+                <li
+                  key={todo.id}
+                  className="flex items-center justify-between rounded-md border p-2"
+                >
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      checked={todo.completed}
+                      onCheckedChange={() =>
+                        handleToggleTodo(todo.id, todo.completed)
+                      }
+                      id={\`todo-\${todo.id}\`}
+                    />
+                    <label
+                      htmlFor={\`todo-\${todo.id}\`}
+                      className={\`\${todo.completed ? "line-through" : ""}\`}
+                    >
+                      {todo.text}
+                    </label>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDeleteTodo(todo.id)}
+                    aria-label="Delete todo"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {{/if}}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 `],
   ["extras/_npmrc.hbs", `node-linker=isolated
 `],
@@ -7445,7 +14390,35 @@ declare module "cloudflare:workers" {
   ["extras/pnpm-workspace.yaml.hbs", `packages:
   - "apps/*"
   - "packages/*"
+{{#if (or (eq runtime "node") (eq webDeploy "cloudflare") (eq serverDeploy "cloudflare") (eq webDeploy "docker") (eq serverDeploy "docker") (eq webDeploy "vercel") (eq serverDeploy "vercel") (eq orm "prisma") (includes addons "lefthook") (includes addons "nx") (includes addons "pwa") (includes addons "turborepo") (includes addons "vite-plus") (includes frontend "react-router") (includes frontend "next") (includes frontend "nuxt"))}}
 
+# pnpm 11 blocks dependency lifecycle scripts unless they are approved here.
+# Entries are scoped to packages this generated stack can pull in.
+allowBuilds:
+{{#if (or (eq runtime "node") (eq webDeploy "cloudflare") (eq serverDeploy "cloudflare") (eq webDeploy "docker") (eq serverDeploy "docker") (eq webDeploy "vercel") (eq serverDeploy "vercel") (includes addons "turborepo") (includes addons "vite-plus") (includes frontend "react-router") (includes frontend "nuxt"))}}
+  esbuild: true
+{{/if}}
+{{#if (includes frontend "nuxt")}}
+  "@parcel/watcher": true
+  vue-demi: true
+{{/if}}
+{{#if (or (eq webDeploy "cloudflare") (eq serverDeploy "cloudflare") (eq webDeploy "docker") (eq webDeploy "vercel") (includes addons "pwa") (includes frontend "next"))}}
+  sharp: true
+{{/if}}
+{{#if (or (eq webDeploy "cloudflare") (eq serverDeploy "cloudflare"))}}
+  workerd: true
+{{/if}}
+{{#if (eq orm "prisma")}}
+  "@prisma/engines": true
+  prisma: true
+{{/if}}
+{{#if (includes addons "lefthook")}}
+  lefthook: true
+{{/if}}
+{{#if (includes addons "nx")}}
+  nx: true
+{{/if}}
+{{/if}}
 `],
   ["frontend/native/bare/_gitignore", `node_modules/
 .expo/
@@ -7517,7 +14490,197 @@ web-build/
   ["frontend/native/bare/app/_layout.tsx.hbs", `{{#if (includes examples "ai")}}
 import "@/polyfills";
 {{/if}}
+{{#if (and (eq auth "clerk") (ne api "none") (ne backend "convex"))}}
+import { useEffect } from "react";
+import { setClerkAuthTokenGetter } from "@/utils/clerk-auth";
+{{/if}}
+{{#if (and (ne backend "convex") (eq auth "clerk"))}}
+import { ClerkProvider{{#unless (eq api "none")}}, useAuth{{/unless}} } from "@clerk/expo";
+import { tokenCache } from "@clerk/expo/token-cache";
+import { env } from "@{{projectName}}/env/native";
+{{/if}}
 
+{{#if (eq backend "convex")}}
+  {{#if (eq auth "better-auth")}}
+    import { ConvexReactClient } from "convex/react";
+    import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
+    import { authClient } from "@/lib/auth-client";
+    import { env } from "@{{projectName}}/env/native";
+  {{else}}
+    import { ConvexProvider, ConvexReactClient } from "convex/react";
+    import { env } from "@{{projectName}}/env/native";
+  {{/if}}
+  {{#if (eq auth "clerk")}}
+    import { ClerkProvider, useAuth } from "@clerk/expo";
+    import { ConvexProviderWithClerk } from "convex/react-clerk";
+    import { tokenCache } from "@clerk/expo/token-cache";
+  {{/if}}
+{{else}}
+  {{#unless (eq api "none")}}
+    import { QueryClientProvider } from "@tanstack/react-query";
+  {{/unless}}
+{{/if}}
+
+import { Stack } from "expo-router";
+import { DarkTheme, DefaultTheme, ThemeProvider } from "expo-router/react-navigation";
+import { StatusBar } from "expo-status-bar";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+{{#if (eq api "trpc")}}
+import { queryClient } from "@/utils/trpc";
+{{/if}}
+{{#if (eq api "orpc")}}
+import { queryClient } from "@/utils/orpc";
+{{/if}}
+import { NAV_THEME } from "@/lib/constants";
+import { useColorScheme } from "@/lib/use-color-scheme";
+import { StyleSheet } from "react-native";
+
+const LIGHT_THEME = {
+  ...DefaultTheme,
+  colors: NAV_THEME.light,
+};
+const DARK_THEME = {
+  ...DarkTheme,
+  colors: NAV_THEME.dark,
+};
+
+export const unstable_settings = {
+  initialRouteName: "(drawer)",
+};
+
+{{#if (eq backend "convex")}}
+const convex = new ConvexReactClient(env.EXPO_PUBLIC_CONVEX_URL, {
+  unsavedChangesWarning: false,
+});
+{{/if}}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+});
+
+{{#if (and (eq auth "clerk") (ne api "none") (ne backend "convex"))}}
+function ClerkApiAuthBridge() {
+  const { getToken } = useAuth();
+
+  useEffect(() => {
+    setClerkAuthTokenGetter(getToken);
+
+    return () => {
+      setClerkAuthTokenGetter(null);
+    };
+  }, [getToken]);
+
+  return null;
+}
+{{/if}}
+
+export default function RootLayout() {
+  const { isDarkColorScheme } = useColorScheme();
+
+  return (
+    <>
+      {{#if (eq backend "convex")}}
+        {{#if (eq auth "clerk")}}
+          <ClerkProvider tokenCache={tokenCache} publishableKey={env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY}>
+            <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+              <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
+                <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
+                <GestureHandlerRootView style={styles.container}>
+                  <Stack>
+                    <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
+                    <Stack.Screen name="(auth)" options=\\{{ headerShown: false }} />
+                    <Stack.Screen name="modal" options=\\{{ title: "Modal", presentation: "modal" }} />
+                  </Stack>
+                </GestureHandlerRootView>
+              </ThemeProvider>
+            </ConvexProviderWithClerk>
+          </ClerkProvider>
+        {{else if (eq auth "better-auth")}}
+          <ConvexBetterAuthProvider client={convex} authClient={authClient}>
+            <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
+              <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
+              <GestureHandlerRootView style={styles.container}>
+                <Stack>
+                  <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
+                  <Stack.Screen name="modal" options=\\{{ title: "Modal", presentation: "modal" }} />
+                </Stack>
+              </GestureHandlerRootView>
+            </ThemeProvider>
+          </ConvexBetterAuthProvider>
+        {{else}}
+          <ConvexProvider client={convex}>
+            <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
+              <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
+              <GestureHandlerRootView style={styles.container}>
+                <Stack>
+                  <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
+                  <Stack.Screen name="modal" options=\\{{ title: "Modal", presentation: "modal" }} />
+                </Stack>
+              </GestureHandlerRootView>
+            </ThemeProvider>
+          </ConvexProvider>
+        {{/if}}
+      {{else}}
+        {{#if (eq auth "clerk")}}
+          <ClerkProvider tokenCache={tokenCache} publishableKey={env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY}>
+            {{#unless (eq api "none")}}
+              <ClerkApiAuthBridge />
+              <QueryClientProvider client={queryClient}>
+                <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
+                  <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
+                  <GestureHandlerRootView style={styles.container}>
+                    <Stack>
+                      <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
+                      <Stack.Screen name="(auth)" options=\\{{ headerShown: false }} />
+                      <Stack.Screen name="modal" options=\\{{ title: "Modal", presentation: "modal" }} />
+                    </Stack>
+                  </GestureHandlerRootView>
+                </ThemeProvider>
+              </QueryClientProvider>
+            {{else}}
+              <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
+                <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
+                <GestureHandlerRootView style={styles.container}>
+                  <Stack>
+                    <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
+                    <Stack.Screen name="(auth)" options=\\{{ headerShown: false }} />
+                    <Stack.Screen name="modal" options=\\{{ title: "Modal", presentation: "modal" }} />
+                  </Stack>
+                </GestureHandlerRootView>
+              </ThemeProvider>
+            {{/unless}}
+          </ClerkProvider>
+        {{else}}
+          {{#unless (eq api "none")}}
+            <QueryClientProvider client={queryClient}>
+              <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
+                <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
+                <GestureHandlerRootView style={styles.container}>
+                  <Stack>
+                    <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
+                    <Stack.Screen name="modal" options=\\{{ title: "Modal", presentation: "modal" }} />
+                  </Stack>
+                </GestureHandlerRootView>
+              </ThemeProvider>
+            </QueryClientProvider>
+          {{else}}
+            <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
+              <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
+              <GestureHandlerRootView style={styles.container}>
+                <Stack>
+                  <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
+                  <Stack.Screen name="modal" options=\\{{ title: "Modal", presentation: "modal" }} />
+                </Stack>
+              </GestureHandlerRootView>
+            </ThemeProvider>
+          {{/unless}}
+        {{/if}}
+      {{/if}}
+    </>
+  );
+}
 `],
   ["frontend/native/bare/app/(drawer)/_layout.tsx.hbs", `import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { Link } from "expo-router";
@@ -7742,9 +14905,13 @@ const styles = StyleSheet.create({
   },
 });
 `],
-  ["frontend/native/bare/app/(drawer)/index.tsx.hbs", `import { Column, Host, Text as ExpoUIText } from "@expo/ui";
-import { View, ScrollView, StyleSheet } from "react-native";
-
+  ["frontend/native/bare/app/(drawer)/index.tsx.hbs", `import { {{#if (or (eq auth "clerk") (eq auth "better-auth"))}}Button, {{/if}}Column, Host, Text as ExpoUIText } from "@expo/ui";
+import { View, ScrollView, StyleSheet{{#if (and (eq backend "convex") (eq auth "better-auth") (eq payments "polar"))}}, Alert{{/if}} } from "react-native";
+{{#if (and (eq backend "convex") (eq auth "better-auth") (eq payments "polar"))}}
+import * as Linking from "expo-linking";
+import * as WebBrowser from "expo-web-browser";
+import { env } from "@{{projectName}}/env/native";
+{{/if}}
 import { Container } from "@/components/container";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { NAV_THEME } from "@/lib/constants";
@@ -7752,12 +14919,104 @@ import { NAV_THEME } from "@/lib/constants";
 import { useQuery } from "@tanstack/react-query";
 import { orpc } from "@/utils/orpc";
 {{/if}}
+{{#if (eq api "trpc")}}
+import { useQuery } from "@tanstack/react-query";
+import { trpc } from "@/utils/trpc";
+{{/if}}
+{{#if (and (eq backend "convex") (eq auth "clerk"))}}
+import { router } from "expo-router";
+import { Authenticated, AuthLoading, Unauthenticated, useQuery } from "convex/react";
+import { api } from "@{{ projectName }}/backend/convex/_generated/api";
+import { useUser } from "@clerk/expo";
+import { SignOutButton } from "@/components/sign-out-button";
+{{else if (and (ne backend "convex") (eq auth "clerk"))}}
+import { router } from "expo-router";
+import { useAuth, useUser } from "@clerk/expo";
+import { SignOutButton } from "@/components/sign-out-button";
+{{else if (and (eq backend "convex") (eq auth "better-auth"))}}
+import { {{#if (eq payments "polar")}}useAction, {{/if}}useConvexAuth, useQuery } from "convex/react";
+import { api } from "@{{ projectName }}/backend/convex/_generated/api";
+import { authClient } from "@/lib/auth-client";
+import { SignIn } from "@/components/sign-in";
+import { SignUp } from "@/components/sign-up";
+{{else if (eq backend "convex")}}
+import { useQuery } from "convex/react";
+import { api } from "@{{ projectName }}/backend/convex/_generated/api";
+{{/if}}
 
 export default function Home() {
 const { colorScheme } = useColorScheme();
 const theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
 {{#if (eq api "orpc")}}
 const healthCheck = useQuery(orpc.healthCheck.queryOptions());
+{{/if}}
+{{#if (eq api "trpc")}}
+const healthCheck = useQuery(trpc.healthCheck.queryOptions());
+{{/if}}
+{{#if (and (eq backend "convex") (eq auth "clerk"))}}
+const { user } = useUser();
+const healthCheck = useQuery(api.healthCheck.get);
+const privateData = useQuery(api.privateData.get);
+{{else if (and (ne backend "convex") (eq auth "clerk"))}}
+const { isLoaded, isSignedIn } = useAuth();
+const { user } = useUser();
+{{else if (and (eq backend "convex") (eq auth "better-auth"))}}
+const healthCheck = useQuery(api.healthCheck.get);
+const { isAuthenticated } = useConvexAuth();
+const user = useQuery(api.auth.getCurrentUser, isAuthenticated ? {} : "skip");
+{{#if (eq payments "polar")}}
+const products = useQuery(api.polar.listAllProducts);
+const subscription = useQuery(api.polar.getCurrentSubscription);
+const generateCheckoutLink = useAction(api.polar.generateCheckoutLink);
+const generateCustomerPortalUrl = useAction(api.polar.generateCustomerPortalUrl);
+const recurringProduct = products?.find((product) => product.isRecurring);
+
+const openPolarLink = async (url: string, returnUrl: string) => {
+	await WebBrowser.openAuthSessionAsync(url, returnUrl);
+};
+
+const getPolarReturnUrl = (returnUrl: string) => {
+	const url = new URL("/polar/success", env.EXPO_PUBLIC_CONVEX_SITE_URL);
+	url.searchParams.set("returnUrl", returnUrl);
+	return url.toString();
+};
+
+const handlePolarCheckout = async () => {
+	try {
+		if (!recurringProduct) {
+			Alert.alert("Checkout unavailable", "No recurring Polar product is available yet.");
+			return;
+		}
+
+		const returnUrl = Linking.createURL("/");
+		const polarReturnUrl = getPolarReturnUrl(returnUrl);
+		const { url } = await generateCheckoutLink({
+			productIds: [recurringProduct.id],
+			origin: env.EXPO_PUBLIC_CONVEX_SITE_URL,
+			successUrl: polarReturnUrl,
+		});
+
+		await openPolarLink(url, returnUrl);
+	} catch {
+		Alert.alert("Checkout failed", "Unable to open Polar checkout. Please try again.");
+	}
+};
+
+const handlePolarPortal = async () => {
+	try {
+		const returnUrl = Linking.createURL("/");
+		const { url } = await generateCustomerPortalUrl({
+			returnUrl: getPolarReturnUrl(returnUrl),
+		});
+
+		await openPolarLink(url, returnUrl);
+	} catch {
+		Alert.alert("Portal unavailable", "Unable to open the customer portal. Please try again.");
+	}
+};
+{{/if}}
+{{else if (eq backend "convex")}}
+const healthCheck = useQuery(api.healthCheck.get);
 {{/if}}
 
 return (
@@ -7772,7 +15031,287 @@ return (
         </ExpoUIText>
       </Host>
 
-      `],
+      {{#unless (and (eq backend "convex") (eq auth "better-auth"))}}
+      <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        {{#if (eq backend "convex")}}
+        <View style={styles.statusRow}>
+          <View style={[styles.statusIndicator, { backgroundColor: healthCheck ? "#10b981" : "#f59e0b" }]} />
+          <View style={styles.statusContent}>
+            <Host matchContents=\\{{ vertical: true }}>
+              <Column spacing={4}>
+                <ExpoUIText
+                  textStyle=\\{{ color: theme.text, fontSize: 14, fontWeight: "bold" }}
+                >
+                  Convex
+                </ExpoUIText>
+                <ExpoUIText
+                  textStyle=\\{{ color: theme.text, fontSize: 12 }}
+                  style=\\{{ opacity: 0.7 }}
+                >
+                  {healthCheck === undefined
+                  ? "Checking..."
+                  : healthCheck === "OK"
+                  ? "Connected to API"
+                  : "API Disconnected"}
+                </ExpoUIText>
+              </Column>
+            </Host>
+          </View>
+        </View>
+        {{else}}
+        {{#unless (eq api "none")}}
+        <View style={styles.statusRow}>
+          <View style={[styles.statusIndicator, { backgroundColor: healthCheck.data ? "#10b981" : "#f59e0b" }]} />
+          <View style={styles.statusContent}>
+            <Host matchContents=\\{{ vertical: true }}>
+              <Column spacing={4}>
+                <ExpoUIText
+                  textStyle=\\{{ color: theme.text, fontSize: 14, fontWeight: "bold" }}
+                >
+                  {{#if (eq api "orpc")}}ORPC{{else}}TRPC{{/if}}
+                </ExpoUIText>
+                <ExpoUIText
+                  textStyle=\\{{ color: theme.text, fontSize: 12 }}
+                  style=\\{{ opacity: 0.7 }}
+                >
+                  {healthCheck.isLoading
+                  ? "Checking connection..."
+                  : healthCheck.data
+                  ? "All systems operational"
+                  : "Service unavailable"}
+                </ExpoUIText>
+              </Column>
+            </Host>
+          </View>
+        </View>
+        {{/unless}}
+        {{/if}}
+      </View>
+      {{/unless}}
+
+      {{#if (and (eq backend "convex") (eq auth "clerk"))}}
+      <Authenticated>
+        <Host style={styles.authHost} matchContents=\\{{ vertical: true }}>
+          <Column spacing={6}>
+            <ExpoUIText textStyle=\\{{ color: theme.text, fontSize: 14 }}>
+              {\`Hello \${user?.emailAddresses[0].emailAddress ?? ""}\`}
+            </ExpoUIText>
+            <ExpoUIText textStyle=\\{{ color: theme.text, fontSize: 14 }}>
+              {\`Private Data: \${privateData?.message ?? ""}\`}
+            </ExpoUIText>
+          </Column>
+        </Host>
+        <SignOutButton />
+      </Authenticated>
+      <Unauthenticated>
+        <Host style={styles.authActionsHost} matchContents=\\{{ vertical: true }}>
+          <Column spacing={8}>
+            <Button
+              label="Sign in"
+              variant="outlined"
+              onPress={() => router.push("/(auth)/sign-in")}
+            />
+            <Button
+              label="Sign up"
+              onPress={() => router.push("/(auth)/sign-up")}
+            />
+          </Column>
+        </Host>
+      </Unauthenticated>
+      <AuthLoading>
+        <Host matchContents=\\{{ vertical: true }}>
+          <ExpoUIText textStyle=\\{{ color: theme.text, fontSize: 14 }}>
+            Loading...
+          </ExpoUIText>
+        </Host>
+      </AuthLoading>
+      {{/if}}
+
+      {{#if (and (ne backend "convex") (eq auth "clerk"))}}
+      {!isLoaded ? (
+      <Host matchContents=\\{{ vertical: true }}>
+        <ExpoUIText textStyle=\\{{ color: theme.text, fontSize: 14 }}>
+          Loading...
+        </ExpoUIText>
+      </Host>
+      ) : isSignedIn ? (
+      <View style={[styles.userCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <Host style={styles.userHeader} matchContents=\\{{ vertical: true }}>
+          <Column spacing={8}>
+            <ExpoUIText textStyle=\\{{ color: theme.text, fontSize: 16 }}>
+              {\`Welcome, \${user?.fullName ?? user?.firstName ?? "there"}\`}
+            </ExpoUIText>
+            <ExpoUIText
+              textStyle=\\{{ color: theme.text, fontSize: 14 }}
+              style=\\{{ opacity: 0.7 }}
+            >
+              {user?.emailAddresses[0]?.emailAddress ?? ""}
+            </ExpoUIText>
+          </Column>
+        </Host>
+        <SignOutButton />
+      </View>
+      ) : (
+      <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <Host style={styles.authActionsHost} matchContents=\\{{ vertical: true }}>
+          <Column spacing={8}>
+            <Button
+              label="Sign in"
+              variant="outlined"
+              onPress={() => router.push("/(auth)/sign-in")}
+            />
+            <Button
+              label="Sign up"
+              onPress={() => router.push("/(auth)/sign-up")}
+            />
+          </Column>
+        </Host>
+      </View>
+      )}
+      {{/if}}
+
+      {{#if (and (eq backend "convex") (eq auth "better-auth"))}}
+      <View style={[styles.statusCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <Host style={styles.statusCardTitleHost} matchContents=\\{{ vertical: true }}>
+          <ExpoUIText
+            textStyle=\\{{ color: theme.text, fontSize: 16, fontWeight: "bold" }}
+          >
+            API Status
+          </ExpoUIText>
+        </Host>
+        <View style={styles.statusRow}>
+          <View style={[styles.statusIndicator, { backgroundColor: healthCheck ? "#10b981" : "#f59e0b" }]} />
+          <View style={styles.statusContent}>
+            <Host matchContents=\\{{ vertical: true }}>
+              <ExpoUIText
+                textStyle=\\{{ color: theme.text, fontSize: 12 }}
+                style=\\{{ opacity: 0.7 }}
+              >
+                {healthCheck === undefined
+                ? "Checking..."
+                : healthCheck === "OK"
+                ? "Connected to API"
+                : "API Disconnected"}
+              </ExpoUIText>
+            </Host>
+          </View>
+        </View>
+      </View>
+
+      {user ? (
+      <View style={[styles.userCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <Host style={styles.userHeader} matchContents>
+          <Column spacing={6}>
+            <ExpoUIText textStyle=\\{{ color: theme.text, fontSize: 16, fontWeight: "bold" }}>
+              {\`Welcome, \${user.name}\`}
+            </ExpoUIText>
+            <ExpoUIText
+              textStyle=\\{{ color: theme.text, fontSize: 14 }}
+              style=\\{{ opacity: 0.7 }}
+            >
+              {user.email}
+            </ExpoUIText>
+          </Column>
+        </Host>
+        <Host matchContents=\\{{ vertical: true }}>
+          <Button
+            label="Sign Out"
+            variant="outlined"
+            onPress={() => {
+              authClient.signOut();
+            }}
+          />
+        </Host>
+        {{#if (eq payments "polar")}}
+        <Host style={styles.paymentActions} matchContents=\\{{ vertical: true }}>
+          <Column spacing={8}>
+            {subscription ? (
+            <Button
+              label="Manage Subscription"
+              variant="outlined"
+              onPress={handlePolarPortal}
+            />
+            ) : (
+            <Button label="Upgrade to Pro" onPress={handlePolarCheckout} />
+            )}
+          </Column>
+        </Host>
+        {{/if}}
+      </View>
+      ) : (
+      <>
+        <SignIn />
+        <SignUp />
+      </>
+      )}
+      {{/if}}
+    </View>
+  </ScrollView>
+</Container>
+);
+}
+
+const styles = StyleSheet.create({
+scrollView: {
+flex: 1,
+},
+content: {
+paddingHorizontal: 20,
+paddingTop: 28,
+paddingBottom: 32,
+},
+titleHost: {
+alignSelf: "stretch",
+height: 34,
+marginBottom: 24,
+},
+card: {
+padding: 16,
+marginBottom: 16,
+borderWidth: 1,
+},
+statusRow: {
+flexDirection: "row",
+alignItems: "center",
+gap: 8,
+},
+statusIndicator: {
+height: 10,
+width: 10,
+borderRadius: 999,
+},
+statusContent: {
+flex: 1,
+},
+userCard: {
+marginBottom: 16,
+padding: 16,
+borderWidth: 1,
+borderRadius: 16,
+},
+userHeader: {
+marginBottom: 8,
+},
+paymentActions: {
+marginTop: 12,
+},
+authHost: {
+marginBottom: 12,
+},
+authActionsHost: {
+marginTop: 4,
+},
+statusCard: {
+marginBottom: 16,
+padding: 16,
+borderWidth: 1,
+borderRadius: 16,
+},
+statusCardTitleHost: {
+marginBottom: 8,
+},
+});
+`],
   ["frontend/native/bare/app/+not-found.tsx.hbs", `import { Container } from "@/components/container";
 import { Button, Column, Host, Text as ExpoUIText } from "@expo/ui";
 import { Stack, router } from "expo-router";
@@ -8170,7 +15709,251 @@ android
 {{#if (includes examples "ai")}}
 import "@/polyfills";
 {{/if}}
+{{#if (and (eq auth "clerk") (ne api "none") (ne backend "convex"))}}
+import { useEffect } from "react";
+import { setClerkAuthTokenGetter } from "@/utils/clerk-auth";
+{{/if}}
+{{#if (and (ne backend "convex") (eq auth "clerk"))}}
+import { ClerkProvider{{#unless (eq api "none")}}, useAuth{{/unless}} } from "@clerk/expo";
+import { tokenCache } from "@clerk/expo/token-cache";
+import { env } from "@{{projectName}}/env/native";
+{{/if}}
+{{#if (eq api "trpc")}}
+import { queryClient } from "@/utils/trpc";
+{{/if}}
+{{#if (eq api "orpc")}}
+import { queryClient } from "@/utils/orpc";
+{{/if}}
+{{#if (eq backend "convex")}}
+{{#if (eq auth "better-auth")}}
+import { ConvexReactClient } from "convex/react";
+import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
+import { authClient } from "@/lib/auth-client";
+import { env } from "@{{projectName}}/env/native";
+{{else}}
+import { ConvexProvider, ConvexReactClient } from "convex/react";
+import { env } from "@{{projectName}}/env/native";
+{{/if}}
+{{#if (eq auth "clerk")}}
+import { ClerkProvider, useAuth } from "@clerk/expo";
+import { ConvexProviderWithClerk } from "convex/react-clerk";
+import { tokenCache } from "@clerk/expo/token-cache";
+{{/if}}
+{{else}}
+  {{#unless (eq api "none")}}
+import { QueryClientProvider } from "@tanstack/react-query";
+  {{/unless}}
+{{/if}}
+import { Stack } from "expo-router";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { useUnistyles } from "react-native-unistyles";
+import { StatusBar } from "expo-status-bar";
 
+export const unstable_settings = {
+  initialRouteName: "(drawer)",
+};
+
+{{#if (eq backend "convex")}}
+const convex = new ConvexReactClient(env.EXPO_PUBLIC_CONVEX_URL, {
+  unsavedChangesWarning: false,
+});
+{{/if}}
+
+{{#if (and (eq auth "clerk") (ne api "none") (ne backend "convex"))}}
+function ClerkApiAuthBridge() {
+  const { getToken } = useAuth();
+
+  useEffect(() => {
+    setClerkAuthTokenGetter(getToken);
+
+    return () => {
+      setClerkAuthTokenGetter(null);
+    };
+  }, [getToken]);
+
+  return null;
+}
+{{/if}}
+
+export default function RootLayout() {
+  const { theme } = useUnistyles();
+
+  return (
+    {{#if (eq backend "convex")}}
+    {{#if (eq auth "clerk")}}
+    <ClerkProvider
+      tokenCache={tokenCache}
+      publishableKey={env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY}
+    >
+      <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+        <GestureHandlerRootView style=\\{{ flex: 1 }}>
+          <Stack
+            screenOptions=\\{{
+              headerStyle: {
+                backgroundColor: theme.colors.background,
+              },
+              headerTitleStyle: {
+                color: theme.colors.foreground,
+              },
+              headerTintColor: theme.colors.foreground,
+            }}
+          >
+            <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
+            <Stack.Screen name="(auth)" options=\\{{ headerShown: false }} />
+            <Stack.Screen
+              name="modal"
+              options=\\{{ title: "Modal", presentation: "modal" }}
+            />
+          </Stack>
+        </GestureHandlerRootView>
+      </ConvexProviderWithClerk>
+    </ClerkProvider>
+    {{else if (eq auth "better-auth")}}
+    <ConvexBetterAuthProvider client={convex} authClient={authClient}>
+      <GestureHandlerRootView style=\\{{ flex: 1 }}>
+        <Stack
+          screenOptions=\\{{
+            headerStyle: {
+              backgroundColor: theme.colors.background,
+            },
+            headerTitleStyle: {
+              color: theme.colors.foreground,
+            },
+            headerTintColor: theme.colors.foreground,
+          }}
+        >
+          <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
+          <Stack.Screen
+            name="modal"
+            options=\\{{ title: "Modal", presentation: "modal" }}
+          />
+        </Stack>
+      </GestureHandlerRootView>
+    </ConvexBetterAuthProvider>
+    {{else}}
+    <ConvexProvider client={convex}>
+      <GestureHandlerRootView style=\\{{ flex: 1 }}>
+        <Stack
+          screenOptions=\\{{
+            headerStyle: {
+              backgroundColor: theme.colors.background,
+            },
+            headerTitleStyle: {
+              color: theme.colors.foreground,
+            },
+            headerTintColor: theme.colors.foreground,
+          }}
+        >
+          <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
+          <Stack.Screen
+            name="modal"
+            options=\\{{ title: "Modal", presentation: "modal" }}
+          />
+        </Stack>
+      </GestureHandlerRootView>
+    </ConvexProvider>
+    {{/if}}
+    {{else}}
+      {{#if (eq auth "clerk")}}
+      <ClerkProvider
+        tokenCache={tokenCache}
+        publishableKey={env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      >
+        {{#unless (eq api "none")}}
+        <ClerkApiAuthBridge />
+        <QueryClientProvider client={queryClient}>
+          <GestureHandlerRootView style=\\{{ flex: 1 }}>
+            <Stack
+              screenOptions=\\{{
+                headerStyle: {
+                  backgroundColor: theme.colors.background,
+                },
+                headerTitleStyle: {
+                  color: theme.colors.foreground,
+                },
+                headerTintColor: theme.colors.foreground,
+              }}
+            >
+              <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
+              <Stack.Screen name="(auth)" options=\\{{ headerShown: false }} />
+              <Stack.Screen
+                name="modal"
+                options=\\{{ title: "Modal", presentation: "modal" }}
+              />
+            </Stack>
+          </GestureHandlerRootView>
+        </QueryClientProvider>
+        {{else}}
+        <GestureHandlerRootView style=\\{{ flex: 1 }}>
+          <Stack
+            screenOptions=\\{{
+              headerStyle: {
+                backgroundColor: theme.colors.background,
+              },
+              headerTitleStyle: {
+                color: theme.colors.foreground,
+              },
+              headerTintColor: theme.colors.foreground,
+            }}
+          >
+            <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
+            <Stack.Screen name="(auth)" options=\\{{ headerShown: false }} />
+            <Stack.Screen
+              name="modal"
+              options=\\{{ title: "Modal", presentation: "modal" }}
+            />
+          </Stack>
+        </GestureHandlerRootView>
+        {{/unless}}
+      </ClerkProvider>
+      {{else}}
+        {{#unless (eq api "none")}}
+      <QueryClientProvider client={queryClient}>
+        <GestureHandlerRootView style=\\{{ flex: 1 }}>
+          <Stack
+            screenOptions=\\{{
+              headerStyle: {
+                backgroundColor: theme.colors.background,
+              },
+              headerTitleStyle: {
+                color: theme.colors.foreground,
+              },
+              headerTintColor: theme.colors.foreground,
+            }}
+          >
+            <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
+            <Stack.Screen
+              name="modal"
+              options=\\{{ title: "Modal", presentation: "modal" }}
+            />
+          </Stack>
+        </GestureHandlerRootView>
+      </QueryClientProvider>
+        {{else}}
+        <GestureHandlerRootView style=\\{{ flex: 1 }}>
+          <Stack
+            screenOptions=\\{{
+              headerStyle: {
+                backgroundColor: theme.colors.background,
+              },
+              headerTitleStyle: {
+                color: theme.colors.foreground,
+              },
+              headerTintColor: theme.colors.foreground,
+            }}
+          >
+            <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
+            <Stack.Screen
+              name="modal"
+              options=\\{{ title: "Modal", presentation: "modal" }}
+            />
+          </Stack>
+        </GestureHandlerRootView>
+        {{/unless}}
+      {{/if}}
+    {{/if}}
+  );
+}
 `],
   ["frontend/native/unistyles/app/(drawer)/_layout.tsx.hbs", `import "@/unistyles";
 
@@ -8386,8 +16169,12 @@ const styles = StyleSheet.create((theme) => ({
 `],
   ["frontend/native/unistyles/app/(drawer)/index.tsx.hbs", `import "@/unistyles";
 
-import { ScrollView, Text, View, TouchableOpacity } from "react-native";
-
+import { ScrollView, Text, View, TouchableOpacity{{#if (and (eq backend "convex") (eq auth "better-auth") (eq payments "polar"))}}, Alert{{/if}} } from "react-native";
+{{#if (and (eq backend "convex") (eq auth "better-auth") (eq payments "polar"))}}
+import * as Linking from "expo-linking";
+import * as WebBrowser from "expo-web-browser";
+import { env } from "@{{projectName}}/env/native";
+{{/if}}
 import { StyleSheet } from "react-native-unistyles";
 import { Container } from "@/components/container";
 
@@ -8395,10 +16182,102 @@ import { Container } from "@/components/container";
 import { useQuery } from "@tanstack/react-query";
 import { orpc } from "@/utils/orpc";
 {{/if}}
+{{#if (eq api "trpc")}}
+import { useQuery } from "@tanstack/react-query";
+import { trpc } from "@/utils/trpc";
+{{/if}}
+{{#if (and (eq backend "convex") (eq auth "clerk"))}}
+import { Link } from "expo-router";
+import { Authenticated, AuthLoading, Unauthenticated, useQuery } from "convex/react";
+import { api } from "@{{ projectName }}/backend/convex/_generated/api";
+import { useUser } from "@clerk/expo";
+import { SignOutButton } from "@/components/sign-out-button";
+{{else if (and (ne backend "convex") (eq auth "clerk"))}}
+import { Link } from "expo-router";
+import { useAuth, useUser } from "@clerk/expo";
+import { SignOutButton } from "@/components/sign-out-button";
+{{else if (and (eq backend "convex") (eq auth "better-auth"))}}
+import { {{#if (eq payments "polar")}}useAction, {{/if}}useConvexAuth, useQuery } from "convex/react";
+import { api } from "@{{ projectName }}/backend/convex/_generated/api";
+import { authClient } from "@/lib/auth-client";
+import { SignIn } from "@/components/sign-in";
+import { SignUp } from "@/components/sign-up";
+{{else if (eq backend "convex")}}
+import { useQuery } from "convex/react";
+import { api } from "@{{ projectName }}/backend/convex/_generated/api";
+{{/if}}
 
 export default function Home() {
   {{#if (eq api "orpc")}}
   const healthCheck = useQuery(orpc.healthCheck.queryOptions());
+  {{/if}}
+  {{#if (eq api "trpc")}}
+  const healthCheck = useQuery(trpc.healthCheck.queryOptions());
+  {{/if}}
+  {{#if (and (eq backend "convex") (eq auth "clerk"))}}
+  const { user } = useUser();
+  const healthCheck = useQuery(api.healthCheck.get);
+  const privateData = useQuery(api.privateData.get);
+  {{else if (and (ne backend "convex") (eq auth "clerk"))}}
+  const { isLoaded, isSignedIn } = useAuth();
+  const { user } = useUser();
+  {{else if (and (eq backend "convex") (eq auth "better-auth"))}}
+  const healthCheck = useQuery(api.healthCheck.get);
+  const { isAuthenticated } = useConvexAuth();
+  const user = useQuery(api.auth.getCurrentUser, isAuthenticated ? {} : "skip");
+  {{#if (eq payments "polar")}}
+  const products = useQuery(api.polar.listAllProducts);
+  const subscription = useQuery(api.polar.getCurrentSubscription);
+  const generateCheckoutLink = useAction(api.polar.generateCheckoutLink);
+  const generateCustomerPortalUrl = useAction(api.polar.generateCustomerPortalUrl);
+  const recurringProduct = products?.find((product) => product.isRecurring);
+
+  const openPolarLink = async (url: string, returnUrl: string) => {
+    await WebBrowser.openAuthSessionAsync(url, returnUrl);
+  };
+
+  const getPolarReturnUrl = (returnUrl: string) => {
+    const url = new URL("/polar/success", env.EXPO_PUBLIC_CONVEX_SITE_URL);
+    url.searchParams.set("returnUrl", returnUrl);
+    return url.toString();
+  };
+
+  const handlePolarCheckout = async () => {
+    try {
+      if (!recurringProduct) {
+        Alert.alert("Checkout unavailable", "No recurring Polar product is available yet.");
+        return;
+      }
+
+      const returnUrl = Linking.createURL("/");
+      const polarReturnUrl = getPolarReturnUrl(returnUrl);
+      const { url } = await generateCheckoutLink({
+        productIds: [recurringProduct.id],
+        origin: env.EXPO_PUBLIC_CONVEX_SITE_URL,
+        successUrl: polarReturnUrl,
+      });
+
+      await openPolarLink(url, returnUrl);
+    } catch {
+      Alert.alert("Checkout failed", "Unable to open Polar checkout. Please try again.");
+    }
+  };
+
+  const handlePolarPortal = async () => {
+    try {
+      const returnUrl = Linking.createURL("/");
+      const { url } = await generateCustomerPortalUrl({
+        returnUrl: getPolarReturnUrl(returnUrl),
+      });
+
+      await openPolarLink(url, returnUrl);
+    } catch {
+      Alert.alert("Portal unavailable", "Unable to open the customer portal. Please try again.");
+    }
+  };
+  {{/if}}
+  {{else if (eq backend "convex")}}
+  const healthCheck = useQuery(api.healthCheck.get);
   {{/if}}
 
   return (
@@ -8411,7 +16290,352 @@ export default function Home() {
           BETTER T STACK
         </Text>
 
-        `],
+        {{#unless (and (eq backend "convex") (eq auth "better-auth"))}}
+        <View style={styles.statusCard}>
+          <View style={styles.statusHeader}>
+            <Text style={styles.statusTitle}>System Status</Text>
+            <View style={styles.statusBadge}>
+              <Text style={styles.statusBadgeText}>LIVE</Text>
+            </View>
+          </View>
+          {{#if (eq backend "convex")}}
+            {{#unless (eq auth "better-auth")}}
+            <View style={styles.statusRow}>
+              <View
+                style={[
+                  styles.statusDot,
+                  healthCheck === "OK"
+                    ? styles.statusDotSuccess
+                    : styles.statusDotWarning,
+                ]}
+              />
+              <View style={styles.statusContent}>
+                <Text style={styles.statusLabel}>Convex</Text>
+                <Text style={styles.statusDescription}>
+                  {healthCheck === undefined
+                    ? "Checking connection..."
+                    : healthCheck === "OK"
+                    ? "Connected to API"
+                    : "API Disconnected"}
+                </Text>
+              </View>
+            </View>
+            {{/unless}}
+          {{else}}
+            {{#unless (eq api "none")}}
+            <View style={styles.statusRow}>
+              <View
+                style={[
+                  styles.statusDot,
+                  healthCheck.data
+                    ? styles.statusDotSuccess
+                    : styles.statusDotWarning,
+                ]}
+              />
+              <View style={styles.statusContent}>
+                <Text style={styles.statusLabel}>
+                  {{#if (eq api "orpc")}}ORPC{{/if}}
+                  {{#if (eq api "trpc")}}TRPC{{/if}}
+                </Text>
+                <Text style={styles.statusDescription}>
+                  {healthCheck.isLoading
+                    ? "Checking connection..."
+                    : healthCheck.data
+                    ? "Connected to API"
+                    : "API Disconnected"}
+                </Text>
+              </View>
+            </View>
+            {{/unless}}
+          {{/if}}
+        </View>
+        {{/unless}}
+
+        {{#if (and (eq backend "convex") (eq auth "clerk"))}}
+        <Authenticated>
+          <Text>
+            Hello {user?.emailAddresses[0].emailAddress}
+          </Text>
+          <Text>
+            Private Data: {privateData?.message}
+          </Text>
+          <SignOutButton />
+        </Authenticated>
+        <Unauthenticated>
+          <Link href="/(auth)/sign-in">
+            <Text>Sign in</Text>
+          </Link>
+          <Link href="/(auth)/sign-up">
+            <Text>Sign up</Text>
+          </Link>
+        </Unauthenticated>
+        <AuthLoading>
+          <Text>Loading...</Text>
+        </AuthLoading>
+        {{/if}}
+
+        {{#if (and (ne backend "convex") (eq auth "clerk"))}}
+        {!isLoaded ? (
+          <Text style={styles.apiStatusText}>Loading...</Text>
+        ) : isSignedIn ? (
+          <View style={styles.userCard}>
+            <View style={styles.userHeader}>
+              <Text style={styles.userWelcome}>
+                Welcome,{" "}
+                <Text style={styles.userName}>{user?.fullName ?? user?.firstName ?? "there"}</Text>
+              </Text>
+            </View>
+            <Text style={styles.userEmail}>{user?.emailAddresses[0]?.emailAddress}</Text>
+            <SignOutButton />
+          </View>
+        ) : (
+          <>
+            <Link href="/(auth)/sign-in">
+              <Text style={styles.apiStatusText}>Sign in</Text>
+            </Link>
+            <Link href="/(auth)/sign-up">
+              <Text style={styles.apiStatusText}>Sign up</Text>
+            </Link>
+          </>
+        )}
+        {{/if}}
+
+        {{#if (and (eq backend "convex") (eq auth "better-auth"))}}
+        {user ? (
+          <View style={styles.userCard}>
+            <View style={styles.userHeader}>
+              <Text style={styles.userWelcome}>
+                Welcome,{" "}
+                <Text style={styles.userName}>{user.name}</Text>
+              </Text>
+            </View>
+            <Text style={styles.userEmail}>{user.email}</Text>
+            <TouchableOpacity
+              style={styles.signOutButton}
+              onPress={() => {
+                authClient.signOut();
+              }}
+            >
+              <Text style={styles.signOutText}>Sign Out</Text>
+            </TouchableOpacity>
+            {{#if (eq payments "polar")}}
+            <View style={styles.paymentActions}>
+              {subscription ? (
+                <TouchableOpacity
+                  style={styles.polarSecondaryButton}
+                  onPress={handlePolarPortal}
+                >
+                  <Text style={styles.polarSecondaryButtonText}>Manage Subscription</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.polarPrimaryButton}
+                  onPress={handlePolarCheckout}
+                >
+                  <Text style={styles.polarPrimaryButtonText}>Upgrade to Pro</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            {{/if}}
+          </View>
+        ) : null}
+        <View style={styles.apiStatusCard}>
+          <Text style={styles.apiStatusTitle}>API Status</Text>
+          <View style={styles.apiStatusRow}>
+            <View
+              style={[
+                styles.statusDot,
+                healthCheck === "OK"
+                  ? styles.statusDotSuccess
+                  : styles.statusDotWarning,
+              ]}
+            />
+            <Text style={styles.apiStatusText}>
+              {healthCheck === undefined
+                ? "Checking..."
+                : healthCheck === "OK"
+                ? "Connected to API"
+                : "API Disconnected"}
+            </Text>
+          </View>
+        </View>
+        {!user && (
+          <>
+            <SignIn />
+            <SignUp />
+          </>
+        )}
+        {{/if}}
+      </ScrollView>
+    </Container>
+  );
+}
+
+const styles = StyleSheet.create((theme) => ({
+  container: {
+    paddingHorizontal: theme.spacing.md,
+  },
+  heroSection: {
+    paddingVertical: theme.spacing.xl,
+  },
+  heroTitle: {
+    fontSize: theme.fontSize["4xl"],
+    fontWeight: "bold",
+    color: theme.colors.foreground,
+    marginBottom: theme.spacing.sm,
+  },
+  heroSubtitle: {
+    fontSize: theme.fontSize.lg,
+    color: theme.colors.mutedForeground,
+    lineHeight: 28,
+  },
+  statusCard: {
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.xl,
+    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  statusHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: theme.spacing.md,
+  },
+  statusTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: "600",
+    color: theme.colors.cardForeground,
+  },
+  statusBadge: {
+    backgroundColor: theme.colors.secondary,
+    paddingHorizontal: theme.spacing.sm + 4,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: 9999,
+  },
+  statusBadgeText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: "500",
+    color: theme.colors.secondaryForeground,
+  },
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.sm + 4,
+  },
+  statusDot: {
+    height: 12,
+    width: 12,
+    borderRadius: 6,
+  },
+  statusDotSuccess: {
+    backgroundColor: theme.colors.success,
+  },
+  statusDotWarning: {
+    backgroundColor: "#F59E0B",
+  },
+  statusContent: {
+    flex: 1,
+  },
+  statusLabel: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: "500",
+    color: theme.colors.cardForeground,
+  },
+  statusDescription: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.mutedForeground,
+  },
+  userCard: {
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+  },
+  userHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: theme.spacing.xs,
+  },
+  userWelcome: {
+    fontSize: theme.fontSize.base,
+    color: theme.colors.foreground,
+  },
+  userName: {
+    fontWeight: "500",
+  },
+  userEmail: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.mutedForeground,
+    marginBottom: theme.spacing.md,
+  },
+  signOutButton: {
+    backgroundColor: theme.colors.destructive,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    alignSelf: "flex-start",
+  },
+  signOutText: {
+    color: theme.colors.destructiveForeground,
+    fontWeight: "500",
+  },
+  paymentActions: {
+    marginTop: theme.spacing.sm,
+    alignItems: "flex-start",
+  },
+  polarPrimaryButton: {
+    backgroundColor: theme.colors.primary,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+  },
+  polarPrimaryButtonText: {
+    color: theme.colors.primaryForeground,
+    fontWeight: "500",
+  },
+  polarSecondaryButton: {
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+  },
+  polarSecondaryButtonText: {
+    color: theme.colors.foreground,
+    fontWeight: "500",
+  },
+  apiStatusCard: {
+    marginBottom: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: theme.spacing.md,
+  },
+  apiStatusTitle: {
+    marginBottom: theme.spacing.sm,
+    fontWeight: "500",
+    color: theme.colors.foreground,
+  },
+  apiStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.xs,
+  },
+  apiStatusText: {
+    color: theme.colors.mutedForeground,
+  },
+}));
+`],
   ["frontend/native/unistyles/app/+html.tsx.hbs", `import { ScrollViewStyleReset } from "expo-router/html";
 import { type PropsWithChildren } from "react";
 
@@ -8904,8 +17128,189 @@ uniwind-types.d.ts
   ["frontend/native/uniwind/app/_layout.tsx.hbs", `{{#if (includes examples "ai")}}
 import "@/polyfills";
 {{/if}}
+{{#if (and (eq auth "clerk") (ne api "none") (ne backend "convex"))}}
+import { useEffect } from "react";
+import { setClerkAuthTokenGetter } from "@/utils/clerk-auth";
+{{/if}}
 
 import "@/global.css";
+{{#if (and (ne backend "convex") (eq auth "clerk"))}}
+import { ClerkProvider{{#unless (eq api "none")}}, useAuth{{/unless}} } from "@clerk/expo";
+import { tokenCache } from "@clerk/expo/token-cache";
+import { env } from "@{{projectName}}/env/native";
+{{/if}}
+
+{{#if (eq backend "convex")}}
+  {{#if (eq auth "better-auth")}}
+    import { ConvexReactClient } from "convex/react";
+    import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
+    import { authClient } from "@/lib/auth-client";
+    import { env } from "@{{projectName}}/env/native";
+  {{else}}
+    import { ConvexProvider, ConvexReactClient } from "convex/react";
+    import { env } from "@{{projectName}}/env/native";
+  {{/if}}
+
+  {{#if (eq auth "clerk")}}
+    import { ClerkProvider, useAuth } from "@clerk/expo";
+    import { ConvexProviderWithClerk } from "convex/react-clerk";
+    import { tokenCache } from "@clerk/expo/token-cache";
+  {{/if}}
+{{else}}
+  {{#unless (eq api "none")}}
+    import { QueryClientProvider } from "@tanstack/react-query";
+  {{/unless}}
+{{/if}}
+
+import { Stack } from "expo-router";
+import { HeroUINativeProvider } from "heroui-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { KeyboardProvider } from "react-native-keyboard-controller";
+import { AppThemeProvider } from "@/contexts/app-theme-context";
+
+{{#if (eq api "trpc")}}
+  import { queryClient } from "@/utils/trpc";
+{{/if}}
+{{#if (eq api "orpc")}}
+  import { queryClient } from "@/utils/orpc";
+{{/if}}
+
+export const unstable_settings = {
+  initialRouteName: "(drawer)",
+};
+
+{{#if (eq backend "convex")}}
+  const convex = new ConvexReactClient(env.EXPO_PUBLIC_CONVEX_URL, {
+    unsavedChangesWarning: false,
+  });
+{{/if}}
+
+{{#if (and (eq auth "clerk") (ne api "none") (ne backend "convex"))}}
+function ClerkApiAuthBridge() {
+  const { getToken } = useAuth();
+
+  useEffect(() => {
+    setClerkAuthTokenGetter(getToken);
+
+    return () => {
+      setClerkAuthTokenGetter(null);
+    };
+  }, [getToken]);
+
+  return null;
+}
+{{/if}}
+
+function StackLayout() {
+  return (
+    <Stack screenOptions=\\{{}}>
+      <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
+      {{#if (eq auth "clerk")}}
+        <Stack.Screen name="(auth)" options=\\{{ headerShown: false }} />
+      {{/if}}
+      <Stack.Screen name="modal" options=\\{{ title: "Modal", presentation: "modal" }} />
+    </Stack>
+  );
+}
+
+export default function Layout() {
+  return (
+    {{#if (eq backend "convex")}}
+      {{#if (eq auth "clerk")}}
+        <ClerkProvider tokenCache={tokenCache} publishableKey={env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY}>
+          <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+            <GestureHandlerRootView style=\\{{ flex: 1 }}>
+              <KeyboardProvider>
+                <AppThemeProvider>
+                  <HeroUINativeProvider>
+                    <StackLayout />
+                  </HeroUINativeProvider>
+                </AppThemeProvider>
+              </KeyboardProvider>
+            </GestureHandlerRootView>
+          </ConvexProviderWithClerk>
+        </ClerkProvider>
+      {{else if (eq auth "better-auth")}}
+        <ConvexBetterAuthProvider client={convex} authClient={authClient}>
+          <GestureHandlerRootView style=\\{{ flex: 1 }}>
+            <KeyboardProvider>
+              <AppThemeProvider>
+                <HeroUINativeProvider>
+                  <StackLayout />
+                </HeroUINativeProvider>
+              </AppThemeProvider>
+            </KeyboardProvider>
+          </GestureHandlerRootView>
+        </ConvexBetterAuthProvider>
+      {{else}}
+        <ConvexProvider client={convex}>
+          <GestureHandlerRootView style=\\{{ flex: 1 }}>
+            <KeyboardProvider>
+              <AppThemeProvider>
+                <HeroUINativeProvider>
+                  <StackLayout />
+                </HeroUINativeProvider>
+              </AppThemeProvider>
+            </KeyboardProvider>
+          </GestureHandlerRootView>
+        </ConvexProvider>
+      {{/if}}
+    {{else}}
+      {{#if (eq auth "clerk")}}
+        <ClerkProvider tokenCache={tokenCache} publishableKey={env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY}>
+          {{#unless (eq api "none")}}
+            <ClerkApiAuthBridge />
+            <QueryClientProvider client={queryClient}>
+              <GestureHandlerRootView style=\\{{ flex: 1 }}>
+                <KeyboardProvider>
+                  <AppThemeProvider>
+                    <HeroUINativeProvider>
+                      <StackLayout />
+                    </HeroUINativeProvider>
+                  </AppThemeProvider>
+                </KeyboardProvider>
+              </GestureHandlerRootView>
+            </QueryClientProvider>
+          {{else}}
+            <GestureHandlerRootView style=\\{{ flex: 1 }}>
+              <KeyboardProvider>
+                <AppThemeProvider>
+                  <HeroUINativeProvider>
+                    <StackLayout />
+                  </HeroUINativeProvider>
+                </AppThemeProvider>
+              </KeyboardProvider>
+            </GestureHandlerRootView>
+          {{/unless}}
+        </ClerkProvider>
+      {{else}}
+        {{#unless (eq api "none")}}
+          <QueryClientProvider client={queryClient}>
+            <GestureHandlerRootView style=\\{{ flex: 1 }}>
+              <KeyboardProvider>
+                <AppThemeProvider>
+                  <HeroUINativeProvider>
+                    <StackLayout />
+                  </HeroUINativeProvider>
+                </AppThemeProvider>
+              </KeyboardProvider>
+            </GestureHandlerRootView>
+          </QueryClientProvider>
+        {{else}}
+          <GestureHandlerRootView style=\\{{ flex: 1 }}>
+            <KeyboardProvider>
+              <AppThemeProvider>
+                <HeroUINativeProvider>
+                  <StackLayout />
+                </HeroUINativeProvider>
+              </AppThemeProvider>
+            </KeyboardProvider>
+          </GestureHandlerRootView>
+        {{/unless}}
+      {{/if}}
+    {{/if}}
+  );
+}
 `],
   ["frontend/native/uniwind/app/(drawer)/_layout.tsx.hbs", `import React, { useCallback } from "react";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
@@ -9077,14 +17482,304 @@ export default function TabTwo() {
 	);
 }
 `],
-  ["frontend/native/uniwind/app/(drawer)/index.tsx.hbs", `import { Text, View } from "react-native";
-
+  ["frontend/native/uniwind/app/(drawer)/index.tsx.hbs", `import { Text, View{{#if (and (eq backend "convex") (eq auth "better-auth") (eq payments "polar"))}}, Alert{{/if}} } from "react-native";
+{{#if (and (eq backend "convex") (eq auth "better-auth") (eq payments "polar"))}}
+import * as Linking from "expo-linking";
+import * as WebBrowser from "expo-web-browser";
+import { env } from "@{{projectName}}/env/native";
+{{/if}}
 import { Container } from "@/components/container";
 {{#if (eq api "orpc")}}
 import { useQuery } from "@tanstack/react-query";
 import { orpc } from "@/utils/orpc";
 {{/if}}
+{{#if (eq api "trpc")}}
+import { useQuery } from "@tanstack/react-query";
+import { trpc } from "@/utils/trpc";
+{{/if}}
+{{#if (and (eq backend "convex") (eq auth "clerk"))}}
+import { Link } from "expo-router";
+import { Authenticated, AuthLoading, Unauthenticated, useQuery } from "convex/react";
+import { api } from "@{{projectName}}/backend/convex/_generated/api";
+import { useUser } from "@clerk/expo";
+import { SignOutButton } from "@/components/sign-out-button";
+{{else if (and (ne backend "convex") (eq auth "clerk"))}}
+import { Link } from "expo-router";
+import { useAuth, useUser } from "@clerk/expo";
+import { SignOutButton } from "@/components/sign-out-button";
+{{else if (and (eq backend "convex") (eq auth "better-auth"))}}
+import { {{#if (eq payments "polar")}}useAction, {{/if}}useConvexAuth, useQuery } from "convex/react";
+import { api } from "@{{projectName}}/backend/convex/_generated/api";
+import { authClient } from "@/lib/auth-client";
+import { SignIn } from "@/components/sign-in";
+import { SignUp } from "@/components/sign-up";
+{{else if (eq backend "convex")}}
+import { useQuery } from "convex/react";
+import { api } from "@{{projectName}}/backend/convex/_generated/api";
+{{/if}}
+{{#unless (or (eq backend "none") (and (eq backend "convex") (eq auth "better-auth")))}}
+import { Ionicons } from "@expo/vector-icons";
+{{/unless}}
+import { Button, Chip, Separator, Spinner, Surface, useThemeColor } from "heroui-native";
 
+export default function Home() {
+{{#if (eq api "orpc")}}
+const healthCheck = useQuery(orpc.healthCheck.queryOptions());
+{{/if}}
+{{#if (eq api "trpc")}}
+const healthCheck = useQuery(trpc.healthCheck.queryOptions());
+{{/if}}
+{{#if (and (eq backend "convex") (eq auth "clerk"))}}
+const { user } = useUser();
+const healthCheck = useQuery(api.healthCheck.get);
+const privateData = useQuery(api.privateData.get);
+{{else if (and (ne backend "convex") (eq auth "clerk"))}}
+const { isLoaded, isSignedIn } = useAuth();
+const { user } = useUser();
+{{else if (and (eq backend "convex") (eq auth "better-auth"))}}
+const healthCheck = useQuery(api.healthCheck.get);
+const { isAuthenticated } = useConvexAuth();
+const user = useQuery(api.auth.getCurrentUser, isAuthenticated ? {} : "skip");
+{{#if (eq payments "polar")}}
+const products = useQuery(api.polar.listAllProducts);
+const subscription = useQuery(api.polar.getCurrentSubscription);
+const generateCheckoutLink = useAction(api.polar.generateCheckoutLink);
+const generateCustomerPortalUrl = useAction(api.polar.generateCustomerPortalUrl);
+const recurringProduct = products?.find((product) => product.isRecurring);
+
+const openPolarLink = async (url: string, returnUrl: string) => {
+  await WebBrowser.openAuthSessionAsync(url, returnUrl);
+};
+
+const getPolarReturnUrl = (returnUrl: string) => {
+  const url = new URL("/polar/success", env.EXPO_PUBLIC_CONVEX_SITE_URL);
+  url.searchParams.set("returnUrl", returnUrl);
+  return url.toString();
+};
+
+const handlePolarCheckout = async () => {
+  try {
+    if (!recurringProduct) {
+      Alert.alert("Checkout unavailable", "No recurring Polar product is available yet.");
+      return;
+    }
+
+    const returnUrl = Linking.createURL("/");
+    const polarReturnUrl = getPolarReturnUrl(returnUrl);
+    const { url } = await generateCheckoutLink({
+      productIds: [recurringProduct.id],
+      origin: env.EXPO_PUBLIC_CONVEX_SITE_URL,
+      successUrl: polarReturnUrl,
+    });
+
+    await openPolarLink(url, returnUrl);
+  } catch {
+    Alert.alert("Checkout failed", "Unable to open Polar checkout. Please try again.");
+  }
+};
+
+const handlePolarPortal = async () => {
+  try {
+    const returnUrl = Linking.createURL("/");
+    const { url } = await generateCustomerPortalUrl({
+      returnUrl: getPolarReturnUrl(returnUrl),
+    });
+
+    await openPolarLink(url, returnUrl);
+  } catch {
+    Alert.alert("Portal unavailable", "Unable to open the customer portal. Please try again.");
+  }
+};
+{{/if}}
+{{else if (eq backend "convex")}}
+const healthCheck = useQuery(api.healthCheck.get);
+{{/if}}
+{{#unless (eq backend "none")}}
+const successColor = useThemeColor("success");
+const dangerColor = useThemeColor("danger");
+
+{{#if (eq backend "convex")}}
+const isConnected = healthCheck === "OK";
+const isLoading = healthCheck === undefined;
+{{else}}
+{{#unless (eq api "none")}}
+const isConnected = healthCheck?.data === "OK";
+const isLoading = healthCheck?.isLoading;
+{{/unless}}
+{{/if}}
+{{/unless}}
+
+return (
+<Container className="px-4 pb-4">
+  <View className="py-6 mb-5">
+    <Text className="text-3xl font-semibold text-foreground tracking-tight">
+      Better T Stack
+    </Text>
+    <Text className="text-muted text-sm mt-1">Full-stack TypeScript starter</Text>
+  </View>
+
+  {{#unless (or (eq backend "none") (and (eq backend "convex") (eq auth "better-auth")))}}
+  <Surface variant="secondary" className="p-4 rounded-xl">
+    <View className="flex-row items-center justify-between mb-3">
+      <Text className="text-foreground font-medium">System Status</Text>
+      <Chip variant="secondary" color={isConnected ? "success" : "danger" } size="sm">
+        <Chip.Label>
+          {isConnected ? "LIVE" : "OFFLINE"}
+        </Chip.Label>
+      </Chip>
+    </View>
+
+    <Separator className="mb-3" />
+
+    <Surface variant="tertiary" className="p-3 rounded-lg">
+      <View className="flex-row items-center">
+        <View className={\`w-2 h-2 rounded-full mr-3 \${ isConnected ? "bg-success" : "bg-muted" }\`} />
+        <View className="flex-1">
+          <Text className="text-foreground text-sm font-medium">
+            {{#if (eq backend "convex")}}
+            Convex Backend
+            {{else}}
+            {{#unless (eq api "none")}}
+            {{#if (eq api "orpc")}}ORPC{{else}}TRPC{{/if}} Backend
+            {{/unless}}
+            {{/if}}
+          </Text>
+          <Text className="text-muted text-xs mt-0.5">
+            {isLoading
+            ? "Checking connection..."
+            : isConnected
+            ? "Connected to API"
+            : "API Disconnected"}
+          </Text>
+        </View>
+        {isLoading && <Spinner size="sm" />}
+        {!isLoading && isConnected && (
+        <Ionicons name="checkmark-circle" size={18} color={successColor} />
+        )}
+        {!isLoading && !isConnected && (
+        <Ionicons name="close-circle" size={18} color={dangerColor} />
+        )}
+      </View>
+    </Surface>
+  </Surface>
+  {{/unless}}
+
+  {{#if (and (eq backend "convex") (eq auth "clerk"))}}
+  <Authenticated>
+    <Surface variant="secondary" className="mt-5 p-4 rounded-xl">
+      <View className="flex-row items-center justify-between">
+        <View className="flex-1">
+          <Text className="text-foreground font-medium">{user?.emailAddresses[0].emailAddress}</Text>
+          <Text className="text-muted text-xs mt-0.5">Private: {privateData?.message}</Text>
+        </View>
+        <SignOutButton />
+      </View>
+    </Surface>
+  </Authenticated>
+  <Unauthenticated>
+    <View className="mt-4 gap-3">
+      <Link href="/(auth)/sign-in" asChild>
+        <Button variant="secondary"><Button.Label>Sign In</Button.Label></Button>
+      </Link>
+      <Link href="/(auth)/sign-up" asChild>
+        <Button variant="ghost"><Button.Label>Sign Up</Button.Label></Button>
+      </Link>
+    </View>
+  </Unauthenticated>
+  <AuthLoading>
+    <View className="mt-4 items-center">
+      <Spinner size="sm" />
+    </View>
+  </AuthLoading>
+  {{/if}}
+
+  {{#if (and (ne backend "convex") (eq auth "clerk"))}}
+  {!isLoaded ? (
+  <View className="mt-4 items-center">
+    <Spinner size="sm" />
+  </View>
+  ) : isSignedIn ? (
+  <Surface variant="secondary" className="mt-5 p-4 rounded-xl">
+    <View className="flex-row items-center justify-between">
+      <View className="flex-1">
+        <Text className="text-foreground font-medium">
+          {user?.fullName ?? user?.firstName ?? "Welcome"}
+        </Text>
+        <Text className="text-muted text-xs mt-0.5">
+          {user?.emailAddresses[0]?.emailAddress}
+        </Text>
+      </View>
+      <SignOutButton />
+    </View>
+  </Surface>
+  ) : (
+  <View className="mt-4 gap-3">
+    <Link href="/(auth)/sign-in" asChild>
+      <Button variant="secondary"><Button.Label>Sign In</Button.Label></Button>
+    </Link>
+    <Link href="/(auth)/sign-up" asChild>
+      <Button variant="ghost"><Button.Label>Sign Up</Button.Label></Button>
+    </Link>
+  </View>
+  )}
+  {{/if}}
+
+  {{#if (and (eq backend "convex") (eq auth "better-auth"))}}
+  {user ? (
+  <Surface variant="secondary" className="mb-4 p-4 rounded-xl">
+    <View className="flex-row items-center justify-between">
+      <View className="flex-1">
+        <Text className="text-foreground font-medium">{user.name}</Text>
+        <Text className="text-muted text-xs mt-0.5">{user.email}</Text>
+      </View>
+      <Button
+        variant="danger"
+        size="sm"
+        onPress={() => {
+          authClient.signOut();
+        }}
+      >
+        Sign Out
+      </Button>
+    </View>
+    {{#if (eq payments "polar")}}
+    <View className="mt-4 gap-3">
+      {subscription ? (
+      <Button variant="secondary" onPress={handlePolarPortal}>
+        Manage Subscription
+      </Button>
+      ) : (
+      <Button onPress={handlePolarCheckout}>
+        Upgrade to Pro
+      </Button>
+      )}
+    </View>
+    {{/if}}
+  </Surface>
+  ) : null}
+  <Surface variant="secondary" className="p-4 rounded-xl">
+    <Text className="text-foreground font-medium mb-2">API Status</Text>
+    <View className="flex-row items-center gap-2">
+      <View className={\`w-2 h-2 rounded-full \${healthCheck==="OK" ? "bg-success" : "bg-danger" }\`} />
+      <Text className="text-muted text-xs">
+        {healthCheck === undefined
+        ? "Checking..."
+        : healthCheck === "OK"
+        ? "Connected to API"
+        : "API Disconnected"}
+      </Text>
+    </View>
+  </Surface>
+  {!user && (
+  <View className="mt-5 gap-4">
+    <SignIn />
+    <SignUp />
+  </View>
+  )}
+  {{/if}}
+</Container>
+);
+}
 `],
   ["frontend/native/uniwind/app/+not-found.tsx.hbs", `import { Link, Stack } from "expo-router";
 import { Button, Surface } from "heroui-native";
@@ -9481,8 +18176,8 @@ export default config;
 import { Geist, Geist_Mono } from "next/font/google";
 import "../index.css";
 
-import Providers from "@/components/providers";
 import Header from "@/components/header";
+import Providers from "@/components/providers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -9499,8 +18194,32 @@ export const metadata: Metadata = {
   description: "{{projectName}}",
 };
 
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <body
+        className={\`\${geistSans.variable} \${geistMono.variable} antialiased\`}
+      >
+        <Providers>
+          <div className="grid grid-rows-[auto_1fr] h-svh">
+            <Header />
+            {children}
+          </div>
+        </Providers>
+      </body>
+    </html>
+  );
+}
 `],
   ["frontend/react/next/src/app/page.tsx.hbs", `"use client"
+{{#if (eq api "orpc")}}
+import { useQuery } from "@tanstack/react-query";
+import { orpc } from "@/utils/orpc";
+{{/if}}
 
 const TITLE_TEXT = \`
  ██████╗ ███████╗████████╗████████╗███████╗██████╗
@@ -9519,6 +18238,9 @@ const TITLE_TEXT = \`
  \`;
 
 export default function Home() {
+  {{#if (eq api "orpc")}}
+  const healthCheck = useQuery(orpc.healthCheck.queryOptions());
+  {{/if}}
 
   return (
     <div className="container mx-auto max-w-3xl px-4 py-2">
@@ -9526,7 +18248,26 @@ export default function Home() {
       <div className="grid gap-6">
         <section className="rounded-lg border p-4">
           <h2 className="mb-2 font-medium">API Status</h2>
-          `],
+          {{#unless (eq api "none")}}
+          <div className="flex items-center gap-2">
+            <div
+              className={\`h-2 w-2 rounded-full \${healthCheck.data ? "bg-green-500" : "bg-red-500"}\`}
+            />
+            <span className="text-sm text-muted-foreground">
+              {healthCheck.isLoading
+                ? "Checking..."
+                : healthCheck.data
+                  ? "Connected"
+                  : "Disconnected"}
+            </span>
+          </div>
+          {{/unless}}
+        </section>
+      </div>
+    </div>
+  );
+}
+`],
   ["frontend/react/next/src/components/mode-toggle.tsx.hbs", `"use client"
 
 import * as React from "react"
@@ -9567,6 +18308,36 @@ export function ModeToggle() {
 `],
   ["frontend/react/next/src/components/providers.tsx.hbs", `"use client";
 
+{{#unless (eq api "none")}}
+import { QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+{{#if (eq api "orpc")}}
+import { queryClient } from "@/utils/orpc";
+{{/if}}
+{{/unless}}
+import { ThemeProvider } from "./theme-provider";
+import { Toaster } from "@{{projectName}}/ui/components/sonner";
+
+export default function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
+    >
+      {{#unless (eq api "none")}}
+      <QueryClientProvider client={queryClient}>
+        {children}
+        <ReactQueryDevtools />
+      </QueryClientProvider>
+      {{else}}
+      {children}
+      {{/unless}}
+      <Toaster richColors />
+    </ThemeProvider>
+  );
+}
 `],
   ["frontend/react/next/src/components/theme-provider.tsx.hbs", `"use client"
 
@@ -9729,14 +18500,304 @@ import "./index.css";
 import Header from "./components/header";
 import { ThemeProvider } from "./components/theme-provider";
 import { Toaster } from "@{{projectName}}/ui/components/sonner";
+{{#if (eq auth "clerk")}}
+import { ClerkProvider{{#if (or (eq backend "convex") (ne api "none"))}}, useAuth{{/if}} } from "@clerk/react-router";
+import { clerkMiddleware, rootAuthLoader } from "@clerk/react-router/server";
+{{/if}}
+{{#if (and (eq auth "clerk") (ne backend "convex") (ne api "none"))}}
+import { useEffect } from "react";
+import { setClerkAuthTokenGetter } from "@/utils/clerk-auth";
+{{/if}}
 
+{{#if (eq backend "convex")}}
+import { ConvexReactClient } from "convex/react";
+import { env } from "@{{projectName}}/env/web";
+  {{#if (eq auth "clerk")}}
+import { ConvexProviderWithClerk } from "convex/react-clerk";
+  {{else if (eq auth "better-auth")}}
+import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
+import { authClient } from "@/lib/auth-client";
+  {{else}}
+import { ConvexProvider } from "convex/react";
+  {{/if}}
+{{else}}
+  {{#unless (eq api "none")}}
+import { QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+    {{#if (eq api "orpc")}}
+import { queryClient } from "./utils/orpc";
+    {{/if}}
+    {{#if (eq api "trpc")}}
+import { queryClient } from "./utils/trpc";
+    {{/if}}
+  {{/unless}}
+{{/if}}
+
+{{#if (eq auth "clerk")}}
+export const middleware: Route.MiddlewareFunction[] = [clerkMiddleware()];
+
+export const loader = (args: Route.LoaderArgs) => rootAuthLoader(args);
+{{/if}}
+
+{{#if (and (eq auth "clerk") (ne backend "convex") (ne api "none"))}}
+function ClerkApiAuthBridge() {
+  const { getToken } = useAuth();
+
+  useEffect(() => {
+    setClerkAuthTokenGetter(getToken);
+
+    return () => {
+      setClerkAuthTokenGetter(null);
+    };
+  }, [getToken]);
+
+  return null;
+}
+{{/if}}
+
+export const links: Route.LinksFunction = () => [
+  { rel: "preconnect", href: "https://fonts.googleapis.com" },
+  { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+  {
+    rel: "stylesheet",
+    href:
+      "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap",
+  },
+];
+
+export function Layout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <Meta />
+        <Links />
+      </head>
+      <body>
+        {children}
+        <ScrollRestoration />
+        <Scripts />
+      </body>
+    </html>
+  );
+}
+
+{{#if (eq backend "convex")}}
+{{#if (eq auth "clerk")}}
+export default function App({ loaderData }: Route.ComponentProps) {
+{{else if (eq auth "better-auth")}}
+export default function App() {
+{{else}}
+export default function App() {
+{{/if}}
+  const convex = new ConvexReactClient(env.VITE_CONVEX_URL);
+  {{#if (eq auth "clerk")}}
+  return (
+    <ClerkProvider loaderData={loaderData}>
+      <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          disableTransitionOnChange
+          storageKey="vite-ui-theme"
+        >
+          <div className="grid grid-rows-[auto_1fr] h-svh">
+            <Header />
+            <Outlet />
+          </div>
+          <Toaster richColors />
+        </ThemeProvider>
+      </ConvexProviderWithClerk>
+    </ClerkProvider>
+  );
+  {{else if (eq auth "better-auth")}}
+  return (
+    <ConvexBetterAuthProvider client={convex} authClient={authClient}>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="dark"
+        disableTransitionOnChange
+        storageKey="vite-ui-theme"
+      >
+        <div className="grid grid-rows-[auto_1fr] h-svh">
+          <Header />
+          <Outlet />
+        </div>
+        <Toaster richColors />
+      </ThemeProvider>
+    </ConvexBetterAuthProvider>
+  );
+  {{else}}
+  return (
+    <ConvexProvider client={convex}>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="dark"
+        disableTransitionOnChange
+        storageKey="vite-ui-theme"
+      >
+        <div className="grid grid-rows-[auto_1fr] h-svh">
+          <Header />
+          <Outlet />
+        </div>
+        <Toaster richColors />
+      </ThemeProvider>
+    </ConvexProvider>
+  );
+  {{/if}}
+}
+{{else if (eq auth "clerk")}}
+export default function App({ loaderData }: Route.ComponentProps) {
+  return (
+    <ClerkProvider loaderData={loaderData}>
+      {{#unless (eq api "none")}}
+      <ClerkApiAuthBridge />
+      {{/unless}}
+      {{#if (eq api "orpc")}}
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          disableTransitionOnChange
+          storageKey="vite-ui-theme"
+        >
+          <div className="grid grid-rows-[auto_1fr] h-svh">
+            <Header />
+            <Outlet />
+          </div>
+          <Toaster richColors />
+        </ThemeProvider>
+        <ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
+      </QueryClientProvider>
+      {{else if (eq api "trpc")}}
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          disableTransitionOnChange
+          storageKey="vite-ui-theme"
+        >
+          <div className="grid grid-rows-[auto_1fr] h-svh">
+            <Header />
+            <Outlet />
+          </div>
+          <Toaster richColors />
+        </ThemeProvider>
+        <ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
+      </QueryClientProvider>
+      {{else}}
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="dark"
+        disableTransitionOnChange
+        storageKey="vite-ui-theme"
+      >
+        <div className="grid grid-rows-[auto_1fr] h-svh">
+          <Header />
+          <Outlet />
+        </div>
+        <Toaster richColors />
+      </ThemeProvider>
+      {{/if}}
+    </ClerkProvider>
+  );
+}
+{{else if (eq api "orpc")}}
+export default function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="dark"
+        disableTransitionOnChange
+        storageKey="vite-ui-theme"
+      >
+        <div className="grid grid-rows-[auto_1fr] h-svh">
+          <Header />
+          <Outlet />
+        </div>
+        <Toaster richColors />
+      </ThemeProvider>
+      <ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
+    </QueryClientProvider>
+  );
+}
+{{else if (eq api "trpc")}}
+export default function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="dark"
+        disableTransitionOnChange
+        storageKey="vite-ui-theme"
+      >
+        <div className="grid grid-rows-[auto_1fr] h-svh">
+          <Header />
+          <Outlet />
+        </div>
+        <Toaster richColors />
+      </ThemeProvider>
+      <ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
+    </QueryClientProvider>
+  );
+}
+{{else}}
+export default function App() {
+  return (
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="dark"
+      disableTransitionOnChange
+      storageKey="vite-ui-theme"
+    >
+      <div className="grid grid-rows-[auto_1fr] h-svh">
+        <Header />
+        <Outlet />
+      </div>
+      <Toaster richColors />
+    </ThemeProvider>
+  );
+}
+{{/if}}
+
+export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
+  let message = "Oops!";
+  let details = "An unexpected error occurred.";
+  let stack: string | undefined;
+  if (isRouteErrorResponse(error)) {
+    message = error.status === 404 ? "404" : "Error";
+    details =
+      error.status === 404
+        ? "The requested page could not be found."
+        : error.statusText || details;
+  } else if (import.meta.env.DEV && error && error instanceof Error) {
+    details = error.message;
+    stack = error.stack;
+  }
+  return (
+    <main className="pt-16 p-4 container mx-auto">
+      <h1>{message}</h1>
+      <p>{details}</p>
+      {stack && (
+        <pre className="w-full p-4 overflow-x-auto">
+          <code>{stack}</code>
+        </pre>
+      )}
+    </main>
+  );
+}
 `],
   ["frontend/react/react-router/src/routes.ts", `import { type RouteConfig } from "@react-router/dev/routes";
 import { flatRoutes } from "@react-router/fs-routes";
 
 export default flatRoutes() satisfies RouteConfig;
 `],
-  ["frontend/react/react-router/src/routes/_index.tsx.hbs", `import type { Route } from "./+types/_index";
+  ["frontend/react/react-router/src/routes/_index.tsx.hbs", `{{#if (eq api "orpc")}}
+import { useQuery } from "@tanstack/react-query";
+import { orpc } from "@/utils/orpc";
+{{/if}}
 
 const TITLE_TEXT = \`
  ██████╗ ███████╗████████╗████████╗███████╗██████╗
@@ -9754,11 +18815,10 @@ const TITLE_TEXT = \`
     ╚═╝       ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝
  \`;
 
-export function meta({}: Route.MetaArgs) {
-  return [{ title: "{{projectName}}" }, { name: "description", content: "{{projectName}} is a web application" }];
-}
-
 export default function Home() {
+  {{#if (eq api "orpc")}}
+  const healthCheck = useQuery(orpc.healthCheck.queryOptions());
+  {{/if}}
 
   return (
     <div className="container mx-auto max-w-3xl px-4 py-2">
@@ -9766,7 +18826,26 @@ export default function Home() {
       <div className="grid gap-6">
         <section className="rounded-lg border p-4">
           <h2 className="mb-2 font-medium">API Status</h2>
-          `],
+          {{#unless (eq api "none")}}
+          <div className="flex items-center gap-2">
+            <div
+              className={\`h-2 w-2 rounded-full \${healthCheck.data ? "bg-green-500" : "bg-red-500"}\`}
+            />
+            <span className="text-sm text-muted-foreground">
+              {healthCheck.isLoading
+                ? "Checking..."
+                : healthCheck.data
+                  ? "Connected"
+                  : "Disconnected"}
+            </span>
+          </div>
+          {{/unless}}
+        </section>
+      </div>
+    </div>
+  );
+}
+`],
   ["frontend/react/react-router/tsconfig.json.hbs", `{
   "include": [
     "**/*",
@@ -9913,8 +18992,8 @@ import Loader from "./components/loader";
 import { routeTree } from "./routeTree.gen";
 
 {{#if (eq api "orpc")}}
-  import { QueryClientProvider } from "@tanstack/react-query";
-  import { orpc, queryClient } from "./utils/orpc";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { orpc, queryClient } from "./utils/orpc";
 {{/if}}
 
 const router = createRouter({
@@ -9926,7 +19005,9 @@ const router = createRouter({
   context: { orpc, queryClient },
   Wrap: function WrapComponent({ children }: { children: React.ReactNode }) {
     return (
-
+      <QueryClientProvider client={queryClient}>
+        {children}
+      </QueryClientProvider>
     );
   },
   {{else}}
@@ -10081,7 +19162,26 @@ function HomeComponent() {
       <div className="grid gap-6">
         <section className="rounded-lg border p-4">
           <h2 className="mb-2 font-medium">API Status</h2>
-          `],
+          {{#unless (eq api "none")}}
+          <div className="flex items-center gap-2">
+            <div
+              className={\`h-2 w-2 rounded-full \${healthCheck.data ? "bg-green-500" : "bg-red-500"}\`}
+            />
+            <span className="text-sm text-muted-foreground">
+              {healthCheck.isLoading
+                ? "Checking..."
+                : healthCheck.data
+                  ? "Connected"
+                  : "Disconnected"}
+            </span>
+          </div>
+          {{/unless}}
+        </section>
+      </div>
+    </div>
+  );
+}
+`],
   ["frontend/react/tanstack-router/tsconfig.json.hbs", `{
   "compilerOptions": {
     "strict": true,
@@ -10161,10 +19261,431 @@ export default defineConfig({
 User-agent: *
 Disallow:
 `],
-  ["frontend/react/tanstack-start/src/router.tsx.hbs", ``],
+  ["frontend/react/tanstack-start/src/router.tsx.hbs", `{{#if (eq backend "convex")}}
+import { createRouter as createTanStackRouter } from "@tanstack/react-router";
+import { QueryClient } from "@tanstack/react-query";
+import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
+import { ConvexQueryClient } from "@convex-dev/react-query";
+import { routeTree } from "./routeTree.gen";
+import Loader from "./components/loader";
+import { env } from "@{{projectName}}/env/web";
+{{else}}
+import { createRouter as createTanStackRouter } from "@tanstack/react-router";
+import Loader from "./components/loader";
+import { routeTree } from "./routeTree.gen";
+{{#if (eq api "trpc")}}
+import { QueryCache, QueryClient } from "@tanstack/react-query";
+import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
+import { createTRPCClient, httpBatchLink } from "@trpc/client";
+import { createTRPCOptionsProxy } from "@trpc/tanstack-react-query";
+import { toast } from "sonner";
+import type { AppRouter } from "@{{projectName}}/api/routers/index";
+import { TRPCProvider } from "./utils/trpc";
+{{#unless (eq backend "self")}}
+import { env } from "@{{projectName}}/env/web";
+{{/unless}}
+{{#if (eq auth "clerk")}}
+import { getClerkAuthToken } from "@/utils/clerk-auth";
+{{/if}}
+{{else if (eq api "orpc")}}
+import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
+import { createQueryClient, orpc } from "./utils/orpc";
+{{/if}}
+{{/if}}
+
+{{#if (eq backend "convex")}}
+export function getRouter() {
+	const convexUrl = env.VITE_CONVEX_URL;
+	if (!convexUrl) {
+		throw new Error("VITE_CONVEX_URL is not set");
+	}
+
+	const convexQueryClient = new ConvexQueryClient(convexUrl);
+
+	const queryClient: QueryClient = new QueryClient({
+		defaultOptions: {
+			queries: {
+				queryKeyHashFn: convexQueryClient.hashFn(),
+				queryFn: convexQueryClient.queryFn(),
+			},
+		},
+	});
+	convexQueryClient.connect(queryClient);
+
+	const router = createTanStackRouter({
+		routeTree,
+		defaultPreload: "intent",
+		defaultPendingComponent: () => <Loader />,
+		defaultNotFoundComponent: () => <div>Not Found</div>,
+		context: { queryClient, convexQueryClient },
+	});
+
+	setupRouterSsrQueryIntegration({
+		router,
+		queryClient,
+	});
+
+	return router;
+}
+{{else}}
+{{#if (eq api "trpc")}}
+{{#unless (eq backend "self")}}
+{{> getServerUrl}}
+
+{{/unless}}
+function createQueryClient() {
+	return new QueryClient({
+		queryCache: new QueryCache({
+			onError: (error, query) => {
+				toast.error(error.message, {
+					action: {
+						label: "retry",
+						onClick: () => {
+							query.invalidate();
+						},
+					},
+				});
+			},
+		}),
+		defaultOptions: { queries: { staleTime: 60 * 1000 } },
+	});
+}
+
+const trpcClient = createTRPCClient<AppRouter>({
+	links: [
+		httpBatchLink({
+			url: {{#if (eq backend "self")}}"/api/trpc"{{else}}\`\${getServerUrl(env.VITE_SERVER_URL)}/trpc\`{{/if}},
+{{#if (eq auth "clerk")}}
+			headers: async () => {
+				const token = await getClerkAuthToken();
+				return token ? { Authorization: \`Bearer \${token}\` } : {};
+			},
+{{/if}}
+{{#if (eq auth "better-auth")}}
+			fetch(url, options) {
+				return fetch(url, {
+					...options,
+					credentials: "include",
+				});
+			},
+{{/if}}
+		}),
+	],
+});
+{{else if (eq api "orpc")}}
+{{/if}}
+
+export const getRouter = () => {
+{{#if (eq api "trpc")}}
+	const queryClient = createQueryClient();
+	const trpc = createTRPCOptionsProxy({
+		client: trpcClient,
+		queryClient,
+	});
+{{else if (eq api "orpc")}}
+	const queryClient = createQueryClient();
+{{/if}}
+
+	const router = createTanStackRouter({
+		routeTree,
+		scrollRestoration: true,
+		defaultPreloadStaleTime: 0,
+{{#if (eq api "trpc")}}
+		context: { trpc, queryClient },
+{{else if (eq api "orpc")}}
+		context: { orpc, queryClient },
+{{else}}
+		context: {},
+{{/if}}
+		defaultPendingComponent: () => <Loader />,
+		defaultNotFoundComponent: () => <div>Not Found</div>,
+{{#if (eq api "trpc")}}
+		Wrap: ({ children }) => (
+			<TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
+				{children}
+			</TRPCProvider>
+		),
+{{/if}}
+	});
+{{#if (or (eq api "trpc") (eq api "orpc"))}}
+
+	setupRouterSsrQueryIntegration({
+		router,
+		queryClient,
+	});
+{{/if}}
+
+	return router;
+};
+{{/if}}
+
+declare module "@tanstack/react-router" {
+	interface Register {
+		router: ReturnType<typeof getRouter>;
+	}
+}
+`],
   ["frontend/react/tanstack-start/src/routes/__root.tsx.hbs", `import { Toaster } from "@{{projectName}}/ui/components/sonner";
+{{#unless (eq backend "convex")}} {{#unless (eq api "none")}}
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+{{/unless}} {{/unless}}
+import {
+  HeadContent,
+  Outlet,
+  Scripts,
+  createRootRouteWithContext,
+{{#if (and (eq backend "convex") (or (eq auth "clerk") (eq auth "better-auth")))}}
+  useRouteContext,
+{{/if}}
+} from "@tanstack/react-router";
+import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
+import Header from "../components/header";
+import appCss from "../index.css?url";
+{{#if (eq backend "convex")}}
+import type { QueryClient } from "@tanstack/react-query";
+import type { ConvexQueryClient } from "@convex-dev/react-query";
+{{else}}
+{{#if (or (eq api "trpc") (eq api "orpc"))}}
+import type { QueryClient } from "@tanstack/react-query";
+{{/if}}
+{{/if}}
+
+{{#if (eq auth "clerk")}}
+import { ClerkProvider{{#if (or (eq backend "convex") (ne api "none"))}}, useAuth{{/if}} } from "@clerk/tanstack-react-start";
+{{/if}}
+{{#if (and (eq auth "clerk") (ne backend "convex") (ne api "none"))}}
+import { useEffect } from "react";
+import { setClerkAuthTokenGetter } from "@/utils/clerk-auth";
+{{/if}}
+{{#if (and (eq backend "convex") (eq auth "clerk"))}}
+import { auth } from "@clerk/tanstack-react-start/server";
+import { createServerFn } from "@tanstack/react-start";
+import { ConvexProviderWithClerk } from "convex/react-clerk";
+
+const fetchClerkAuth = createServerFn({ method: "GET" }).handler(async () => {
+  const clerkAuth = await auth();
+  const token = await clerkAuth.getToken({ template: "convex" });
+  return { userId: clerkAuth.userId, token };
+});
+{{else if (and (eq backend "convex") (eq auth "better-auth"))}}
+import { createServerFn } from "@tanstack/react-start";
+import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
+import { authClient } from "@/lib/auth-client";
+import { getToken } from "@/lib/auth-server";
+
+const getAuth = createServerFn({ method: "GET" }).handler(async () => {
+  return await getToken();
+});
+{{else if (eq backend "convex")}}
+import { ConvexProvider } from "convex/react";
+{{/if}}
+
+{{#if (and (eq auth "clerk") (ne backend "convex") (ne api "none"))}}
+function ClerkApiAuthBridge() {
+  const { getToken } = useAuth();
+
+  useEffect(() => {
+    setClerkAuthTokenGetter(getToken);
+
+    return () => {
+      setClerkAuthTokenGetter(null);
+    };
+  }, [getToken]);
+
+  return null;
+}
+{{/if}}
+
+{{#if (eq backend "convex")}}
+export interface RouterAppContext {
+  queryClient: QueryClient;
+  convexQueryClient: ConvexQueryClient;
+}
+{{else}}
+  {{#if (eq api "trpc")}}
+import type { TRPCOptionsProxy } from "@trpc/tanstack-react-query";
+import type { AppRouter } from "@{{projectName}}/api/routers/index";
+export interface RouterAppContext {
+  trpc: TRPCOptionsProxy<AppRouter>;
+  queryClient: QueryClient;
+}
+  {{else if (eq api "orpc")}}
+import type { orpc } from "@/utils/orpc";
+export interface RouterAppContext {
+  orpc: typeof orpc;
+  queryClient: QueryClient;
+}
+  {{else}}
+export interface RouterAppContext {
+}
+  {{/if}}
+{{/if}}
+
+export const Route = createRootRouteWithContext<RouterAppContext>()({
+  head: () => ({
+    meta: [
+      {
+        charSet: "utf-8",
+      },
+      {
+        name: "viewport",
+        content: "width=device-width, initial-scale=1",
+      },
+      {
+        title: "My App",
+      },
+    ],
+    links: [
+      {
+        rel: "stylesheet",
+        href: appCss,
+      },
+    ],
+  }),
+
+  component: RootDocument,
+  {{#if (and (eq backend "convex") (eq auth "clerk"))}}
+  beforeLoad: async (ctx) => {
+    const { userId, token } = await fetchClerkAuth();
+    if (token) {
+      ctx.context.convexQueryClient.serverHttpClient?.setAuth(token);
+    }
+    return { userId, token };
+  },
+  {{else if (and (eq backend "convex") (eq auth "better-auth"))}}
+  beforeLoad: async (ctx) => {
+    const token = await getAuth();
+    if (token) {
+      ctx.context.convexQueryClient.serverHttpClient?.setAuth(token);
+    }
+    return {
+      isAuthenticated: !!token,
+      token,
+    };
+  },
+  {{/if}}
+});
+
+function RootDocument() {
+  {{#if (and (eq backend "convex") (eq auth "clerk"))}}
+  const context = useRouteContext({ from: Route.id });
+  return (
+    <ClerkProvider>
+      <ConvexProviderWithClerk client={context.convexQueryClient.convexClient} useAuth={useAuth}>
+        <html lang="en" className="dark">
+          <head>
+            <HeadContent />
+          </head>
+          <body>
+            <div className="grid h-svh grid-rows-[auto_1fr]">
+              <Header />
+              <Outlet />
+            </div>
+            <Toaster richColors />
+            <TanStackRouterDevtools position="bottom-left" />
+            <Scripts />
+          </body>
+        </html>
+      </ConvexProviderWithClerk>
+    </ClerkProvider>
+  );
+  {{else if (and (eq backend "convex") (eq auth "better-auth"))}}
+  const context = useRouteContext({ from: Route.id });
+  return (
+    <ConvexBetterAuthProvider
+      client={context.convexQueryClient.convexClient}
+      authClient={authClient}
+      initialToken={context.token}
+    >
+      <html lang="en" className="dark">
+        <head>
+          <HeadContent />
+        </head>
+        <body>
+          <div className="grid h-svh grid-rows-[auto_1fr]">
+            <Header />
+            <Outlet />
+          </div>
+          <Toaster richColors />
+          <TanStackRouterDevtools position="bottom-left" />
+          <Scripts />
+        </body>
+      </html>
+    </ConvexBetterAuthProvider>
+  );
+  {{else if (eq auth "clerk")}}
+  return (
+    <ClerkProvider>
+      {{#unless (eq api "none")}}
+      <ClerkApiAuthBridge />
+      {{/unless}}
+      <html lang="en" className="dark">
+        <head>
+          <HeadContent />
+        </head>
+        <body>
+          <div className="grid h-svh grid-rows-[auto_1fr]">
+            <Header />
+            <Outlet />
+          </div>
+          <Toaster richColors />
+          <TanStackRouterDevtools position="bottom-left" />
+          {{#unless (eq api "none")}}
+          <ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
+          {{/unless}}
+          <Scripts />
+        </body>
+      </html>
+    </ClerkProvider>
+  );
+  {{else if (eq backend "convex")}}
+  const { convexQueryClient } = Route.useRouteContext();
+  return (
+    <ConvexProvider client={convexQueryClient.convexClient}>
+      <html lang="en" className="dark">
+        <head>
+          <HeadContent />
+        </head>
+        <body>
+          <div className="grid h-svh grid-rows-[auto_1fr]">
+            <Header />
+            <Outlet />
+          </div>
+          <Toaster richColors />
+          <TanStackRouterDevtools position="bottom-left" />
+          <Scripts />
+        </body>
+      </html>
+    </ConvexProvider>
+  );
+  {{else}}
+  return (
+    <html lang="en" className="dark">
+      <head>
+        <HeadContent />
+      </head>
+      <body>
+        <div className="grid h-svh grid-rows-[auto_1fr]">
+          <Header />
+          <Outlet />
+        </div>
+        <Toaster richColors />
+        <TanStackRouterDevtools position="bottom-left" />
+        {{#unless (eq api "none")}}
+        <ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
+        {{/unless}}
+        <Scripts />
+      </body>
+    </html>
+  );
+  {{/if}}
+}
 `],
   ["frontend/react/tanstack-start/src/routes/index.tsx.hbs", `import { createFileRoute } from "@tanstack/react-router";
+{{#if (eq api "orpc")}}
+import { useQuery } from "@tanstack/react-query";
+import { orpc } from "@/utils/orpc";
+{{/if}}
 
 export const Route = createFileRoute("/")({
   component: HomeComponent,
@@ -10187,6 +19708,9 @@ const TITLE_TEXT = \`
  \`;
 
 function HomeComponent() {
+  {{#if (eq api "orpc")}}
+  const healthCheck = useQuery(orpc.healthCheck.queryOptions());
+  {{/if}}
 
   return (
     <div className="container mx-auto max-w-3xl px-4 py-2">
@@ -10194,7 +19718,26 @@ function HomeComponent() {
       <div className="grid gap-6">
         <section className="rounded-lg border p-4">
           <h2 className="mb-2 font-medium">API Status</h2>
-          `],
+          {{#unless (eq api "none")}}
+          <div className="flex items-center gap-2">
+            <div
+              className={\`h-2 w-2 rounded-full \${healthCheck.data ? "bg-green-500" : "bg-red-500"}\`}
+            />
+            <span className="text-sm text-muted-foreground">
+              {healthCheck.isLoading
+                ? "Checking..."
+                : healthCheck.data
+                  ? "Connected"
+                  : "Disconnected"}
+            </span>
+          </div>
+          {{/unless}}
+        </section>
+      </div>
+    </div>
+  );
+}
+`],
   ["frontend/react/tanstack-start/tsconfig.json.hbs", `{
   "include": ["**/*.ts", "**/*.tsx"],
   "compilerOptions": {
@@ -10317,7 +19860,7 @@ dev-dist
 `],
   ["frontend/react/web-base/components.json.hbs", `{
   "$schema": "https://ui.shadcn.com/schema.json",
-  "style": "base-lyra",
+  "style": "base-rhea",
   "rsc": {{#if (includes frontend "next")}}true{{else}}false{{/if}},
   "tsx": true,
   "tailwind": {
@@ -10327,7 +19870,7 @@ dev-dist
     "cssVariables": true,
     "prefix": ""
   },
-  "iconLibrary": "lucide",
+  "iconLibrary": "hugeicons",
   "aliases": {
     "components": "@/components",
     "utils": "@{{projectName}}/ui/lib/utils",
@@ -10629,13 +20172,139 @@ export const env = createEnv({
 `],
   ["packages/env/src/web.ts.hbs", `{{#if (includes frontend "next")}}
 import { createEnv } from "@t3-oss/env-nextjs";
+{{else if (includes frontend "nuxt")}}
+import { createEnv } from "@t3-oss/env-nuxt";
+{{else if (or (includes frontend "svelte") (includes frontend "astro"))}}
+import { createEnv } from "@t3-oss/env-core";
 {{else}}
 import { createEnv } from "@t3-oss/env-core";
 {{/if}}
 import { z } from "zod";
 
-export const env = createEnv({
+{{#if (and (eq webDeploy "vercel") (eq serverDeploy "vercel") (ne backend "self") (ne backend "none") (ne backend "convex"))}}
+const serverUrlSchema = z.union([
+	z.url(),
+	z.string().regex(/^\\/(?!\\/)/, "Use an absolute URL or a same-origin path like /api"),
+]);
 
+{{/if}}
+{{#if (eq backend "convex")}}
+const convexUrlSchema = (exampleHost: string) =>
+	z.url().refine((url) => new URL(url).hostname !== exampleHost, {
+		message: \`Replace the \${exampleHost} placeholder before running the app\`,
+	});
+
+{{/if}}
+{{#if (includes frontend "nuxt")}}
+/**
+ * Nuxt env validation - validates at build time when imported in nuxt.config.ts
+ * For runtime access in components/plugins, use useRuntimeConfig() instead:
+ *   const config = useRuntimeConfig()
+ *   config.public.serverUrl (NUXT_PUBLIC_SERVER_URL maps to serverUrl)
+ */
+{{/if}}
+export const env = createEnv({
+{{#if (eq backend "convex")}}
+{{#if (includes frontend "next")}}
+	client: {
+		NEXT_PUBLIC_CONVEX_URL: convexUrlSchema("example.convex.cloud"),
+{{#if (eq auth "better-auth")}}
+		NEXT_PUBLIC_CONVEX_SITE_URL: convexUrlSchema("example.convex.site"),
+{{/if}}
+{{#if (eq auth "clerk")}}
+		NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1),
+{{/if}}
+	},
+	runtimeEnv: {
+		NEXT_PUBLIC_CONVEX_URL: process.env.NEXT_PUBLIC_CONVEX_URL,
+{{#if (eq auth "better-auth")}}
+		NEXT_PUBLIC_CONVEX_SITE_URL: process.env.NEXT_PUBLIC_CONVEX_SITE_URL,
+{{/if}}
+{{#if (eq auth "clerk")}}
+		NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+{{/if}}
+	},
+{{else if (includes frontend "nuxt")}}
+	client: {
+		NUXT_PUBLIC_CONVEX_URL: convexUrlSchema("example.convex.cloud"),
+	},
+{{else if (or (includes frontend "svelte") (includes frontend "astro"))}}
+	clientPrefix: "PUBLIC_",
+	client: {
+		PUBLIC_CONVEX_URL: convexUrlSchema("example.convex.cloud"),
+	},
+	runtimeEnv: (import.meta as any).env,
+{{else}}
+	clientPrefix: "VITE_",
+	client: {
+		VITE_CONVEX_URL: convexUrlSchema("example.convex.cloud"),
+{{#if (eq auth "better-auth")}}
+		VITE_CONVEX_SITE_URL: convexUrlSchema("example.convex.site"),
+{{/if}}
+{{#if (eq auth "clerk")}}
+		VITE_CLERK_PUBLISHABLE_KEY: z.string().min(1),
+{{/if}}
+	},
+	runtimeEnv: (import.meta as any).env,
+{{/if}}
+{{else if (eq backend "self")}}
+{{#if (includes frontend "next")}}
+	client: {
+{{#if (eq auth "clerk")}}
+		NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1),
+{{/if}}
+	},
+	runtimeEnv: {
+{{#if (eq auth "clerk")}}
+		NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+{{/if}}
+	},
+{{else if (includes frontend "nuxt")}}
+	client: {},
+{{else}}
+	clientPrefix: "VITE_",
+	client: {
+{{#if (eq auth "clerk")}}
+		VITE_CLERK_PUBLISHABLE_KEY: z.string().min(1),
+{{/if}}
+	},
+	runtimeEnv: (import.meta as any).env,
+{{/if}}
+{{else if (ne backend "none")}}
+{{#if (includes frontend "next")}}
+	client: {
+		NEXT_PUBLIC_SERVER_URL: {{#if (and (eq webDeploy "vercel") (eq serverDeploy "vercel"))}}serverUrlSchema{{else}}z.url(){{/if}},
+{{#if (eq auth "clerk")}}
+		NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1),
+{{/if}}
+	},
+	runtimeEnv: {
+		NEXT_PUBLIC_SERVER_URL: process.env.NEXT_PUBLIC_SERVER_URL,
+{{#if (eq auth "clerk")}}
+		NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+{{/if}}
+	},
+{{else if (includes frontend "nuxt")}}
+	client: {
+		NUXT_PUBLIC_SERVER_URL: {{#if (and (eq webDeploy "vercel") (eq serverDeploy "vercel"))}}serverUrlSchema{{else}}z.url(){{/if}},
+	},
+{{else if (or (includes frontend "svelte") (includes frontend "astro"))}}
+	clientPrefix: "PUBLIC_",
+	client: {
+		PUBLIC_SERVER_URL: {{#if (and (eq webDeploy "vercel") (eq serverDeploy "vercel"))}}serverUrlSchema{{else}}z.url(){{/if}},
+	},
+	runtimeEnv: (import.meta as any).env,
+{{else}}
+	clientPrefix: "VITE_",
+	client: {
+		VITE_SERVER_URL: {{#if (and (eq webDeploy "vercel") (eq serverDeploy "vercel"))}}serverUrlSchema{{else}}z.url(){{/if}},
+{{#if (eq auth "clerk")}}
+		VITE_CLERK_PUBLISHABLE_KEY: z.string().min(1),
+{{/if}}
+	},
+	runtimeEnv: (import.meta as any).env,
+{{/if}}
+{{/if}}
 	skipValidation: !!process.env.SKIP_ENV_VALIDATION,
 	emptyStringAsUndefined: true,
 });
@@ -10812,7 +20481,7 @@ await app.finalize();
 `],
   ["packages/ui/components.json.hbs", `{
   "$schema": "https://ui.shadcn.com/schema.json",
-  "style": "base-lyra",
+  "style": "base-rhea",
   "rsc": {{#if (includes frontend "next")}}true{{else}}false{{/if}},
   "tsx": true,
   "tailwind": {
@@ -10822,7 +20491,7 @@ await app.finalize();
     "cssVariables": true,
     "prefix": ""
   },
-  "iconLibrary": "lucide",
+  "iconLibrary": "hugeicons",
   "aliases": {
     "components": "@{{projectName}}/ui/components",
     "utils": "@{{projectName}}/ui/lib/utils",
@@ -10849,6 +20518,9 @@ await app.finalize();
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
+    "@fontsource-variable/inter": "^5.3.0",
+    "@hugeicons/core-free-icons": "^4.2.3",
+    "@hugeicons/react": "^1.1.9",
     "@shadcn/react": "^0.2.1",
     "shadcn": "^4.16.0",
     "class-variance-authority": "^0.7.1",
@@ -11225,13 +20897,13 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@{{projectName}}/ui/lib/utils"
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-none border border-transparent bg-clip-padding text-xs font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 items-center justify-center rounded-2xl border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/80",
         outline:
-          "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+          "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:bg-transparent dark:hover:bg-input/30",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:
@@ -11242,13 +20914,13 @@ const buttonVariants = cva(
       },
       size: {
         default:
-          "h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
-        xs: "h-6 gap-1 rounded-none px-2 text-xs has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-7 gap-1 rounded-none px-2.5 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
-        lg: "h-9 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
+          "h-8 gap-1.5 px-3 has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5",
+        xs: "h-6 gap-1 px-2.5 text-xs has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 [&_svg:not([class*='size-'])]:size-3",
+        sm: "h-7 gap-1 px-3 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
+        lg: "h-9 gap-1.5 px-4 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3",
         icon: "size-8",
-        "icon-xs": "size-6 rounded-none [&_svg:not([class*='size-'])]:size-3",
-        "icon-sm": "size-7 rounded-none",
+        "icon-xs": "size-6 [&_svg:not([class*='size-'])]:size-3",
+        "icon-sm": "size-7",
         "icon-lg": "size-9",
       },
     },
@@ -11290,7 +20962,7 @@ function Card({
       data-slot="card"
       data-size={size}
       className={cn(
-        "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-none bg-card py-(--card-spacing) text-xs/relaxed text-card-foreground ring-1 ring-foreground/10 [--card-spacing:--spacing(4)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(3)] data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-none *:[img:last-child]:rounded-none",
+        "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-[min(var(--radius-4xl),24px)] bg-card py-(--card-spacing) text-sm text-card-foreground shadow-sm ring-1 ring-foreground/5 [--card-spacing:--spacing(5)] has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(4)] dark:ring-foreground/10 *:[img:first-child]:rounded-t-[min(var(--radius-4xl),24px)] *:[img:last-child]:rounded-b-[min(var(--radius-4xl),24px)]",
         className
       )}
       {...props}
@@ -11303,7 +20975,7 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-header"
       className={cn(
-        "group/card-header @container/card-header grid auto-rows-min items-start gap-1 rounded-none px-(--card-spacing) has-data-[slot=card-action]:grid-cols-[1fr_auto] has-data-[slot=card-description]:grid-rows-[auto_auto] [.border-b]:pb-(--card-spacing)",
+        "group/card-header @container/card-header grid auto-rows-min items-start gap-1.5 rounded-t-[min(var(--radius-4xl),24px)] px-(--card-spacing) has-data-[slot=card-action]:grid-cols-[1fr_auto] has-data-[slot=card-description]:grid-rows-[auto_auto] [.border-b]:pb-(--card-spacing)",
         className
       )}
       {...props}
@@ -11315,10 +20987,7 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-title"
-      className={cn(
-        "cn-font-heading text-sm font-medium group-data-[size=sm]/card:text-sm",
-        className
-      )}
+      className={cn("font-heading text-base font-medium", className)}
       {...props}
     />
   )
@@ -11328,7 +20997,7 @@ function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-description"
-      className={cn("text-xs/relaxed text-muted-foreground", className)}
+      className={cn("text-sm text-muted-foreground", className)}
       {...props}
     />
   )
@@ -11362,7 +21031,7 @@ function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-footer"
       className={cn(
-        "flex items-center rounded-none border-t p-(--card-spacing)",
+        "flex items-center rounded-b-[min(var(--radius-4xl),24px)] px-(--card-spacing) [.border-t]:pt-(--card-spacing)",
         className
       )}
       {...props}
@@ -11380,19 +21049,18 @@ export {
   CardContent,
 }
 `],
-  ["packages/ui/src/components/checkbox.tsx.hbs", `"use client"
-
-import { Checkbox as CheckboxPrimitive } from "@base-ui/react/checkbox"
+  ["packages/ui/src/components/checkbox.tsx.hbs", `import { Checkbox as CheckboxPrimitive } from "@base-ui/react/checkbox"
 
 import { cn } from "@{{projectName}}/ui/lib/utils"
-import { CheckIcon } from "lucide-react"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { Tick02Icon } from "@hugeicons/core-free-icons"
 
 function Checkbox({ className, ...props }: CheckboxPrimitive.Root.Props) {
   return (
     <CheckboxPrimitive.Root
       data-slot="checkbox"
       className={cn(
-        "peer relative flex size-4 shrink-0 items-center justify-center rounded-none border border-input transition-colors outline-none group-has-disabled/field:opacity-50 after:absolute after:-inset-x-3 after:-inset-y-2 focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 aria-invalid:aria-checked:border-primary dark:bg-input/30 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 data-checked:border-primary data-checked:bg-primary data-checked:text-primary-foreground dark:data-checked:bg-primary",
+        "peer relative flex size-4 shrink-0 items-center justify-center rounded-[5px] border border-transparent bg-input/90 transition-shadow outline-none group-has-disabled/field:opacity-50 after:absolute after:-inset-x-3 after:-inset-y-2 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 aria-invalid:aria-checked:border-primary dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 data-checked:border-primary data-checked:bg-primary data-checked:text-primary-foreground dark:data-checked:bg-primary",
         className
       )}
       {...props}
@@ -11401,7 +21069,7 @@ function Checkbox({ className, ...props }: CheckboxPrimitive.Root.Props) {
         data-slot="checkbox-indicator"
         className="grid place-content-center text-current transition-none [&>svg]:size-3.5"
       >
-        <CheckIcon />
+        <HugeiconsIcon icon={Tick02Icon} strokeWidth={2} />
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>
   )
@@ -11415,7 +21083,8 @@ import * as React from "react"
 import { Menu as MenuPrimitive } from "@base-ui/react/menu"
 
 import { cn } from "@{{projectName}}/ui/lib/utils"
-import { ChevronRightIcon, CheckIcon } from "lucide-react"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { ArrowRight01Icon, Tick02Icon } from "@hugeicons/core-free-icons"
 
 function DropdownMenu({ ...props }: MenuPrimitive.Root.Props) {
   return <MenuPrimitive.Root data-slot="dropdown-menu" {...props} />
@@ -11452,10 +21121,7 @@ function DropdownMenuContent({
       >
         <MenuPrimitive.Popup
           data-slot="dropdown-menu-content"
-          className={cn(
-            "cn-menu-target cn-menu-translucent z-50 max-h-(--available-height) w-(--anchor-width) min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-none bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 outline-none data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:overflow-hidden data-closed:fade-out-0 data-closed:zoom-out-95",
-            className
-          )}
+          className={cn("z-50 max-h-(--available-height) w-(--anchor-width) min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-2xl bg-popover p-1 text-popover-foreground shadow-lg ring-1 ring-foreground/5 duration-100 outline-none data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 dark:ring-foreground/10 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:overflow-hidden data-closed:fade-out-0 data-closed:zoom-out-95", className )}
           {...props}
         />
       </MenuPrimitive.Positioner>
@@ -11479,7 +21145,7 @@ function DropdownMenuLabel({
       data-slot="dropdown-menu-label"
       data-inset={inset}
       className={cn(
-        "px-2 py-2 text-xs text-muted-foreground data-inset:pl-7",
+        "px-2 py-1 text-xs text-muted-foreground data-inset:pl-7",
         className
       )}
       {...props}
@@ -11502,7 +21168,7 @@ function DropdownMenuItem({
       data-inset={inset}
       data-variant={variant}
       className={cn(
-        "group/dropdown-menu-item relative flex cursor-default items-center gap-2 rounded-none px-2 py-2 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-inset:pl-7 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/20 data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-[variant=destructive]:*:[svg]:text-destructive",
+        "group/dropdown-menu-item relative flex min-h-7 cursor-default items-center gap-2 rounded-xl px-2 py-1.5 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-inset:pl-7 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/20 data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-[variant=destructive]:*:[svg]:text-destructive",
         className
       )}
       {...props}
@@ -11527,13 +21193,13 @@ function DropdownMenuSubTrigger({
       data-slot="dropdown-menu-sub-trigger"
       data-inset={inset}
       className={cn(
-        "flex cursor-default items-center gap-2 rounded-none px-2 py-2 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-inset:pl-7 data-popup-open:bg-accent data-popup-open:text-accent-foreground data-open:bg-accent data-open:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "flex min-h-7 cursor-default items-center gap-2 rounded-xl px-2 py-1.5 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-inset:pl-7 data-popup-open:bg-accent data-popup-open:text-accent-foreground data-open:bg-accent data-open:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}
     >
       {children}
-      <ChevronRightIcon className="cn-rtl-flip ml-auto" />
+      <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} className="ml-auto" />
     </MenuPrimitive.SubmenuTrigger>
   )
 }
@@ -11549,10 +21215,7 @@ function DropdownMenuSubContent({
   return (
     <DropdownMenuContent
       data-slot="dropdown-menu-sub-content"
-      className={cn(
-        "cn-menu-target cn-menu-translucent w-auto min-w-[96px] rounded-none bg-popover text-popover-foreground shadow-lg ring-1 ring-foreground/10 duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-        className
-      )}
+      className={cn("w-auto min-w-[96px] rounded-2xl bg-popover p-1 text-popover-foreground shadow-lg ring-1 ring-foreground/5 duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 dark:ring-foreground/10 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95", className )}
       align={align}
       alignOffset={alignOffset}
       side={side}
@@ -11576,7 +21239,7 @@ function DropdownMenuCheckboxItem({
       data-slot="dropdown-menu-checkbox-item"
       data-inset={inset}
       className={cn(
-        "relative flex cursor-default items-center gap-2 rounded-none py-2 pr-8 pl-2 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground focus:**:text-accent-foreground data-inset:pl-7 data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "relative flex min-h-7 cursor-default items-center gap-2 rounded-xl py-1.5 pr-8 pl-2 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground focus:**:text-accent-foreground data-inset:pl-7 data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       checked={checked}
@@ -11587,7 +21250,7 @@ function DropdownMenuCheckboxItem({
         data-slot="dropdown-menu-checkbox-item-indicator"
       >
         <MenuPrimitive.CheckboxItemIndicator>
-          <CheckIcon />
+          <HugeiconsIcon icon={Tick02Icon} strokeWidth={2} />
         </MenuPrimitive.CheckboxItemIndicator>
       </span>
       {children}
@@ -11617,7 +21280,7 @@ function DropdownMenuRadioItem({
       data-slot="dropdown-menu-radio-item"
       data-inset={inset}
       className={cn(
-        "relative flex cursor-default items-center gap-2 rounded-none py-2 pr-8 pl-2 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground focus:**:text-accent-foreground data-inset:pl-7 data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "relative flex min-h-7 cursor-default items-center gap-2 rounded-xl py-1.5 pr-8 pl-2 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground focus:**:text-accent-foreground data-inset:pl-7 data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}
@@ -11627,7 +21290,7 @@ function DropdownMenuRadioItem({
         data-slot="dropdown-menu-radio-item-indicator"
       >
         <MenuPrimitive.RadioItemIndicator>
-          <CheckIcon />
+          <HugeiconsIcon icon={Tick02Icon} strokeWidth={2} />
         </MenuPrimitive.RadioItemIndicator>
       </span>
       {children}
@@ -11642,7 +21305,7 @@ function DropdownMenuSeparator({
   return (
     <MenuPrimitive.Separator
       data-slot="dropdown-menu-separator"
-      className={cn("-mx-1 h-px bg-border", className)}
+      className={cn("-mx-1 my-1 h-px bg-border/50", className)}
       {...props}
     />
   )
@@ -11682,7 +21345,9 @@ export {
   DropdownMenuSubContent,
 }
 `],
-  ["packages/ui/src/components/empty.tsx.hbs", `import { cva, type VariantProps } from "class-variance-authority"
+  ["packages/ui/src/components/empty.tsx.hbs", `import * as React from "react"
+
+import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@{{projectName}}/ui/lib/utils"
 
@@ -11691,7 +21356,7 @@ function Empty({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="empty"
       className={cn(
-        "flex w-full min-w-0 flex-1 flex-col items-center justify-center gap-4 rounded-none border-dashed p-6 text-center text-balance md:p-12",
+        "flex w-full min-w-0 flex-1 flex-col items-center justify-center gap-4 rounded-3xl border-dashed p-12 text-center text-balance",
         className
       )}
       {...props}
@@ -11715,7 +21380,7 @@ const emptyMediaVariants = cva(
     variants: {
       variant: {
         default: "bg-transparent",
-        icon: "flex size-10 shrink-0 items-center justify-center rounded-none bg-muted text-foreground [&_svg:not([class*='size-'])]:size-5",
+        icon: "flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted text-foreground [&_svg:not([class*='size-'])]:size-5",
       },
     },
     defaultVariants: {
@@ -11743,7 +21408,10 @@ function EmptyTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="empty-title"
-      className={cn("cn-font-heading text-sm font-medium tracking-tight", className)}
+      className={cn(
+        "font-heading text-lg font-medium tracking-tight",
+        className
+      )}
       {...props}
     />
   )
@@ -11800,12 +21468,7 @@ function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="input-group"
       role="group"
       className={cn(
-        "group/input-group relative flex h-8 w-full min-w-0 items-center rounded-none border border-input bg-background shadow-xs transition-[color,box-shadow] outline-none has-[>textarea]:h-auto dark:bg-input/30",
-        "has-[>[data-align=inline-start]]:[&>input]:pl-2 has-[>[data-align=inline-end]]:[&>input]:pr-2",
-        "has-[>[data-align=block-start]]:h-auto has-[>[data-align=block-start]]:flex-col has-[>[data-align=block-start]]:[&>input]:pb-3",
-        "has-[>[data-align=block-end]]:h-auto has-[>[data-align=block-end]]:flex-col has-[>[data-align=block-end]]:[&>input]:pt-3",
-        "has-[[data-slot=input-group-control]:focus-visible]:border-ring has-[[data-slot=input-group-control]:focus-visible]:ring-1 has-[[data-slot=input-group-control]:focus-visible]:ring-ring/50",
-        "has-[[data-slot][aria-invalid=true]]:border-destructive has-[[data-slot][aria-invalid=true]]:ring-1 has-[[data-slot][aria-invalid=true]]:ring-destructive/20 dark:has-[[data-slot][aria-invalid=true]]:ring-destructive/40",
+        "group/input-group relative flex h-8 w-full min-w-0 items-center rounded-2xl border border-transparent bg-input/50 transition-[color,box-shadow] duration-200 outline-none in-data-[slot=combobox-content]:focus-within:border-inherit in-data-[slot=combobox-content]:focus-within:ring-0 has-[[data-slot=input-group-control]:focus-visible]:border-ring has-[[data-slot=input-group-control]:focus-visible]:ring-3 has-[[data-slot=input-group-control]:focus-visible]:ring-ring/30 has-[[data-slot][aria-invalid=true]]:border-destructive has-[[data-slot][aria-invalid=true]]:ring-3 has-[[data-slot][aria-invalid=true]]:ring-destructive/20 has-[>[data-align=block-end]]:h-auto has-[>[data-align=block-end]]:flex-col has-[>[data-align=block-start]]:h-auto has-[>[data-align=block-start]]:flex-col has-[>textarea]:h-auto dark:has-[[data-slot][aria-invalid=true]]:ring-destructive/40 has-[>[data-align=block-end]]:[&>input]:pt-3 has-[>[data-align=block-start]]:[&>input]:pb-3 has-[>[data-align=inline-end]]:[&>input]:pr-1.5 has-[>[data-align=inline-start]]:[&>input]:pl-1.5",
         className
       )}
       {...props}
@@ -11814,7 +21477,7 @@ function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 const inputGroupAddonVariants = cva(
-  "flex h-auto cursor-text select-none items-center justify-center gap-2 py-1.5 text-xs font-medium text-muted-foreground group-data-[disabled=true]/input-group:opacity-50 [&>kbd]:rounded-none [&>svg:not([class*='size-'])]:size-4",
+  "flex h-auto cursor-text items-center justify-center gap-2 py-1.5 text-sm font-medium text-muted-foreground select-none group-data-[disabled=true]/input-group:opacity-50 **:data-[slot=kbd]:rounded-2xl **:data-[slot=kbd]:bg-muted-foreground/10 **:data-[slot=kbd]:px-1.5 [&>svg:not([class*='size-'])]:size-4",
   {
     variants: {
       align: {
@@ -11849,9 +21512,7 @@ function InputGroupAddon({
         if ((e.target as HTMLElement).closest("button")) {
           return
         }
-        e.currentTarget.parentElement
-          ?.querySelector<HTMLInputElement | HTMLTextAreaElement>("input, textarea")
-          ?.focus()
+        e.currentTarget.parentElement?.querySelector("input")?.focus()
       }}
       {...props}
     />
@@ -11859,14 +21520,14 @@ function InputGroupAddon({
 }
 
 const inputGroupButtonVariants = cva(
-  "flex items-center gap-2 text-xs shadow-none",
+  "flex items-center gap-2 rounded-2xl text-sm shadow-none",
   {
     variants: {
       size: {
-        xs: "h-6 gap-1 rounded-none px-1.5 [&>svg:not([class*='size-'])]:size-3.5",
-        sm: "h-7 gap-1 rounded-none px-2",
-        "icon-xs": "size-6 rounded-none p-0 has-[>svg]:p-0",
-        "icon-sm": "size-7 rounded-none p-0 has-[>svg]:p-0",
+        xs: "h-6 gap-1 rounded-xl px-1.5 [&>svg:not([class*='size-'])]:size-3.5",
+        sm: "",
+        "icon-xs": "size-6 rounded-xl p-0 has-[>svg]:p-0",
+        "icon-sm": "size-8 p-0 has-[>svg]:p-0",
       },
     },
     defaultVariants: {
@@ -11900,7 +21561,7 @@ function InputGroupText({ className, ...props }: React.ComponentProps<"span">) {
   return (
     <span
       className={cn(
-        "flex items-center gap-2 text-xs text-muted-foreground [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4",
+        "flex items-center gap-2 text-sm text-muted-foreground [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}
@@ -11916,7 +21577,7 @@ function InputGroupInput({
     <Input
       data-slot="input-group-control"
       className={cn(
-        "flex-1 rounded-none border-0 bg-transparent shadow-none ring-0 focus-visible:ring-0 disabled:bg-transparent aria-invalid:ring-0 dark:bg-transparent dark:disabled:bg-transparent",
+        "flex-1 rounded-none border-0 bg-transparent shadow-none ring-0 focus-visible:ring-0 aria-invalid:ring-0 dark:bg-transparent",
         className
       )}
       {...props}
@@ -11932,7 +21593,7 @@ function InputGroupTextarea({
     <Textarea
       data-slot="input-group-control"
       className={cn(
-        "flex-1 resize-none rounded-none border-0 bg-transparent py-2 shadow-none ring-0 focus-visible:ring-0 disabled:bg-transparent aria-invalid:ring-0 dark:bg-transparent dark:disabled:bg-transparent",
+        "flex-1 resize-none rounded-none border-0 bg-transparent py-2 shadow-none ring-0 focus-visible:ring-0 aria-invalid:ring-0 dark:bg-transparent",
         className
       )}
       {...props}
@@ -11960,7 +21621,7 @@ function Input({ className, type, ...props }: React.ComponentProps<"input">) {
       type={type}
       data-slot="input"
       className={cn(
-        "h-8 w-full min-w-0 rounded-none border border-input bg-transparent px-2.5 py-1 text-xs transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-xs file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 md:text-xs dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
+        "h-8 w-full min-w-0 rounded-2xl border border-transparent bg-input/50 px-2.5 py-1 text-base transition-[color,box-shadow] duration-200 outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
         className
       )}
       {...props}
@@ -11981,7 +21642,7 @@ function Label({ className, ...props }: React.ComponentProps<"label">) {
     <label
       data-slot="label"
       className={cn(
-        "flex items-center gap-2 text-xs leading-none select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50",
+        "flex items-center gap-2 text-sm leading-none font-medium select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50",
         className
       )}
       {...props}
@@ -12290,13 +21951,15 @@ export {
   MessageHeader,
 }
 `],
-  ["packages/ui/src/components/skeleton.tsx.hbs", `import { cn } from "@{{projectName}}/ui/lib/utils"
+  ["packages/ui/src/components/skeleton.tsx.hbs", `import * as React from "react"
+
+import { cn } from "@{{projectName}}/ui/lib/utils"
 
 function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="skeleton"
-      className={cn("animate-pulse rounded-none bg-muted", className)}
+      className={cn("animate-pulse rounded-2xl bg-muted", className)}
       {...props}
     />
   )
@@ -12304,12 +21967,11 @@ function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
 
 export { Skeleton }
 `],
-  ["packages/ui/src/components/sonner.tsx.hbs", `"use client"
-
+  ["packages/ui/src/components/sonner.tsx.hbs", `import * as React from "react"
 import { useTheme } from "next-themes"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
-
-import { CircleCheckIcon, InfoIcon, Loader2Icon, OctagonXIcon, TriangleAlertIcon } from "lucide-react"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { CheckmarkCircle02Icon, InformationCircleIcon, Alert02Icon, MultiplicationSignCircleIcon, Loading03Icon } from "@hugeicons/core-free-icons"
 
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = "system" } = useTheme()
@@ -12320,19 +21982,19 @@ const Toaster = ({ ...props }: ToasterProps) => {
       className="toaster group"
       icons=\\{{
         success: (
-          <CircleCheckIcon className="size-4" />
+          <HugeiconsIcon icon={CheckmarkCircle02Icon} strokeWidth={2} className="size-4" />
         ),
         info: (
-          <InfoIcon className="size-4" />
+          <HugeiconsIcon icon={InformationCircleIcon} strokeWidth={2} className="size-4" />
         ),
         warning: (
-          <TriangleAlertIcon className="size-4" />
+          <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} className="size-4" />
         ),
         error: (
-          <OctagonXIcon className="size-4" />
+          <HugeiconsIcon icon={MultiplicationSignCircleIcon} strokeWidth={2} className="size-4" />
         ),
         loading: (
-          <Loader2Icon className="size-4 animate-spin" />
+          <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} className="size-4 animate-spin" />
         ),
       }}
       style={
@@ -12364,7 +22026,7 @@ function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
     <textarea
       data-slot="textarea"
       className={cn(
-        "flex field-sizing-content min-h-16 w-full resize-none rounded-none border border-input bg-transparent px-2.5 py-2 text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 md:text-xs dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
+        "flex field-sizing-content min-h-16 w-full resize-none rounded-2xl border border-transparent bg-input/50 px-2.5 py-2 text-base transition-[color,box-shadow] duration-200 outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
         className
       )}
       {...props}
@@ -12374,9 +22036,7 @@ function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
 
 export { Textarea }
 `],
-  ["packages/ui/src/components/tooltip.tsx.hbs", `"use client"
-
-import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip"
+  ["packages/ui/src/components/tooltip.tsx.hbs", `import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip"
 
 import { cn } from "@{{projectName}}/ui/lib/utils"
 
@@ -12426,13 +22086,13 @@ function TooltipContent({
         <TooltipPrimitive.Popup
           data-slot="tooltip-content"
           className={cn(
-            "z-50 inline-flex w-fit max-w-xs origin-(--transform-origin) items-center gap-1.5 rounded-none bg-foreground px-3 py-1.5 text-xs text-background has-data-[slot=kbd]:pr-1.5 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0 data-[state=delayed-open]:zoom-in-95 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+            "z-50 inline-flex w-fit max-w-xs origin-(--transform-origin) items-center gap-1.5 rounded-xl bg-foreground px-3 py-1.5 text-xs text-background has-data-[slot=kbd]:pr-1.5 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 **:data-[slot=kbd]:relative **:data-[slot=kbd]:isolate **:data-[slot=kbd]:z-50 **:data-[slot=kbd]:rounded-lg data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0 data-[state=delayed-open]:zoom-in-95 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
             className
           )}
           {...props}
         >
           {children}
-          <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%-2px)] rotate-45 rounded-none bg-foreground fill-foreground data-[side=bottom]:top-1 data-[side=inline-end]:top-1/2! data-[side=inline-end]:-left-1 data-[side=inline-end]:-translate-y-1/2 data-[side=inline-start]:top-1/2! data-[side=inline-start]:-right-1 data-[side=inline-start]:-translate-y-1/2 data-[side=left]:top-1/2! data-[side=left]:-right-1 data-[side=left]:-translate-y-1/2 data-[side=right]:top-1/2! data-[side=right]:-left-1 data-[side=right]:-translate-y-1/2 data-[side=top]:-bottom-2.5" />
+          <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%-2px)] rotate-45 rounded-[2px] bg-foreground fill-foreground data-[side=bottom]:top-1 data-[side=inline-end]:top-1/2! data-[side=inline-end]:-left-1 data-[side=inline-end]:translate-x-[1.5px] data-[side=inline-end]:-translate-y-1/2 data-[side=inline-start]:top-1/2! data-[side=inline-start]:-right-1 data-[side=inline-start]:translate-x-[-1.5px] data-[side=inline-start]:-translate-y-1/2 data-[side=left]:top-1/2! data-[side=left]:-right-1 data-[side=left]:translate-x-[-1.5px] data-[side=left]:-translate-y-1/2 data-[side=right]:top-1/2! data-[side=right]:-left-1 data-[side=right]:translate-x-[1.5px] data-[side=right]:-translate-y-1/2 data-[side=top]:-bottom-2.5" />
         </TooltipPrimitive.Popup>
       </TooltipPrimitive.Positioner>
     </TooltipPrimitive.Portal>
@@ -12452,81 +22112,14 @@ export function cn(...inputs: ClassValue[]) {
   ["packages/ui/src/styles/globals.css.hbs", `@import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
+@import '@fontsource-variable/inter';
 @source "../../../apps/**/*.{ts,tsx}";
 @source "../**/*.{ts,tsx}";
 
 @custom-variant dark (&:is(.dark *));
 
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.58 0.22 27);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.87 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.371 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
-}
-
 @theme inline {
+  --font-heading: var(--font-sans);
   --font-sans: 'Inter Variable', sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -12559,13 +22152,82 @@ export function cn(...inputs: ClassValue[]) {
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.45rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
 }
 
 @layer base {
@@ -12573,7 +22235,7 @@ export function cn(...inputs: ClassValue[]) {
     @apply border-border outline-ring/50;
   }
   body {
-    @apply font-sans bg-background text-foreground;
+    @apply bg-background text-foreground;
   }
   html {
     @apply font-sans;
