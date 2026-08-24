@@ -78,7 +78,7 @@ describe("Nx config generator", () => {
       dbSetup: "none",
       webDeploy: "cloudflare",
       serverDeploy: "none",
-      api: "trpc",
+      api: "orpc",
     });
 
     if (result.isErr()) throw result.error;
@@ -143,7 +143,7 @@ describe("Nx config generator", () => {
   });
 
   it("registers local D1 tasks only when Wrangler owns local migrations", () => {
-    for (const frontend of ["next", "svelte", "solid"] as const) {
+    for (const frontend of ["next"] as const) {
       const config = configWith({
         frontend: [frontend],
         backend: "self",
@@ -160,7 +160,7 @@ describe("Nx config generator", () => {
       });
     }
 
-    for (const frontend of ["nuxt", "astro"] as const) {
+    for (const frontend of ["tanstack-start", "react-router", "tanstack-router"] as const) {
       const config = configWith({
         frontend: [frontend],
         backend: "self",
@@ -192,16 +192,6 @@ describe("Turbo config generator", () => {
     );
     expect(dockerConfig.tasks["db:start"]).toEqual({ cache: false });
     expect(dockerConfig.tasks["db:watch"]).toEqual({ cache: false, persistent: true });
-
-    const convexConfig = generateTurboConfig(
-      configWith({
-        addons: ["turborepo"],
-        backend: "convex",
-        database: "none",
-        orm: "none",
-      }),
-    );
-    expect(convexConfig.tasks["dev:setup"]).toEqual({ cache: false, interactive: true });
   });
 
   it("configures Alchemy deployment tasks for every provider", () => {

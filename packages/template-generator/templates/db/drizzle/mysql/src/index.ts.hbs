@@ -5,21 +5,6 @@ import type { CloudflareEnv } from "@{{projectName}}/env/server";
 import { env } from "@{{projectName}}/env/server";
 {{/if}}
 import * as schema from "./schema";
-
-{{#if (eq dbSetup "planetscale")}}
-import { drizzle } from "drizzle-orm/planetscale-serverless";
-
-export function createDb({{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}env: CloudflareEnv{{/if}}) {
-	return drizzle({
-		connection: {
-			host: env.DATABASE_HOST,
-			username: env.DATABASE_USERNAME,
-			password: env.DATABASE_PASSWORD,
-		},
-		schema,
-	});
-}
-{{else}}
 import { drizzle } from "drizzle-orm/mysql2";
 
 export function createDb({{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}env: CloudflareEnv{{/if}}) {
@@ -31,7 +16,6 @@ export function createDb({{#if (usesRequestScopedCloudflareEnv backend webDeploy
 		mode: "default",
 	});
 }
-{{/if}}
 
 {{#if (and (ne serverDeploy "cloudflare") (or (ne backend "self") (ne webDeploy "cloudflare")))}}
 export const db = createDb();
@@ -40,22 +24,6 @@ export const db = createDb();
 
 {{#if (eq runtime "workers")}}
 import * as schema from "./schema";
-
-{{#if (eq dbSetup "planetscale")}}
-import { drizzle } from "drizzle-orm/planetscale-serverless";
-import { env } from "@{{projectName}}/env/server";
-
-export function createDb() {
-	return drizzle({
-		connection: {
-			host: env.DATABASE_HOST,
-			username: env.DATABASE_USERNAME,
-			password: env.DATABASE_PASSWORD,
-		},
-		schema,
-	});
-}
-{{else}}
 import { drizzle } from "drizzle-orm/mysql2";
 import { env } from "@{{projectName}}/env/server";
 
@@ -68,5 +36,4 @@ export function createDb() {
 		mode: "default",
 	});
 }
-{{/if}}
 {{/if}}

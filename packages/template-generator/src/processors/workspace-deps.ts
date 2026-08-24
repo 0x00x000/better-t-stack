@@ -27,7 +27,6 @@ export function processWorkspaceDeps(vfs: VirtualFileSystem, config: ProjectConf
     auth: vfs.exists("packages/auth/package.json"),
     api: vfs.exists("packages/api/package.json"),
     ui: vfs.exists("packages/ui/package.json"),
-    backend: vfs.exists("packages/backend/package.json"),
     server: vfs.exists("apps/server/package.json"),
     web: vfs.exists("apps/web/package.json"),
     native: vfs.exists("apps/native/package.json"),
@@ -123,23 +122,18 @@ export function processWorkspaceDeps(vfs: VirtualFileSystem, config: ProjectConf
     });
   }
 
-  if (packages.backend) {
-    addPackageDependency({
-      vfs,
-      packagePath: "packages/backend/package.json",
-      dependencies: commonDeps,
-      devDependencies: ["typescript"],
-      customDevDependencies: configDep,
-    });
-  }
-
   if (packages.server) {
-    const serverDevDependencies: AvailableDependencies[] = ["typescript", "tsdown"];
+    const serverDevDependencies: AvailableDependencies[] = ["typescript"];
+    if (backend !== "nest") {
+      serverDevDependencies.push("tsdown");
+    }
     if (runtime === "workers" && orm === "prisma") {
       serverDevDependencies.push("unwasm");
     }
     const serverDeps = { ...envDep } satisfies Record<string, string>;
-    if (api !== "none" && packages.api) serverDeps[`@${projectName}/api`] = workspaceVersion;
+    if (api !== "none" && packages.api && backend !== "nest") {
+      serverDeps[`@${projectName}/api`] = workspaceVersion;
+    }
     if (auth !== "none" && packages.auth) serverDeps[`@${projectName}/auth`] = workspaceVersion;
     if (database !== "none" && packages.db) serverDeps[`@${projectName}/db`] = workspaceVersion;
     addPackageDependency({
@@ -156,11 +150,7 @@ export function processWorkspaceDeps(vfs: VirtualFileSystem, config: ProjectConf
     const webPackageDeps = { ...envDep, ...uiDep } satisfies Record<string, string>;
 
     if (api !== "none" && packages.api) webPackageDeps[`@${projectName}/api`] = workspaceVersion;
-    if (
-      auth !== "none" &&
-      packages.auth &&
-      (backend === "self" || (auth === "better-auth" && frontend.includes("solid")))
-    ) {
+    if (auth !== "none" && packages.auth && backend === "self") {
       webPackageDeps[`@${projectName}/auth`] = workspaceVersion;
     }
 

@@ -16,7 +16,7 @@ export function TechIcon({
 
   if (!icon) return null;
 
-  if (!icon.startsWith("https://")) {
+  if (!icon.startsWith("https://") && !icon.startsWith("/")) {
     return <span className={cn("inline-flex items-center text-lg", className)}>{icon}</span>;
   }
 
@@ -25,11 +25,7 @@ export function TechIcon({
     theme === "light" &&
     (icon.includes("drizzle") ||
       icon.includes("prisma") ||
-      icon.includes("express") ||
-      icon.includes("clerk") ||
-      icon.includes("planetscale") ||
       icon.includes("nx") ||
-      icon.includes("polar") ||
       icon.includes("astro") ||
       icon.includes("vercel"))
   ) {

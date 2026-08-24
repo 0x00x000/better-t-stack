@@ -19,7 +19,7 @@ const baseConfig = {
   packageManager: "bun",
   install: false,
   dbSetup: "d1",
-  api: "trpc",
+  api: "orpc",
   webDeploy: "cloudflare",
   serverDeploy: "none",
 } satisfies Omit<ProjectConfig, "orm">;
@@ -101,7 +101,7 @@ describe("post-install instructions", () => {
     expect(output.match(/bun run db:migrate(?!:)/g)).toHaveLength(1);
   });
 
-  for (const frontend of ["nuxt", "astro"] as const) {
+  for (const frontend of ["tanstack-start"] as const) {
     it(`uses Alchemy-owned local D1 setup for ${frontend}`, async () => {
       const stdout = spyOn(process.stdout, "write").mockImplementation(() => true);
       spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline in test"));
@@ -158,7 +158,7 @@ describe("post-install instructions", () => {
 
     await displayPostInstallInstructions({
       ...baseConfig,
-      frontend: ["solid"],
+      frontend: ["tanstack-router"],
       backend: "hono",
       runtime: "bun",
       database: "postgres",
@@ -183,7 +183,7 @@ describe("post-install instructions", () => {
 
     await displayPostInstallInstructions({
       ...baseConfig,
-      frontend: ["solid"],
+      frontend: ["tanstack-router"],
       backend: "self",
       runtime: "none",
       database: "postgres",

@@ -159,13 +159,9 @@ function getFrameworksFromFrontend(frontend: string[]): string[] {
     ["react-router", ["react", "remix"]],
     ["tanstack-start", ["react", "tanstack"]],
     ["next", ["react", "next"]],
-    ["nuxt", ["vue"]],
     ["native-bare", ["react"]],
     ["native-uniwind", ["react"]],
     ["native-unistyles", ["react"]],
-    ["svelte", ["svelte"]],
-    ["solid", ["solid"]],
-    ["astro", ["astro"]],
   ]);
 
   const frameworks = new Set<string>();

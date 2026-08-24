@@ -3,7 +3,7 @@ import { usesAlchemyManagedDatabase, type ProjectConfig } from "@better-t-stack/
 import type { VirtualFileSystem } from "../core/virtual-fs";
 
 export function processAlchemyPlugins(vfs: VirtualFileSystem, config: ProjectConfig): void {
-  const { webDeploy, frontend, backend } = config;
+  const { webDeploy, frontend } = config;
 
   processManagedPrismaMigrations(vfs, config);
 
@@ -13,15 +13,6 @@ export function processAlchemyPlugins(vfs: VirtualFileSystem, config: ProjectCon
     processNextAlchemy(vfs, config);
   } else if (frontend.includes("react-router")) {
     processReactRouterAlchemy(vfs);
-  } else if (frontend.includes("svelte")) {
-    // keep the adapter's worker internals out of the public asset upload
-    vfs.writeFile("apps/web/static/.assetsignore", "_worker.js\n_routes.json\n");
-    if (backend === "self") {
-      writeDevWranglerConfig(vfs, config);
-    }
-  } else if (frontend.includes("solid") && backend === "self") {
-    writeDevWranglerConfig(vfs, config);
-    writeSolidDevEnvProxy(vfs, config);
   }
 }
 
@@ -40,37 +31,6 @@ function processManagedPrismaMigrations(vfs: VirtualFileSystem, config: ProjectC
   }
 
   vfs.deleteFile(`${migrationRoot}/.gitkeep`);
-}
-
-function writeSolidDevEnvProxy(vfs: VirtualFileSystem, config: ProjectConfig) {
-  const proxyPath = "apps/web/cloudflare-workers.dev.ts";
-
-  if (config.dbSetup !== "d1") {
-    vfs.writeFile(
-      proxyPath,
-      `export const env = process.env as Record<string, string | undefined>;
-`,
-    );
-    return;
-  }
-
-  vfs.writeFile(
-    proxyPath,
-    `import { getPlatformProxy } from "wrangler";
-
-const proxy = await getPlatformProxy();
-
-export const env: Record<string, unknown> = new Proxy(
-	{},
-	{
-		get(_target, prop) {
-			if (typeof prop !== "string") return undefined;
-			return (proxy.env as Record<string, unknown>)[prop] ?? process.env[prop];
-		},
-	},
-);
-`,
-  );
 }
 
 function d1DatabasesBlock(config: ProjectConfig): string {
@@ -92,35 +52,6 @@ function d1DatabasesBlock(config: ProjectConfig): string {
       "migrations_dir": "${migrationsDir}"${pattern}
     }
   ]`;
-}
-
-function writeDevWranglerConfig(vfs: VirtualFileSystem, config: ProjectConfig) {
-  const wranglerConfigPath = "apps/web/wrangler.jsonc";
-  if (vfs.exists(wranglerConfigPath) || config.dbSetup !== "d1") return;
-  vfs.writeFile(
-    wranglerConfigPath,
-    `{
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "${config.projectName}-web",
-  "compatibility_date": "2025-05-05",
-  "compatibility_flags": ["nodejs_compat"]${d1DatabasesBlock(config)}
-}
-`,
-  );
-  addLocalD1MigrateScript(vfs);
-}
-
-function addLocalD1MigrateScript(vfs: VirtualFileSystem) {
-  const webPkgPath = "apps/web/package.json";
-  if (!vfs.exists(webPkgPath)) return;
-  const raw = vfs.readFile(webPkgPath);
-  if (!raw) return;
-  const pkg = JSON.parse(raw);
-  pkg.scripts = pkg.scripts ?? {};
-  if (!pkg.scripts["db:migrate:local"]) {
-    pkg.scripts["db:migrate:local"] = "wrangler d1 migrations apply DB --local";
-    vfs.writeFile(webPkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
-  }
 }
 
 // React Router's ssr build is a manifest, not a worker; these two files wrap it
@@ -261,5 +192,18 @@ export default defineCloudflareConfig({});
       }
       vfs.writeFile(webPkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
     }
+  }
+}
+
+function addLocalD1MigrateScript(vfs: VirtualFileSystem) {
+  const webPkgPath = "apps/web/package.json";
+  if (!vfs.exists(webPkgPath)) return;
+  const raw = vfs.readFile(webPkgPath);
+  if (!raw) return;
+  const pkg = JSON.parse(raw);
+  pkg.scripts = pkg.scripts ?? {};
+  if (!pkg.scripts["db:migrate:local"]) {
+    pkg.scripts["db:migrate:local"] = "wrangler d1 migrations apply DB --local";
+    vfs.writeFile(webPkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
   }
 }

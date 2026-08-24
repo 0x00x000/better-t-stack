@@ -264,17 +264,14 @@ describe("MCP server", () => {
     const result = await client.callTool({
       name: "bts_plan_project",
       arguments: {
-        ...getExplicitCreateInput(path.join(SMOKE_DIR, "mcp-astro-ai")),
-        frontend: ["next"],
-        api: "orpc",
+        ...getExplicitCreateInput(path.join(SMOKE_DIR, "mcp-ai-no-backend")),
+        backend: "none",
         examples: ["ai"],
       },
     });
 
     expect(result.isError).toBe(true);
-    expect(getToolText(result)).toContain(
-      "The 'ai' example is not compatible with the Astro frontend",
-    );
+    expect(getToolText(result)).toContain("The 'ai' example requires a backend");
   });
 
   it("rejects unknown create input keys through MCP", async () => {

@@ -140,6 +140,13 @@ export const TECH_OPTIONS = {
       default: true,
     },
     {
+      id: "nest",
+      name: "NestJS",
+      description: "Opinionated framework with modules and DI",
+      icon: "/icon/nestjs.svg",
+      color: "from-red-500 to-red-700",
+    },
+    {
       id: "self-next",
       name: "Fullstack Next.js",
       description: "Use Next.js built-in API routes",

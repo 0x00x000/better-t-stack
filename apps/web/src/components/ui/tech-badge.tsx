@@ -61,11 +61,7 @@ function TechIcon({ icon, name, className }: { icon: string; name: string; class
     theme === "light" &&
     (icon.includes("drizzle") ||
       icon.includes("prisma") ||
-      icon.includes("express") ||
-      icon.includes("clerk") ||
-      icon.includes("planetscale") ||
       icon.includes("nx") ||
-      icon.includes("polar") ||
       icon.includes("astro") ||
       icon.includes("vercel"))
   ) {

@@ -1,33 +1,3 @@
-{{#if (eq backend "convex")}}
-"use client";
-
-import { api } from "@{{projectName}}/backend/convex/_generated/api";
-import {
-  useSmoothText,
-  useUIMessages,
-} from "@convex-dev/agent/react";
-import { useMutation } from "convex/react";
-import {
-  ArrowUpIcon,
-  Loader2,
-  MessageCircleDashedIcon,
-  RotateCwIcon,
-} from "lucide-react";
-{{#if (eq webDeploy "cloudflare")}}
-import dynamic from "next/dynamic";
-
-const Streamdown = dynamic(
-  () => import("streamdown").then((mod) => ({ default: mod.Streamdown })),
-  {
-    loading: () => (
-      <div className="flex h-full items-center justify-center">
-        <div className="text-muted-foreground">Loading response...</div>
-      </div>
-    ),
-    ssr: false,
-  }
-);
-{{else}}
 import { Streamdown } from "streamdown";
 {{/if}}
 import { useState, type FormEvent, type KeyboardEvent } from "react";
@@ -523,4 +493,3 @@ export default function AIPage() {
     </MessageScrollerProvider>
   );
 }
-{{/if}}

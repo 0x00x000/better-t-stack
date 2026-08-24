@@ -106,7 +106,6 @@ type DbSetupMode = NonNullable<DbSetupOptions["mode"]>;
 
 const providerLabels = {
   neon: "Neon",
-  planetscale: "PlanetScale",
   "prisma-postgres": "Prisma Postgres",
 } as const satisfies Partial<Record<DatabaseSetup, string>>;
 
@@ -133,7 +132,8 @@ export async function getDbProvisioningChoice(
 
   if (mode !== undefined) return mode;
 
-  const provider = providerLabels[dbSetup];
+  const provider =
+    dbSetup === "neon" || dbSetup === "prisma-postgres" ? providerLabels[dbSetup] : undefined;
   if (!provider) return undefined;
 
   const options: Array<{ value: DbSetupMode; label: string; hint: string }> = [

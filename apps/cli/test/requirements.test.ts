@@ -88,7 +88,10 @@ describe("local tool requirements", () => {
   });
 
   it("does not require Node tooling when Bun owns the install and runtime", () => {
-    const requirements = getLocalVersionRequirements(config({ frontend: ["solid"] }), "bun");
+    const requirements = getLocalVersionRequirements(
+      config({ frontend: ["tanstack-router"] }),
+      "bun",
+    );
 
     expect(requirements).toEqual([
       {
@@ -100,9 +103,8 @@ describe("local tool requirements", () => {
   });
 
   it.each([
-    ["astro", "22.11.0", "22.12.0", "Astro 7"],
+    ["tanstack-start", "22.11.0", "22.12.0", "Vite 8"],
     ["react-router", "22.21.0", "22.22.0", "React Router 8"],
-    ["solid", "23.11.0", "24.0.0", "Solid"],
     ["native-bare", "22.12.0", "22.13.0", "React Native 0.86"],
   ] as const)(
     "checks the %s Node requirement",
@@ -125,20 +127,15 @@ describe("local tool requirements", () => {
     },
   );
 
-  it("honors Nuxt's supported Node release lines", () => {
-    const project = config({ frontend: ["nuxt"], packageManager: "pnpm" });
+  it("checks TanStack Start Node requirements with npm", () => {
+    const project = config({ frontend: ["tanstack-start"], packageManager: "npm" });
 
-    for (const version of ["22.19.0", "24.11.0", "26.0.0"]) {
-      expect(
-        validateLocalToolVersions(project, { pnpm: "10.26.0", node: version }, "node").isOk(),
-      ).toBe(true);
-    }
-
-    for (const version of ["22.18.0", "23.11.0", "24.10.0", "25.1.0"]) {
-      expect(
-        validateLocalToolVersions(project, { pnpm: "10.26.0", node: version }, "node").isErr(),
-      ).toBe(true);
-    }
+    expect(
+      validateLocalToolVersions(project, { npm: "11.16.0", node: "22.11.0" }, "node").isErr(),
+    ).toBe(true);
+    expect(
+      validateLocalToolVersions(project, { npm: "11.16.0", node: "22.12.0" }, "node").isOk(),
+    ).toBe(true);
   });
 
   it("combines backend and addon requirements", () => {

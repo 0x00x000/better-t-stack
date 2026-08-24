@@ -8,7 +8,6 @@ This repo is a Bun + Turborepo monorepo.
 - `apps/web`: Next.js docs/site (`apps/web/src`, `apps/web/content/docs`, `apps/web/public`).
 - `packages/template-generator`: template generation engine used by the CLI.
 - `packages/types`: shared schemas/types.
-- `packages/backend`: Convex backend used by web features.
 - `plugin/`: installable agent plugin (Claude Code + Codex) — skills, commands, and MCP wiring; published via the root marketplaces (`.claude-plugin/`, `.agents/plugins/`).
 
 ## Build, Test, and Development Commands
@@ -45,7 +44,7 @@ This repo is a Bun + Turborepo monorepo.
   - `{{/if}}`
   - Example: `packages/template-generator/templates/packages/infra/alchemy.run.ts.hbs`.
 - When files must contain literal `{{ ... }}` (Vue/JSX/template syntax), escape opening braces as `\{{` in `.hbs` files so Handlebars does not evaluate them.
-  - Example: `packages/template-generator/templates/frontend/nuxt/app/pages/index.vue.hbs`.
+  - Example: `packages/template-generator/templates/frontend/react/next/src/app/page.tsx.hbs`.
 
 ## Testing Guidelines
 

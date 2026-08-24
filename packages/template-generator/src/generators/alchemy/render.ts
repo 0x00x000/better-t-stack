@@ -16,18 +16,11 @@ function usesCommand(plan: AlchemyDeploymentPlan): boolean {
 
 function usesOutput(plan: AlchemyDeploymentPlan): boolean {
   const database = plan.managedDatabase;
-  return (
-    database.kind === "neon" ||
-    database.kind === "prisma-postgres" ||
-    (database.kind === "planetscale-mysql" && database.orm === "prisma")
-  );
+  return database.kind === "neon" || database.kind === "prisma-postgres";
 }
 
 function usesRedacted(plan: AlchemyDeploymentPlan): boolean {
-  const database = plan.managedDatabase;
-  return (
-    database.kind === "neon" || (database.kind === "planetscale-mysql" && database.orm === "prisma")
-  );
+  return plan.managedDatabase.kind === "neon";
 }
 
 function usesLayer(plan: AlchemyDeploymentPlan): boolean {
@@ -39,12 +32,6 @@ function writeImports(writer: AlchemyWriter, plan: AlchemyDeploymentPlan): void 
   if (usesCommand(plan)) writer.writeLine('import * as Command from "alchemy/Command";');
   if (plan.managedDatabase.kind === "neon") {
     writer.writeLine('import * as Neon from "alchemy/Neon";');
-  }
-  if (
-    plan.managedDatabase.kind === "planetscale-postgres" ||
-    plan.managedDatabase.kind === "planetscale-mysql"
-  ) {
-    writer.writeLine('import * as Planetscale from "alchemy/Planetscale";');
   }
   if (plan.hasPrismaDeploy || plan.managedDatabase.kind === "prisma-postgres") {
     writer.writeLine('import * as Prisma from "alchemy/Prisma";');

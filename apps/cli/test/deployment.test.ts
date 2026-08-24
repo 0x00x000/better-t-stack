@@ -204,7 +204,7 @@ describe("Deployment Configurations", () => {
     });
 
     it("should work with server deploy + all compatible backends", async () => {
-      const backends = ["hono", "express", "fastify", "elysia"] as const;
+      const backends = ["hono"] as const;
 
       for (const backend of backends) {
         const config: TestConfig = {
@@ -671,9 +671,9 @@ describe("Deployment Configurations", () => {
       expect(syncScript).not.toContain('"CORS_ORIGIN"');
     });
 
-    it("should export Elysia apps for Vercel server deployments", async () => {
+    it("should export Hono apps for Vercel server deployments", async () => {
       const result = await createVirtual({
-        projectName: "elysia-vercel",
+        projectName: "hono-vercel",
         webDeploy: "none",
         serverDeploy: "vercel",
         backend: "hono",
@@ -699,17 +699,13 @@ describe("Deployment Configurations", () => {
       const files = collectFiles(result.value.root, result.value.root.path);
       const serverEntry = files.get("apps/server/src/index.ts");
 
-      expect(serverEntry).toContain("const app = new Elysia()");
+      expect(serverEntry).toContain("const app = new Hono");
       expect(serverEntry).toContain("export default app;");
-      // Bun does not auto-serve Elysia's default export, so a guarded local
-      // listen must remain (skipped on Vercel via process.env.VERCEL).
-      expect(serverEntry).toContain("if (!process.env.VERCEL)");
-      expect(serverEntry).toContain("app.listen(3000");
     });
 
-    it("should guard the local Elysia listen for node-runtime Vercel deploys", async () => {
+    it("should guard the local Hono listen for node-runtime Vercel deploys", async () => {
       const result = await createVirtual({
-        projectName: "elysia-node-vercel",
+        projectName: "hono-node-vercel",
         webDeploy: "none",
         serverDeploy: "vercel",
         backend: "hono",
@@ -787,41 +783,6 @@ describe("Deployment Configurations", () => {
       expect(files.get("apps/web/vite.config.ts")).toContain("noExternal: true");
     });
 
-    it("should use the explicit Vercel adapter for SvelteKit Vercel deploys", async () => {
-      const result = await createVirtual({
-        projectName: "svelte-vercel",
-        webDeploy: "vercel",
-        serverDeploy: "vercel",
-        backend: "hono",
-        runtime: "bun",
-        database: "none",
-        orm: "none",
-        auth: "none",
-        payments: "none",
-        api: "orpc",
-        frontend: ["react-router"],
-        addons: ["none"],
-        examples: ["none"],
-        dbSetup: "none",
-        install: false,
-        git: false,
-        packageManager: "bun",
-      });
-
-      if (result.isErr()) {
-        throw result.error;
-      }
-
-      const files = collectFiles(result.value.root, result.value.root.path);
-      const svelteConfig = files.get("apps/web/svelte.config.js");
-      const webPkg = JSON.parse(files.get("apps/web/package.json") ?? "{}");
-
-      // Vercel docs recommend the explicit adapter over adapter-auto
-      expect(svelteConfig).toContain("@sveltejs/adapter-vercel");
-      expect(svelteConfig).not.toContain("@sveltejs/adapter-auto");
-      expect(webPkg.devDependencies["@sveltejs/adapter-vercel"]).toBeDefined();
-    });
-
     it("should wire nitro into TanStack Start Vercel web deploys", async () => {
       const result = await createVirtual({
         projectName: "start-vercel",
@@ -858,44 +819,6 @@ describe("Deployment Configurations", () => {
       expect(viteConfig).toContain("nitro(),");
       expect(viteConfig).toContain("noExternal: true");
       expect(webPkg.dependencies).toHaveProperty("nitro");
-    });
-
-    it("should use the Vercel adapter for Astro web deploys", async () => {
-      const result = await createVirtual({
-        projectName: "astro-vercel",
-        webDeploy: "vercel",
-        serverDeploy: "vercel",
-        backend: "hono",
-        runtime: "bun",
-        database: "sqlite",
-        orm: "drizzle",
-        auth: "none",
-        payments: "none",
-        api: "orpc",
-        frontend: ["next"],
-        addons: ["none"],
-        examples: ["none"],
-        dbSetup: "none",
-        install: false,
-        git: false,
-        packageManager: "bun",
-      });
-
-      if (result.isErr()) {
-        throw result.error;
-      }
-
-      const files = collectFiles(result.value.root, result.value.root.path);
-      const astroConfig = files.get("apps/web/astro.config.mjs") ?? "";
-      const webPkg = JSON.parse(files.get("apps/web/package.json") ?? "{}") as {
-        dependencies?: Record<string, string>;
-      };
-
-      expect(astroConfig).toContain('import vercel from "@astrojs/vercel"');
-      expect(astroConfig).toContain("adapter: vercel()");
-      expect(astroConfig).not.toContain("@astrojs/node");
-      expect(webPkg.dependencies).toHaveProperty("@astrojs/vercel");
-      expect(webPkg.dependencies).not.toHaveProperty("@astrojs/node");
     });
 
     it("should wire Cloudflare web deploys to the generated server Worker URL", async () => {
@@ -954,7 +877,7 @@ describe("Deployment Configurations", () => {
 
     it("should bind self-hosted Cloudflare auth to the deployed Worker URL", async () => {
       const result = await createVirtual({
-        projectName: "svelte-cloudflare-auth-url",
+        projectName: "next-cloudflare-auth-url",
         webDeploy: "cloudflare",
         serverDeploy: "none",
         backend: "self",
@@ -964,7 +887,7 @@ describe("Deployment Configurations", () => {
         auth: "better-auth",
         payments: "none",
         api: "orpc",
-        frontend: ["svelte"],
+        frontend: ["next"],
         addons: ["none"],
         examples: ["todo"],
         dbSetup: "d1",
@@ -997,7 +920,7 @@ describe("Deployment Configurations", () => {
           auth: "none",
           payments: "none",
           api: "orpc",
-          frontend: ["nuxt"],
+          frontend: ["react-router"],
           addons: ["none"],
           examples: ["none"],
           dbSetup: "none",
@@ -1016,7 +939,7 @@ describe("Deployment Configurations", () => {
           auth: "none",
           payments: "none",
           api: "orpc",
-          frontend: ["astro"],
+          frontend: ["tanstack-start"],
           addons: ["turborepo"],
           examples: ["none"],
           dbSetup: "none",
@@ -1051,156 +974,89 @@ describe("Deployment Configurations", () => {
     });
 
     it("should generate current Cloudflare integrations for every framework family", async () => {
-      const [
-        reactRouterResult,
-        nextResult,
-        nextWebOnlyResult,
-        nuxtResult,
-        astroResult,
-        svelteResult,
-        tanstackStartResult,
-      ] = await Promise.all([
-        createVirtual({
-          projectName: "react-router-cloudflare-current",
-          webDeploy: "cloudflare",
-          serverDeploy: "cloudflare",
-          backend: "hono",
-          runtime: "workers",
-          database: "none",
-          orm: "none",
-          auth: "none",
-          payments: "none",
-          api: "orpc",
-          frontend: ["react-router"],
-          addons: ["none"],
-          examples: ["none"],
-          dbSetup: "none",
-          install: false,
-          git: false,
-          packageManager: "bun",
-        }),
-        createVirtual({
-          projectName: "next-cloudflare-current",
-          webDeploy: "cloudflare",
-          serverDeploy: "cloudflare",
-          backend: "hono",
-          runtime: "workers",
-          database: "none",
-          orm: "none",
-          auth: "none",
-          payments: "none",
-          api: "trpc",
-          frontend: ["next"],
-          addons: ["none"],
-          examples: ["none"],
-          dbSetup: "none",
-          install: false,
-          git: false,
-          packageManager: "bun",
-        }),
-        createVirtual({
-          projectName: "next-cloudflare-web-only-current",
-          webDeploy: "cloudflare",
-          serverDeploy: "none",
-          backend: "hono",
-          runtime: "bun",
-          database: "none",
-          orm: "none",
-          auth: "none",
-          payments: "none",
-          api: "trpc",
-          frontend: ["next"],
-          addons: ["none"],
-          examples: ["none"],
-          dbSetup: "none",
-          install: false,
-          git: false,
-          packageManager: "bun",
-        }),
-        createVirtual({
-          projectName: "nuxt-cloudflare-current",
-          webDeploy: "cloudflare",
-          serverDeploy: "cloudflare",
-          backend: "hono",
-          runtime: "workers",
-          database: "none",
-          orm: "none",
-          auth: "none",
-          payments: "none",
-          api: "orpc",
-          frontend: ["nuxt"],
-          addons: ["none"],
-          examples: ["none"],
-          dbSetup: "none",
-          install: false,
-          git: false,
-          packageManager: "pnpm",
-        }),
-        createVirtual({
-          projectName: "astro-cloudflare-current",
-          webDeploy: "cloudflare",
-          serverDeploy: "cloudflare",
-          backend: "hono",
-          runtime: "workers",
-          database: "none",
-          orm: "none",
-          auth: "none",
-          payments: "none",
-          api: "orpc",
-          frontend: ["astro"],
-          addons: ["none"],
-          examples: ["none"],
-          dbSetup: "none",
-          install: false,
-          git: false,
-          packageManager: "bun",
-        }),
-        createVirtual({
-          projectName: "svelte-cloudflare-current",
-          webDeploy: "cloudflare",
-          serverDeploy: "cloudflare",
-          backend: "hono",
-          runtime: "workers",
-          database: "none",
-          orm: "none",
-          auth: "none",
-          payments: "none",
-          api: "orpc",
-          frontend: ["svelte"],
-          addons: ["none"],
-          examples: ["none"],
-          dbSetup: "none",
-          install: false,
-          git: false,
-          packageManager: "bun",
-        }),
-        createVirtual({
-          projectName: "tanstack-start-cloudflare-current",
-          webDeploy: "cloudflare",
-          serverDeploy: "cloudflare",
-          backend: "hono",
-          runtime: "workers",
-          database: "none",
-          orm: "none",
-          auth: "none",
-          payments: "none",
-          api: "orpc",
-          frontend: ["tanstack-start"],
-          addons: ["none"],
-          examples: ["none"],
-          dbSetup: "none",
-          install: false,
-          git: false,
-          packageManager: "bun",
-        }),
-      ]);
+      const [reactRouterResult, nextResult, nextWebOnlyResult, tanstackStartResult] =
+        await Promise.all([
+          createVirtual({
+            projectName: "react-router-cloudflare-current",
+            webDeploy: "cloudflare",
+            serverDeploy: "cloudflare",
+            backend: "hono",
+            runtime: "workers",
+            database: "none",
+            orm: "none",
+            auth: "none",
+            payments: "none",
+            api: "orpc",
+            frontend: ["react-router"],
+            addons: ["none"],
+            examples: ["none"],
+            dbSetup: "none",
+            install: false,
+            git: false,
+            packageManager: "bun",
+          }),
+          createVirtual({
+            projectName: "next-cloudflare-current",
+            webDeploy: "cloudflare",
+            serverDeploy: "cloudflare",
+            backend: "hono",
+            runtime: "workers",
+            database: "none",
+            orm: "none",
+            auth: "none",
+            payments: "none",
+            api: "orpc",
+            frontend: ["next"],
+            addons: ["none"],
+            examples: ["none"],
+            dbSetup: "none",
+            install: false,
+            git: false,
+            packageManager: "bun",
+          }),
+          createVirtual({
+            projectName: "next-cloudflare-web-only-current",
+            webDeploy: "cloudflare",
+            serverDeploy: "none",
+            backend: "hono",
+            runtime: "bun",
+            database: "none",
+            orm: "none",
+            auth: "none",
+            payments: "none",
+            api: "orpc",
+            frontend: ["next"],
+            addons: ["none"],
+            examples: ["none"],
+            dbSetup: "none",
+            install: false,
+            git: false,
+            packageManager: "bun",
+          }),
+          createVirtual({
+            projectName: "tanstack-start-cloudflare-current",
+            webDeploy: "cloudflare",
+            serverDeploy: "cloudflare",
+            backend: "hono",
+            runtime: "workers",
+            database: "none",
+            orm: "none",
+            auth: "none",
+            payments: "none",
+            api: "orpc",
+            frontend: ["tanstack-start"],
+            addons: ["none"],
+            examples: ["none"],
+            dbSetup: "none",
+            install: false,
+            git: false,
+            packageManager: "bun",
+          }),
+        ]);
 
       if (reactRouterResult.isErr()) throw reactRouterResult.error;
       if (nextResult.isErr()) throw nextResult.error;
       if (nextWebOnlyResult.isErr()) throw nextWebOnlyResult.error;
-      if (nuxtResult.isErr()) throw nuxtResult.error;
-      if (astroResult.isErr()) throw astroResult.error;
-      if (svelteResult.isErr()) throw svelteResult.error;
       if (tanstackStartResult.isErr()) throw tanstackStartResult.error;
 
       const reactRouterFiles = collectFiles(
@@ -1250,58 +1106,6 @@ describe("Deployment Configurations", () => {
         'NEXT_PUBLIC_SERVER_URL: Config.string("NEXT_PUBLIC_SERVER_URL")',
       );
       expect(nextWebOnlyInfra).not.toContain("const serverWorker = yield* server");
-
-      const nuxtFiles = collectFiles(nuxtResult.value.root, nuxtResult.value.root.path);
-      const nuxtInfra = nuxtFiles.get("packages/infra/alchemy.run.ts") ?? "";
-      const nuxtConfig = nuxtFiles.get("apps/web/nuxt.config.ts") ?? "";
-      const nuxtPackage = JSON.parse(nuxtFiles.get("apps/web/package.json") ?? "{}") as {
-        devDependencies?: Record<string, string>;
-      };
-      const nuxtRootPackage = JSON.parse(nuxtFiles.get("package.json") ?? "{}") as {
-        scripts?: Record<string, string>;
-      };
-      expect(nuxtInfra).toContain('Cloudflare.Website.Nuxt("web", {');
-      expect(nuxtInfra).not.toContain('Cloudflare.Website.StaticSite("web", {');
-      expect(nuxtInfra).not.toContain('outdir: ".output/public"');
-      expect(nuxtInfra).not.toContain('main: "../../apps/web/.output/server/index.mjs"');
-      expect(nuxtConfig).not.toContain("nitro-cloudflare-dev");
-      expect(nuxtConfig).not.toContain("preset: 'cloudflare-module'");
-      expect(nuxtPackage.devDependencies?.["@distilled.cloud/nuxt"]).toBeUndefined();
-      expect(nuxtPackage.devDependencies?.["@alchemy.run/cloudflare-frameworks"]).toBe(
-        "2.0.0-beta.72",
-      );
-      expect(nuxtPackage.devDependencies?.["nitro-cloudflare-dev"]).toBeUndefined();
-      expect(nuxtPackage.devDependencies?.wrangler).toBeUndefined();
-      expect((nuxtPackage as { scripts?: Record<string, string> }).scripts?.build).toBe(
-        "nuxt build",
-      );
-      expect(nuxtRootPackage.scripts?.build).toBe("pnpm -r --if-present build");
-      expect(nuxtFiles.has("apps/web/cloudflare-workers.dev.ts")).toBe(false);
-      expect(nuxtFiles.has("apps/web/wrangler.jsonc")).toBe(false);
-
-      const astroFiles = collectFiles(astroResult.value.root, astroResult.value.root.path);
-      const astroInfra = astroFiles.get("packages/infra/alchemy.run.ts") ?? "";
-      const astroConfig = astroFiles.get("apps/web/astro.config.mjs") ?? "";
-      const astroPackage = JSON.parse(astroFiles.get("apps/web/package.json") ?? "{}") as {
-        devDependencies?: Record<string, string>;
-      };
-      expect(astroInfra).toContain('Cloudflare.Website.Astro("web", {');
-      expect(astroInfra).not.toContain('Cloudflare.Website.StaticSite("web", {');
-      expect(astroInfra.match(/SESSION: Cloudflare\.KV\.Namespace\("session"\)/g)).toHaveLength(1);
-      expect(astroInfra).toContain("IMAGES: Cloudflare.Images.Images()");
-      expect(astroConfig).not.toContain("@astrojs/cloudflare");
-      expect(astroConfig).not.toContain("adapter: cloudflare()");
-      expect(astroPackage.devDependencies?.["@distilled.cloud/astro"]).toBeUndefined();
-      expect(astroPackage.devDependencies?.["@alchemy.run/cloudflare-frameworks"]).toBe(
-        "2.0.0-beta.72",
-      );
-      expect(astroPackage.devDependencies?.["@astrojs/cloudflare"]).toBeUndefined();
-      expect((astroPackage as { scripts?: Record<string, string> }).scripts?.build).toBeUndefined();
-
-      const svelteFiles = collectFiles(svelteResult.value.root, svelteResult.value.root.path);
-      const svelteInfra = svelteFiles.get("packages/infra/alchemy.run.ts") ?? "";
-      expect(svelteInfra).toContain('Cloudflare.Website.StaticSite("web", {');
-      expect(svelteInfra).not.toContain('Cloudflare.Website.SvelteKit("web", {');
 
       const tanstackStartFiles = collectFiles(
         tanstackStartResult.value.root,
@@ -1354,65 +1158,10 @@ describe("Deployment Configurations", () => {
       }
     });
 
-    it("should configure Solid 2 SSR for Cloudflare and local Vite builds", async () => {
-      const result = await createVirtual({
-        projectName: "solid-cloudflare",
-        webDeploy: "cloudflare",
-        serverDeploy: "none",
-        backend: "self",
-        runtime: "none",
-        database: "sqlite",
-        orm: "drizzle",
-        auth: "better-auth",
-        payments: "none",
-        api: "orpc",
-        frontend: ["solid"],
-        addons: ["turborepo"],
-        examples: ["todo"],
-        dbSetup: "d1",
-        install: false,
-        git: false,
-        packageManager: "bun",
-      });
-
-      if (result.isErr()) {
-        throw result.error;
-      }
-
-      const files = collectFiles(result.value.root, result.value.root.path);
-      const viteConfig = files.get("apps/web/vite.config.ts");
-      const infraFile = files.get("packages/infra/alchemy.run.ts");
-      const webPkg = JSON.parse(files.get("apps/web/package.json") ?? "{}");
-      const rootPkg = JSON.parse(files.get("package.json") ?? "{}");
-      const turboConfig = JSON.parse(files.get("turbo.json") ?? "{}");
-
-      expect(viteConfig).not.toContain('from "alchemy/cloudflare/vite"');
-      expect(viteConfig).toContain('process.env.ALCHEMY_CLOUDFLARE_VITE_INJECTED !== "1"');
-      expect(viteConfig).toContain('command === "serve"');
-      expect(viteConfig).toContain("const cloudflareWorkersAlias: Record<string, string>");
-      expect(viteConfig).toContain('new URL("./cloudflare-workers.dev.ts", import.meta.url)');
-      expect(viteConfig).toContain('external: ["cloudflare:workers"]');
-      expect(viteConfig).toContain("tsconfigPaths: true");
-      expect(infraFile).toContain('export const web = Cloudflare.Website.Vite("web", {');
-      expect(infraFile).toContain('rootDir: "../../apps/web"');
-      expect(infraFile).toContain('flags: ["nodejs_compat"]');
-      expect(infraFile).not.toContain("runWorkerFirst");
-      expect(infraFile).toContain("DB: db");
-      expect(webPkg.devDependencies.alchemy).toBeUndefined();
-      expect(webPkg.devDependencies["@cloudflare/vite-plugin"]).toBeUndefined();
-      expect(webPkg.devDependencies.wrangler).toBeDefined();
-      expect(webPkg.scripts["db:migrate:local"]).toBeDefined();
-      expect(rootPkg.scripts["db:migrate:local"]).toContain("web");
-      expect(turboConfig.tasks["db:migrate:local"]).toEqual({
-        cache: false,
-        interactive: true,
-      });
-    });
-
     it("should keep native Metro from watching Alchemy state", async () => {
       const result = await createVirtual({
-        projectName: "native-astro-alchemy",
-        frontend: ["astro", "native-unistyles"],
+        projectName: "native-next-alchemy",
+        frontend: ["next", "native-unistyles"],
         backend: "hono",
         runtime: "workers",
         api: "orpc",
@@ -1645,81 +1394,6 @@ describe("Deployment Configurations", () => {
       expect(files.get("apps/web/next.config.ts")).toContain('output: "standalone"');
     });
 
-    it("should switch Svelte to adapter-node for Docker web deploys", async () => {
-      const result = await createVirtual({
-        projectName: "docker-svelte",
-        webDeploy: "docker",
-        serverDeploy: "none",
-        backend: "none",
-        runtime: "none",
-        database: "none",
-        orm: "none",
-        auth: "none",
-        payments: "none",
-        api: "none",
-        frontend: ["react-router"],
-        addons: ["none"],
-        examples: ["none"],
-        dbSetup: "none",
-        install: false,
-        git: false,
-        packageManager: "npm",
-      });
-
-      if (result.isErr()) {
-        throw result.error;
-      }
-
-      const files = collectFiles(result.value.root, result.value.root.path);
-      const svelteConfig = files.get("apps/web/svelte.config.js");
-      const webPkg = JSON.parse(files.get("apps/web/package.json") ?? "{}");
-      const webDockerfile = files.get("apps/web/Dockerfile");
-
-      expect(svelteConfig).toContain("@sveltejs/adapter-node");
-      expect(svelteConfig).not.toContain("@sveltejs/adapter-auto");
-      expect(webPkg.devDependencies["@sveltejs/adapter-node"]).toBeDefined();
-      expect(webDockerfile).toContain('CMD ["node", "build/index.js"]');
-    });
-
-    it("should validate Nuxt public variables during Docker builds", async () => {
-      const result = await createVirtual({
-        projectName: "docker-nuxt",
-        webDeploy: "docker",
-        serverDeploy: "docker",
-        backend: "hono",
-        runtime: "bun",
-        database: "sqlite",
-        orm: "drizzle",
-        auth: "none",
-        payments: "none",
-        api: "orpc",
-        frontend: ["nuxt"],
-        addons: ["none"],
-        examples: ["none"],
-        dbSetup: "none",
-        install: false,
-        git: false,
-        packageManager: "bun",
-      });
-
-      if (result.isErr()) {
-        throw result.error;
-      }
-
-      const files = collectFiles(result.value.root, result.value.root.path);
-      const compose = files.get("docker-compose.yml") ?? "";
-      const webDockerfile = files.get("apps/web/Dockerfile") ?? "";
-
-      expect(compose).toContain("NUXT_PUBLIC_SERVER_URL: http://localhost:3000");
-      expect(webDockerfile).toContain("ARG NUXT_PUBLIC_SERVER_URL");
-      expect(webDockerfile).toContain("ENV NUXT_PUBLIC_SERVER_URL=${NUXT_PUBLIC_SERVER_URL}");
-      expect(webDockerfile.indexOf("ARG NUXT_PUBLIC_SERVER_URL")).toBeLessThan(
-        webDockerfile.indexOf("bun install"),
-      );
-      expect(webDockerfile).not.toContain("SKIP_ENV_VALIDATION");
-      expect(files.get("packages/env/src/web.ts")).not.toContain("SKIP_ENV_VALIDATION");
-    });
-
     it("should not infer the TanStack Start runtime from the package manager", async () => {
       const result = await createVirtual({
         projectName: "docker-tanstack-start",
@@ -1949,91 +1623,6 @@ describe("Deployment Configurations", () => {
       expect(serverDockerfile).toContain('CMD ["node", "dist/index.mjs"]');
     });
 
-    it("should deploy Solid 2 production builds as an SSR server", async () => {
-      const result = await createVirtual({
-        projectName: "docker-solid-no-api",
-        webDeploy: "docker",
-        serverDeploy: "none",
-        backend: "none",
-        runtime: "none",
-        database: "none",
-        orm: "none",
-        auth: "none",
-        payments: "none",
-        api: "none",
-        frontend: ["tanstack-router"],
-        addons: ["none"],
-        examples: ["none"],
-        dbSetup: "none",
-        install: false,
-        git: false,
-        packageManager: "bun",
-      });
-
-      if (result.isErr()) {
-        throw result.error;
-      }
-
-      const files = collectFiles(result.value.root, result.value.root.path);
-      const webPkg = JSON.parse(files.get("apps/web/package.json") ?? "{}");
-      const webDockerfile = files.get("apps/web/Dockerfile");
-      const compose = files.get("docker-compose.yml");
-
-      expect(webPkg.dependencies["@solidjs/start"]).toBeUndefined();
-      expect(webPkg.dependencies["solid-js"]).toBe("^2.0.0-rc.0");
-      expect(webPkg.devDependencies.nitro).toBeDefined();
-      expect(webPkg.devDependencies["@tanstack/solid-router-devtools"]).toBeUndefined();
-      expect(files.get("apps/web/vite.config.ts")).toContain("tsconfigPaths: true");
-      expect(webDockerfile).toContain("FROM node:24-slim AS runner");
-      expect(webDockerfile).toContain('CMD ["node", ".output/server/index.mjs"]');
-      expect(webDockerfile).not.toContain("FROM nginx:alpine");
-      expect(compose).toContain('"3001:3001"');
-    });
-
-    it("should expose Solid 2 Prisma SQLite native dependencies to Nitro", async () => {
-      const result = await createVirtual({
-        projectName: "docker-solid-prisma-sqlite",
-        webDeploy: "docker",
-        serverDeploy: "none",
-        backend: "self",
-        runtime: "none",
-        database: "sqlite",
-        orm: "prisma",
-        auth: "better-auth",
-        payments: "none",
-        api: "orpc",
-        frontend: ["solid"],
-        addons: ["none"],
-        examples: ["none"],
-        dbSetup: "none",
-        install: false,
-        git: false,
-        packageManager: "pnpm",
-      });
-
-      if (result.isErr()) throw result.error;
-
-      const files = collectFiles(result.value.root, result.value.root.path);
-      const webPkg = JSON.parse(files.get("apps/web/package.json") ?? "{}");
-      const compose = files.get("docker-compose.yml") ?? "";
-      const readme = files.get("README.md") ?? "";
-
-      expect(webPkg.dependencies.libsql).toBeDefined();
-      expect(compose).toContain("DATABASE_URL: file:/data/local.db");
-      expect(compose).toContain("source: ./.data");
-      expect(compose).toContain("target: /data");
-      expect(compose).toContain("create_host_path: false");
-      expect(compose).not.toContain("db-init:");
-      expect(files.get("apps/web/.env")).toContain("DATABASE_URL=file:../../.data/local.db");
-      expect(files.get(".data/.gitignore")).toBe("*\n!.gitignore\n");
-      expect(files.get(".dockerignore")).toContain(".data");
-      expect(files.get(".dockerignore")).toContain("local.db-*");
-      expect(files.get(".gitignore")).toContain("local.db-*");
-      expect(readme).toContain(
-        "Docker Compose uses the local `./.data/local.db` file. Run `pnpm run db:push` before starting the stack.",
-      );
-    });
-
     it("should mount SQLite in the Docker server that consumes it", async () => {
       const result = await createVirtual({
         projectName: "docker-server-sqlite",
@@ -2045,7 +1634,7 @@ describe("Deployment Configurations", () => {
         orm: "drizzle",
         auth: "better-auth",
         payments: "none",
-        api: "trpc",
+        api: "orpc",
         frontend: ["tanstack-router"],
         addons: ["none"],
         examples: ["none"],
@@ -2083,7 +1672,7 @@ describe("Deployment Configurations", () => {
         orm: "drizzle",
         auth: "none",
         payments: "none",
-        api: "trpc",
+        api: "orpc",
         frontend: ["tanstack-router"],
         addons: ["none"],
         examples: ["none"],
@@ -2105,19 +1694,19 @@ describe("Deployment Configurations", () => {
       expect(readme).not.toContain("Docker Compose uses the local");
     });
 
-    it("should route Solid 2 SSR requests through the internal Docker server URL", async () => {
+    it("should bind Nest to all interfaces for Docker deploys", async () => {
       const result = await createVirtual({
-        projectName: "docker-solid-external-server",
-        webDeploy: "docker",
+        projectName: "docker-nest-host",
+        webDeploy: "none",
         serverDeploy: "docker",
-        backend: "hono",
-        runtime: "node",
+        backend: "nest",
+        runtime: "bun",
         database: "none",
         orm: "none",
         auth: "none",
         payments: "none",
-        api: "orpc",
-        frontend: ["solid"],
+        api: "none",
+        frontend: ["tanstack-router"],
         addons: ["none"],
         examples: ["none"],
         dbSetup: "none",
@@ -2126,46 +1715,12 @@ describe("Deployment Configurations", () => {
         packageManager: "bun",
       });
 
-      if (result.isErr()) throw result.error;
-
-      const files = collectFiles(result.value.root, result.value.root.path);
-      const compose = files.get("docker-compose.yml") ?? "";
-      const orpcClient = files.get("apps/web/src/utils/orpc.ts") ?? "";
-
-      expect(compose).toContain("SERVER_URL: http://server:3000");
-      expect(compose).toContain("VITE_SERVER_URL: http://localhost:3000");
-      expect(orpcClient).toContain('typeof window === "undefined" && processEnv?.SERVER_URL');
-    });
-
-    it("should bind Fastify to all interfaces for Docker deploys", async () => {
-      const result = await createVirtual({
-        projectName: "docker-fastify-host",
-        webDeploy: "none",
-        serverDeploy: "docker",
-        backend: "hono",
-        runtime: "node",
-        database: "none",
-        orm: "none",
-        auth: "none",
-        payments: "none",
-        api: "orpc",
-        frontend: ["tanstack-router"],
-        addons: ["none"],
-        examples: ["none"],
-        dbSetup: "none",
-        install: false,
-        git: false,
-        packageManager: "npm",
-      });
-
       if (result.isErr()) {
         throw result.error;
       }
 
       const files = collectFiles(result.value.root, result.value.root.path);
-      expect(files.get("apps/server/src/index.ts")).toContain(
-        'fastify.listen({ port: 3000, host: "0.0.0.0" }',
-      );
+      expect(files.get("apps/server/src/main.ts")).toContain('await app.listen(3000, "0.0.0.0")');
     });
 
     it("should fail with docker server deploy + workers runtime", async () => {

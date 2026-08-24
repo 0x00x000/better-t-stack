@@ -98,7 +98,7 @@ describe("pnpm workspace", () => {
 
   it("adds esbuild approval for Vite+ stacks", async () => {
     const workspace = await readPnpmWorkspace({
-      projectName: "pnpm-svelte-vite-plus",
+      projectName: "pnpm-react-router-vite-plus",
       frontend: ["react-router"],
       backend: "self",
       runtime: "none",
@@ -203,9 +203,9 @@ describe("pnpm workspace", () => {
     });
   });
 
-  it("adds build approvals for a plain Nuxt frontend", async () => {
+  it("adds build approvals for a plain TanStack Router frontend", async () => {
     const workspace = await readPnpmWorkspace({
-      projectName: "pnpm-nuxt-ui",
+      projectName: "pnpm-tanstack-router-ui",
       frontend: ["tanstack-router"],
       backend: "none",
       runtime: "none",
@@ -223,8 +223,6 @@ describe("pnpm workspace", () => {
 
     expect(workspace.allowBuilds).toEqual({
       esbuild: true,
-      "@parcel/watcher": true,
-      "vue-demi": true,
     });
   });
 
@@ -276,7 +274,7 @@ describe("pnpm workspace", () => {
 
   it("adds build approvals for Vercel deploys so non-interactive installs succeed", async () => {
     const workspace = await readPnpmWorkspace({
-      projectName: "pnpm-vercel-svelte",
+      projectName: "pnpm-vercel-react-router",
       frontend: ["react-router"],
       backend: "self",
       runtime: "none",
@@ -298,9 +296,9 @@ describe("pnpm workspace", () => {
     });
   });
 
-  it("approves Nuxt lifecycle-script dependencies", async () => {
+  it("approves Docker lifecycle-script dependencies for Node server stacks", async () => {
     const workspace = await readPnpmWorkspace({
-      projectName: "pnpm-nuxt-builds",
+      projectName: "pnpm-docker-node-builds",
       frontend: ["tanstack-router"],
       backend: "hono",
       runtime: "node",
@@ -317,14 +315,13 @@ describe("pnpm workspace", () => {
     });
 
     expect(workspace.allowBuilds).toMatchObject({
-      "@parcel/watcher": true,
-      "vue-demi": true,
+      esbuild: true,
     });
   });
 
   it("does not add build approvals for stacks without lifecycle-script dependencies", async () => {
     const workspace = await readPnpmWorkspace({
-      projectName: "pnpm-svelte",
+      projectName: "pnpm-react-router-plain",
       frontend: ["react-router"],
       backend: "none",
       runtime: "none",

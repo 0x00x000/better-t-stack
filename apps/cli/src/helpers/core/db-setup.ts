@@ -1,6 +1,6 @@
 /**
  * Database setup - CLI-only operations
- * Calls external database provider CLIs (turso, neon, prisma-postgres, etc.)
+ * Calls external database provider CLIs (neon, prisma-postgres, etc.)
  * Dependencies are handled by the generator's db-deps processor
  */
 
@@ -18,25 +18,20 @@ import { setupCloudflareD1 } from "../database-providers/d1-setup";
 import { setupDockerCompose } from "../database-providers/docker-compose-setup";
 import { setupMongoDBAtlas } from "../database-providers/mongodb-atlas-setup";
 import { setupNeonPostgres } from "../database-providers/neon-setup";
-import { setupPlanetScale } from "../database-providers/planetscale-setup";
 import { setupPrismaPostgres } from "../database-providers/prisma-postgres-setup";
 import { setupSupabase } from "../database-providers/supabase-setup";
-import { setupTurso } from "../database-providers/turso-setup";
 import { type DatabaseSetupCliOptions, mergeResolvedDbSetupOptions } from "./db-setup-options";
 
 export async function setupDatabase(
   config: ProjectConfig,
   cliInput?: DatabaseSetupCliOptions,
 ): Promise<void> {
-  const { database, dbSetup, backend, projectDir } = config;
+  const { database, dbSetup, projectDir } = config;
 
-  if (backend === "convex" || database === "none") {
-    // Clean up server db dir if not using convex
-    if (backend !== "convex") {
-      const serverDbDir = path.join(projectDir, "apps/server/src/db");
-      if (await fs.pathExists(serverDbDir)) {
-        await fs.remove(serverDbDir);
-      }
+  if (database === "none") {
+    const serverDbDir = path.join(projectDir, "apps/server/src/db");
+    if (await fs.pathExists(serverDbDir)) {
+      await fs.remove(serverDbDir);
     }
     return;
   }
@@ -75,8 +70,6 @@ export async function setupDatabase(
   // Call external database provider CLIs
   if (dbSetup === "docker") {
     await runSetup(() => setupDockerCompose(config));
-  } else if (database === "sqlite" && dbSetup === "turso") {
-    await runSetup(() => setupTurso(config, resolvedCliInput));
   } else if (database === "sqlite" && dbSetup === "d1") {
     await runSetup(() => setupCloudflareD1(config));
   } else if (database === "postgres") {
@@ -84,13 +77,9 @@ export async function setupDatabase(
       await runSetup(() => setupPrismaPostgres(config, resolvedCliInput));
     } else if (dbSetup === "neon") {
       await runSetup(() => setupNeonPostgres(config, resolvedCliInput));
-    } else if (dbSetup === "planetscale") {
-      await runSetup(() => setupPlanetScale(config));
     } else if (dbSetup === "supabase") {
       await runSetup(() => setupSupabase(config, resolvedCliInput));
     }
-  } else if (database === "mysql" && dbSetup === "planetscale") {
-    await runSetup(() => setupPlanetScale(config));
   } else if (database === "mongodb" && dbSetup === "mongodb-atlas") {
     await runSetup(() => setupMongoDBAtlas(config, resolvedCliInput));
   }

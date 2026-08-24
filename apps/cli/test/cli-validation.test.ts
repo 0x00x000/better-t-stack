@@ -102,7 +102,7 @@ test("rejects Alchemy database provisioning without a matching deployment", () =
     orm: "drizzle",
     dbSetup: "neon",
     dbSetupOptions: { mode: "alchemy" },
-    api: "trpc",
+    api: "orpc",
     auth: "none",
     payments: "none",
     addons: ["none"],
@@ -117,34 +117,7 @@ test("rejects Alchemy database provisioning without a matching deployment", () =
   expect(result.isErr()).toBe(true);
   if (result.isErr()) {
     expect(result.error.message).toContain(
-      "Alchemy database provisioning requires Neon, PlanetScale, or Prisma Postgres",
+      "Alchemy database provisioning requires Neon or Prisma Postgres",
     );
-  }
-});
-
-test("rejects automatic PlanetScale provisioning with an actionable alternative", () => {
-  const options = {
-    backend: "hono",
-    frontend: ["tanstack-router"],
-    database: "postgres",
-    orm: "drizzle",
-    dbSetup: "planetscale",
-    dbSetupOptions: { mode: "auto" },
-    api: "trpc",
-    auth: "none",
-    payments: "none",
-    addons: ["none"],
-    examples: ["none"],
-    runtime: "bun",
-    webDeploy: "none",
-    serverDeploy: "prisma",
-  } as const;
-
-  const result = processAndValidateFlags(options, getProvidedFlags(options), "my-app");
-
-  expect(result.isErr()).toBe(true);
-  if (result.isErr()) {
-    expect(result.error.message).toContain("PlanetScale does not support automatic database setup");
-    expect(result.error.message).toContain("'alchemy' or 'manual'");
   }
 });

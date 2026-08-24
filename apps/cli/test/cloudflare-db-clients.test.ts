@@ -121,38 +121,6 @@ describe("Cloudflare DB client generation", () => {
       routeNeedles: ["const auth = createAuth()", "return auth.handler(request)"],
       envNeedle: 'export { env } from "cloudflare:workers";',
     },
-    {
-      name: "Nuxt",
-      frontend: "tanstack-router",
-      api: "orpc",
-      routePath: "apps/web/server/api/auth/[...all].ts",
-      routeNeedles: [
-        "createAuth((event.context.cloudflare as { env: CloudflareEnv }).env)",
-        "return auth.handler(toWebRequest(event));",
-      ],
-      envNeedle: 'import type { CloudflareEnv } from "../env.d.ts";',
-      envAbsentNeedle: 'from "cloudflare:workers"',
-    },
-    {
-      name: "Solid 2",
-      frontend: "solid",
-      api: "orpc",
-      routePath: "apps/web/src/routes/api/auth/[...auth].ts",
-      routeNeedles: [
-        "createAuth().handler(request)",
-        "export const GET = handle",
-        "export const POST = handle",
-      ],
-      envNeedle: 'export { env } from "cloudflare:workers";',
-    },
-    {
-      name: "Astro",
-      frontend: "next",
-      api: "orpc",
-      routePath: "apps/web/src/pages/api/auth/[...all].ts",
-      routeNeedles: ["const auth = createAuth();", "return auth.handler(ctx.request);"],
-      envNeedle: 'export { env } from "cloudflare:workers";',
-    },
   ] as const;
 
   for (const scenario of selfCloudflareD1Scenarios) {
@@ -188,45 +156,17 @@ describe("Cloudflare DB client generation", () => {
       expect(dbFile).toContain("drizzle(env.DB, { schema })");
       expect(dbFile).not.toContain('import { drizzle } from "drizzle-orm/libsql";');
       expect(dbFile).not.toContain("export const db = createDb();");
-      expect(authFile).toContain(
-        scenario.frontend === "nuxt"
-          ? "export function createAuth(env: CloudflareEnv)"
-          : "export function createAuth()",
-      );
+      expect(authFile).toContain("export function createAuth()");
       expect(authFile).not.toContain("export const auth = createAuth();");
       expect(envFile).toContain(scenario.envNeedle);
-      if (scenario.envAbsentNeedle) {
+      if ("envAbsentNeedle" in scenario && scenario.envAbsentNeedle) {
         expect(envFile).not.toContain(scenario.envAbsentNeedle);
       }
       for (const needle of scenario.routeNeedles) {
         expect(routeFile).toContain(needle);
       }
-      expect(contextFile).toContain(
-        scenario.frontend === "nuxt"
-          ? "createAuth(env).api.getSession"
-          : "createAuth().api.getSession",
-      );
-      expect(todoRouterFile).toContain(
-        scenario.frontend === "nuxt" ? "createDb(context.env)" : "createDb()",
-      );
-
-      if (scenario.frontend === "astro") {
-        const infraFile = files.get("packages/infra/alchemy.run.ts") ?? "";
-        const rootPackage = JSON.parse(files.get("package.json") ?? "{}") as {
-          scripts?: Record<string, string>;
-        };
-        expect(infraFile).toContain('Cloudflare.Website.Astro("web", {');
-        expect(infraFile.match(/SESSION: Cloudflare\.KV\.Namespace\("session"\)/g)).toHaveLength(1);
-        expect(infraFile.match(/IMAGES: Cloudflare\.Images\.Images\(\)/g)).toHaveLength(1);
-        expect(rootPackage.scripts?.["db:migrate:local"]).toBeUndefined();
-      }
-
-      if (scenario.frontend === "nuxt") {
-        const rootPackage = JSON.parse(files.get("package.json") ?? "{}") as {
-          scripts?: Record<string, string>;
-        };
-        expect(rootPackage.scripts?.["db:migrate:local"]).toBeUndefined();
-      }
+      expect(contextFile).toContain("createAuth().api.getSession");
+      expect(todoRouterFile).toContain("createDb()");
     });
   }
 

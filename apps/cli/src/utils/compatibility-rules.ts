@@ -120,6 +120,26 @@ export function validateSelfBackendCompatibility(
   return Result.ok(undefined);
 }
 
+export function validateNestRuntimeCompatibility(
+  providedFlags: Set<string>,
+  options: CLIInput,
+  config: Partial<ProjectConfig>,
+): ValidationResult {
+  const backend = config.backend || options.backend;
+  if (backend !== "nest") return Result.ok(undefined);
+
+  const runtime = config.runtime ?? options.runtime;
+  if (!runtime || runtime === "bun") return Result.ok(undefined);
+
+  if (!providedFlags.has("runtime") && !providedFlags.has("backend")) {
+    return Result.ok(undefined);
+  }
+
+  return validationErr(
+    `NestJS backend (--backend nest) requires Bun runtime (--runtime bun). Current runtime: ${runtime}. Node and Cloudflare Workers are not supported with Nest.`,
+  );
+}
+
 export function validateWorkersCompatibility(
   providedFlags: Set<string>,
   options: CLIInput,

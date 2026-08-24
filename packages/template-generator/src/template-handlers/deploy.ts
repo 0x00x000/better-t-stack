@@ -68,11 +68,7 @@ export async function processDeployTemplates(
       "tanstack-router": "react/tanstack-router",
       "tanstack-start": "react/tanstack-start",
       "react-router": "react/react-router",
-      solid: "solid",
       next: "react/next",
-      nuxt: "nuxt",
-      svelte: "svelte",
-      astro: "astro",
     } satisfies Record<string, string>;
 
     for (const f of config.frontend) {

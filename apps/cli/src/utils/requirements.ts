@@ -78,19 +78,9 @@ function getNodeToolingRequirements(config: RequirementConfig): VersionRequireme
 
   for (const frontend of config.frontend) {
     switch (frontend) {
-      case "astro":
-        addNodeRequirement(requirements, ">=22.12.0", "Astro 7");
-        break;
-      case "nuxt":
-        addNodeRequirement(requirements, "^22.19.0 || ^24.11.0 || >=26.0.0", "Nuxt 4");
-        break;
-      case "solid":
-        addNodeRequirement(requirements, ">=24.0.0", "Solid");
-        break;
       case "react-router":
         addNodeRequirement(requirements, ">=22.22.0", "React Router 8");
         break;
-      case "svelte":
       case "tanstack-router":
       case "tanstack-start":
         addNodeRequirement(requirements, "^20.19.0 || >=22.12.0", "Vite 8");
@@ -106,7 +96,7 @@ function getNodeToolingRequirements(config: RequirementConfig): VersionRequireme
     }
   }
 
-  if (!["none", "self", "convex"].includes(config.backend)) {
+  if (!["none", "self"].includes(config.backend)) {
     addNodeRequirement(
       requirements,
       "^22.18.0 || >=24.11.0",
@@ -139,10 +129,6 @@ function getNodeToolingRequirements(config: RequirementConfig): VersionRequireme
 
   if (config.addons.includes("vite-plus")) {
     addNodeRequirement(requirements, "^20.19.0 || ^22.18.0 || >=24.11.0", "Vite+");
-  }
-
-  if (config.addons.includes("starlight")) {
-    addNodeRequirement(requirements, ">=22.12.0", "Starlight's Astro toolchain");
   }
 
   if (config.addons.includes("wxt")) {

@@ -28,9 +28,6 @@ import { env } from "@{{projectName}}/env/server";
 export function createPrismaClient({{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}env: CloudflareEnv{{/if}}) {
 	const adapter = new PrismaLibSql({
 		url: env.DATABASE_URL,
-{{#if (eq dbSetup "turso")}}
-		authToken: env.DATABASE_AUTH_TOKEN || "",
-{{/if}}
 	});
 
 	return new PrismaClient({ adapter });

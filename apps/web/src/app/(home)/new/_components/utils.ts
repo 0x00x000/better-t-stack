@@ -191,6 +191,16 @@ export const analyzeStackCompatibility = (stack: StackState): CompatibilityResul
     }
   }
 
+  // Nest is bun-only — switch runtime before the Workers/Hono rule can overwrite nest.
+  if (nextStack.backend === "nest" && nextStack.runtime !== "bun") {
+    nextStack.runtime = "bun";
+    changed = true;
+    changes.push({
+      category: "backend",
+      message: "Runtime set to 'Bun' (required for NestJS)",
+    });
+  }
+
   // ============================================
   // RUNTIME CONSTRAINTS
   // ============================================
@@ -656,7 +666,12 @@ export const getDisabledReason = (
     ) {
       return "Requires TanStack Start frontend";
     }
-    if (currentStack.runtime === "workers" && optionId !== "hono" && optionId !== "none") {
+    if (
+      currentStack.runtime === "workers" &&
+      optionId !== "hono" &&
+      optionId !== "none" &&
+      optionId !== "nest"
+    ) {
       return "Workers runtime only works with Hono";
     }
   }
@@ -665,6 +680,9 @@ export const getDisabledReason = (
   // RUNTIME CONSTRAINTS
   // ============================================
   if (category === "runtime") {
+    if (currentStack.backend === "nest" && optionId !== "bun") {
+      return "NestJS requires Bun runtime";
+    }
     if (optionId === "workers" && currentStack.backend !== "hono") {
       return "Workers requires Hono backend";
     }

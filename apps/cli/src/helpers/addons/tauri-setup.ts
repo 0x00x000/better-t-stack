@@ -19,10 +19,7 @@ function getTauriDevUrl(frontend: Pick<ProjectConfig, "frontend">["frontend"]) {
 
   switch (webFrontend) {
     case "react-router":
-    case "svelte":
       return "http://localhost:5173";
-    case "astro":
-      return "http://localhost:4321";
     default:
       return "http://localhost:3001";
   }
@@ -38,10 +35,6 @@ function getTauriFrontendDist(frontend: Pick<ProjectConfig, "frontend">["fronten
       return "../dist/client";
     case "next":
       return "../out";
-    case "nuxt":
-      return "../.output/public";
-    case "svelte":
-      return "../build";
     default:
       return "../dist";
   }
@@ -51,9 +44,7 @@ function getTauriBeforeBuildCommand(
   packageManager: Pick<ProjectConfig, "packageManager">["packageManager"],
   frontend: Pick<ProjectConfig, "frontend">["frontend"],
 ) {
-  return frontend.includes("nuxt")
-    ? `${packageManager} run generate`
-    : `${packageManager} run build`;
+  return `${packageManager} run build`;
 }
 
 export function buildTauriInitArgs(

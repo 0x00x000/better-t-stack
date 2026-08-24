@@ -329,7 +329,6 @@ async function createProjectHandlerInternal(
         Result.tryPromise({
           try: async () =>
             gatherConfig(flagConfig, finalBaseName, finalResolvedPath, finalPathInput, {
-              skipCompatibilityChecks: cliInput.yolo,
               manualDb: cliInput.manualDb ?? input.manualDb,
             }),
           catch: (cause: unknown) => {

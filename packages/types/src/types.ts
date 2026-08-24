@@ -61,7 +61,7 @@ export type WebFrontend = Extract<
   "tanstack-router" | "react-router" | "tanstack-start" | "next" | "none"
 >;
 
-export type DesktopWebFrontend = Exclude<WebFrontend, "none" | "solid">;
+export type DesktopWebFrontend = Exclude<WebFrontend, "none">;
 
 export type NativeFrontend = Extract<
   Frontend,

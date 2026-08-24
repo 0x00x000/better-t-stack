@@ -11,6 +11,12 @@ export async function processBackendTemplates(
   if (config.backend === "none" || config.backend === "self") return;
 
   processTemplatesFromPrefix(vfs, templates, "backend/server/base", "apps/server", config);
+
+  // Nest uses Bun.build, not tsdown — DI tokens break if Nest packages are bundled.
+  if (config.backend === "nest") {
+    vfs.deleteFile("apps/server/tsdown.config.ts");
+  }
+
   processTemplatesFromPrefix(
     vfs,
     templates,

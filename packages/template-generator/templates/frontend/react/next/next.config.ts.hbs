@@ -7,16 +7,13 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
 	typedRoutes: true,
 	reactCompiler: true,
-	{{#if (or (includes addons "tauri") (and (includes addons "electrobun") (or (ne backend "convex") (ne auth "better-auth"))))}}
+	{{#if (or (includes addons "tauri") (includes addons "electrobun"))}}
 	output: "export",
 	{{else if (or (eq webDeploy "docker") (eq webDeploy "prisma"))}}
 	output: "standalone",
 	{{/if}}
 	{{#if (includes examples "ai")}}
 	transpilePackages: ["shiki"],
-	{{/if}}
-	{{#if (and (eq backend "self") (eq dbSetup "turso"))}}
-	serverExternalPackages: ["libsql", "@libsql/client"],
 	{{/if}}
 };
 

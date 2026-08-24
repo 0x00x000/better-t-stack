@@ -56,7 +56,7 @@ const baseConfig = {
 
 const buildSamples: BuildSample[] = [
   {
-    name: "hono-trpc-drizzle-todo",
+    name: "hono-orpc-drizzle-todo",
     packageManagers: ["bun", "npm", "pnpm"],
     config: {
       ...baseConfig,
@@ -89,7 +89,7 @@ const buildSamples: BuildSample[] = [
     },
   },
   {
-    name: "nuxt-orpc",
+    name: "tanstack-router-orpc",
     config: {
       ...baseConfig,
       frontend: ["tanstack-router"],
@@ -105,7 +105,7 @@ const buildSamples: BuildSample[] = [
     },
   },
   {
-    name: "convex-clerk-react",
+    name: "tanstack-router-better-auth",
     config: {
       ...baseConfig,
       frontend: ["tanstack-router"],
@@ -121,7 +121,7 @@ const buildSamples: BuildSample[] = [
     },
   },
   {
-    name: "react-router-clerk-fastify",
+    name: "react-router-better-auth-hono",
     config: {
       ...baseConfig,
       frontend: ["react-router"],
@@ -137,7 +137,7 @@ const buildSamples: BuildSample[] = [
     },
   },
   {
-    name: "tanstack-start-clerk-hono",
+    name: "tanstack-start-better-auth-hono",
     config: {
       ...baseConfig,
       frontend: ["tanstack-start"],
@@ -153,7 +153,7 @@ const buildSamples: BuildSample[] = [
     },
   },
   {
-    name: "expo-clerk-express",
+    name: "expo-better-auth-hono",
     config: {
       ...baseConfig,
       frontend: ["native-uniwind"],
@@ -169,7 +169,7 @@ const buildSamples: BuildSample[] = [
     },
   },
   {
-    name: "workers-clerk-hono",
+    name: "workers-better-auth-hono",
     config: {
       ...baseConfig,
       frontend: ["tanstack-router"],
@@ -204,7 +204,7 @@ const buildSamples: BuildSample[] = [
     },
   },
   {
-    name: "mongo-mongoose-express",
+    name: "mongo-mongoose-hono",
     config: {
       ...baseConfig,
       frontend: ["tanstack-router"],

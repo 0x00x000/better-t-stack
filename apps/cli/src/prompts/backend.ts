@@ -35,6 +35,11 @@ export async function getBackendFrameworkChoice(
       hint: "Lightweight, ultrafast web framework",
     },
     {
+      value: "nest" as const,
+      label: "NestJS",
+      hint: "Opinionated Node framework with modules and DI",
+    },
+    {
       value: "none" as const,
       label: "None",
       hint: "No backend server",

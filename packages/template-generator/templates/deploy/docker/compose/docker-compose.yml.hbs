@@ -6,17 +6,9 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
-{{#if (or (and (ne backend "self") (ne backend "none") (ne backend "convex")) (eq backend "convex") (and (eq auth "clerk") (or (includes frontend "next") (includes frontend "react-router") (includes frontend "tanstack-router") (includes frontend "tanstack-start"))))}}
+{{#if (and (ne backend "self") (ne backend "none"))}}
       args:
-{{#if (and (ne backend "self") (ne backend "none") (ne backend "convex"))}}
-        {{#if (includes frontend "next")}}NEXT_PUBLIC_SERVER_URL{{else if (includes frontend "nuxt")}}NUXT_PUBLIC_SERVER_URL{{else if (or (includes frontend "svelte") (includes frontend "astro"))}}PUBLIC_SERVER_URL{{else}}VITE_SERVER_URL{{/if}}: http://localhost:3000
-{{/if}}
-{{#if (eq backend "convex")}}
-        {{#if (includes frontend "next")}}NEXT_PUBLIC_CONVEX_URL: ${NEXT_PUBLIC_CONVEX_URL:-}{{else if (or (includes frontend "svelte") (includes frontend "astro"))}}PUBLIC_CONVEX_URL: ${PUBLIC_CONVEX_URL:-}{{else}}VITE_CONVEX_URL: ${VITE_CONVEX_URL:-}{{/if}}
-{{/if}}
-{{#if (and (eq auth "clerk") (or (includes frontend "next") (includes frontend "react-router") (includes frontend "tanstack-router") (includes frontend "tanstack-start")))}}
-        {{#if (includes frontend "next")}}NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}{{else}}VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:-}{{/if}}
-{{/if}}
+        {{#if (includes frontend "next")}}NEXT_PUBLIC_SERVER_URL{{else}}VITE_SERVER_URL{{/if}}: http://localhost:3000
 {{/if}}
     init: true
     ports:
@@ -67,9 +59,6 @@ services:
       SERVER_URL: http://server:3000
 {{#if (includes frontend "next")}}
       NEXT_PUBLIC_SERVER_URL: http://server:3000
-{{/if}}
-{{#if (includes frontend "nuxt")}}
-      NUXT_SERVER_URL: http://server:3000
 {{/if}}
 {{/unless}}
     depends_on:

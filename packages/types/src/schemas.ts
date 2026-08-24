@@ -6,7 +6,7 @@ export const DatabaseSchema = z
 
 export const ORMSchema = z.enum(["drizzle", "prisma", "mongoose", "none"]).describe("ORM type");
 
-export const BackendSchema = z.enum(["hono", "self", "none"]).describe("Backend framework");
+export const BackendSchema = z.enum(["hono", "nest", "self", "none"]).describe("Backend framework");
 
 export const RuntimeSchema = z
   .enum(["bun", "node", "workers", "none"])
@@ -162,6 +162,8 @@ export const SkillsSourceSchema = z
     "vercel/ai",
     "vercel/turborepo",
     "yusukebe/hono-skill",
+    "anasx7/skills",
+    "0x00x000/skills",
     "vercel-labs/next-skills",
     "heroui-inc/heroui",
     "shadcn/ui",

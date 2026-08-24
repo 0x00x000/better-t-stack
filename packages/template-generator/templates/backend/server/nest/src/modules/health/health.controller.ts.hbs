@@ -1,0 +1,10 @@
+import { Controller, Get, Header } from "@nestjs/common";
+
+@Controller()
+export class HealthController {
+  @Get()
+  @Header("Content-Type", "text/plain; charset=utf-8")
+  health(): string {
+    return "OK";
+  }
+}

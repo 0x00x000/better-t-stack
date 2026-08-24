@@ -102,6 +102,36 @@ describe("Input schemas", () => {
     expect(result.success).toBe(false);
   });
 
+  it("accepts nest as a backend and nest skill sources", () => {
+    const backendResult = CreateInputSchema.safeParse({
+      projectName: "app",
+      backend: "nest",
+      runtime: "bun",
+    });
+
+    expect(backendResult.success).toBe(true);
+
+    const skillsResult = CreateInputSchema.safeParse({
+      projectName: "app",
+      addonOptions: {
+        skills: {
+          selections: [
+            {
+              source: "anasx7/skills",
+              skills: ["nestjs-better-auth"],
+            },
+            {
+              source: "0x00x000/skills",
+              skills: ["nestjs-modular-monolith"],
+            },
+          ],
+        },
+      },
+    });
+
+    expect(skillsResult.success).toBe(true);
+  });
+
   it("accepts the evlog agent skills source in addon options", () => {
     const result = CreateInputSchema.safeParse({
       projectName: "app",

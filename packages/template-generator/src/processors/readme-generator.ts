@@ -13,9 +13,6 @@ function getDesktopStaticBuildNote(frontend: ProjectConfig["frontend"]): string 
   const staticBuildFrontends = new Map([
     ["tanstack-start", "TanStack Start"],
     ["next", "Next.js"],
-    ["nuxt", "Nuxt"],
-    ["svelte", "SvelteKit"],
-    ["astro", "Astro"],
   ]);
 
   const staticBuildFrontend = frontend.find((value) => staticBuildFrontends.has(value));
@@ -28,106 +25,6 @@ function getDesktopStaticBuildNote(frontend: ProjectConfig["frontend"]): string 
   )} needs a static/export build configuration before desktop packaging will work.`;
 }
 
-function getClerkQuickstartUrl(frontend: ProjectConfig["frontend"]): string {
-  if (frontend.includes("next")) return "https://clerk.com/docs/nextjs/getting-started/quickstart";
-  if (frontend.includes("react-router")) {
-    return "https://clerk.com/docs/react-router/getting-started/quickstart";
-  }
-  if (frontend.includes("tanstack-start")) {
-    return "https://clerk.com/docs/tanstack-react-start/getting-started/quickstart";
-  }
-  if (frontend.includes("tanstack-router")) {
-    return "https://clerk.com/docs/react/getting-started/quickstart";
-  }
-  if (
-    frontend.includes("native-bare") ||
-    frontend.includes("native-uniwind") ||
-    frontend.includes("native-unistyles")
-  ) {
-    return "https://clerk.com/docs/expo/getting-started/quickstart";
-  }
-
-  return "https://clerk.com/docs";
-}
-
-function getClerkFrontendEnvLines(frontend: ProjectConfig["frontend"]): string[] {
-  const lines: string[] = [];
-
-  if (frontend.includes("next")) {
-    lines.push("- Set `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` in `apps/web/.env`");
-  }
-
-  if (
-    frontend.some((value) => ["react-router", "tanstack-router", "tanstack-start"].includes(value))
-  ) {
-    lines.push("- Set `VITE_CLERK_PUBLISHABLE_KEY` in `apps/web/.env`");
-  }
-
-  if (
-    frontend.some((value) => ["native-bare", "native-uniwind", "native-unistyles"].includes(value))
-  ) {
-    lines.push("- Set `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` in `apps/native/.env`");
-  }
-
-  return lines;
-}
-
-function getClerkSetupLines(
-  frontend: ProjectConfig["frontend"],
-  backend: ProjectConfig["backend"],
-  api: ProjectConfig["api"],
-  isConvex: boolean,
-): string[] {
-  const lines = getClerkFrontendEnvLines(frontend);
-  const hasClerkServerFrontend = frontend.some((value) =>
-    ["next", "react-router", "tanstack-start"].includes(value),
-  );
-
-  if (isConvex) {
-    return [
-      "- Set `CLERK_JWT_ISSUER_DOMAIN` in Convex Dashboard",
-      ...lines,
-      ...(hasClerkServerFrontend
-        ? ["- Set `CLERK_SECRET_KEY` in `apps/web/.env` for Clerk server middleware"]
-        : []),
-    ];
-  }
-
-  const serverEnvPath = backend === "self" ? "apps/web/.env" : "apps/server/.env";
-  const needsServerSideClerkAuth = backend !== "none";
-  const needsClerkBackendPublishableKey = ["express", "fastify"].includes(backend);
-  const needsClerkRequestVerification =
-    api !== "none" && ["self", "hono", "elysia"].includes(backend);
-
-  if (hasClerkServerFrontend && backend === "self") {
-    lines.push(
-      "- Set `CLERK_SECRET_KEY` in `apps/web/.env` for Clerk server middleware and server-side Clerk auth",
-    );
-  } else {
-    if (hasClerkServerFrontend) {
-      lines.push("- Set `CLERK_SECRET_KEY` in `apps/web/.env` for Clerk server middleware");
-    }
-
-    if (needsServerSideClerkAuth) {
-      lines.push(`- Set \`CLERK_SECRET_KEY\` in \`${serverEnvPath}\` for server-side Clerk auth`);
-    }
-  }
-
-  if (needsClerkRequestVerification) {
-    lines.push(
-      `- Set \`CLERK_PUBLISHABLE_KEY\` in \`${serverEnvPath}\` for server-side Clerk request verification`,
-    );
-  }
-
-  if (needsClerkBackendPublishableKey) {
-    lines.push(
-      `- Set \`CLERK_PUBLISHABLE_KEY\` in \`${serverEnvPath}\` for Clerk backend middleware`,
-    );
-  }
-
-  return lines;
-}
-
 function hasNativeFrontend(frontend: ProjectConfig["frontend"]): boolean {
   return frontend.some((value) =>
     ["native-bare", "native-uniwind", "native-unistyles"].includes(value),
@@ -136,16 +33,7 @@ function hasNativeFrontend(frontend: ProjectConfig["frontend"]): boolean {
 
 function hasWebFrontend(frontend: ProjectConfig["frontend"]): boolean {
   return frontend.some((value) =>
-    [
-      "tanstack-router",
-      "react-router",
-      "tanstack-start",
-      "next",
-      "svelte",
-      "nuxt",
-      "solid",
-      "astro",
-    ].includes(value),
+    ["tanstack-router", "react-router", "tanstack-start", "next"].includes(value),
   );
 }
 
@@ -165,25 +53,20 @@ function generateReadmeContent(options: ProjectConfig): string {
     runtime = "bun",
     frontend = ["tanstack-router"],
     backend = "hono",
-    api = "trpc",
+    api = "orpc",
     dbSetup,
     webDeploy,
     serverDeploy,
   } = options;
 
-  const isConvex = backend === "convex";
   const hasReactRouter = frontend.includes("react-router");
   const hasNative = hasNativeFrontend(frontend);
   const hasReactWeb = frontend.some((f) =>
     ["tanstack-router", "react-router", "tanstack-start", "next"].includes(f),
   );
-  const hasSvelte = frontend.includes("svelte");
-  const hasAstro = frontend.includes("astro");
   const packageManagerRunCmd = `${packageManager} run`;
-  // TanStack Router/Start, Next, Nuxt and Solid all dev on 3001; only React Router and SvelteKit use Vite's default 5173.
-  const webPort = hasReactRouter || hasSvelte ? "5173" : hasAstro ? "4321" : "3001";
-
-  const stackDescription = generateStackDescription(frontend, backend, api, isConvex);
+  const webPort = hasReactRouter ? "5173" : "3001";
+  const stackDescription = generateStackDescription(frontend, backend, api);
 
   return `# ${projectName}
 
@@ -202,40 +85,7 @@ First, install the dependencies:
 \`\`\`bash
 ${packageManager} install
 \`\`\`
-${
-  isConvex
-    ? `
-## Convex Setup
-
-This project uses Convex as a backend. You'll need to set up Convex before running the app:
-
-\`\`\`bash
-${packageManagerRunCmd} dev:setup
-\`\`\`
-
-Follow the prompts to create a new Convex project and connect it to your application.
-
-Copy environment variables from \`packages/backend/.env.local\` to \`apps/*/.env\`.
-${
-  auth === "clerk"
-    ? `
-### Clerk Authentication Setup
-
-- Follow the guide: [Convex + Clerk](https://docs.convex.dev/auth/clerk)
-${getClerkSetupLines(frontend, backend, api, true).join("\n")}`
-    : ""
-}`
-    : generateDatabaseSetup(options, packageManagerRunCmd)
-}
-${
-  !isConvex && auth === "clerk"
-    ? `
-## Clerk Authentication Setup
-
-- Follow the guide: [Clerk Quickstart](${getClerkQuickstartUrl(frontend)})
-${getClerkSetupLines(frontend, backend, api, false).join("\n")}`
-    : ""
-}
+${generateDatabaseSetup(options, packageManagerRunCmd)}
 
 Then, run the development server:
 
@@ -243,7 +93,7 @@ Then, run the development server:
 ${packageManagerRunCmd} dev
 \`\`\`
 
-${generateRunningInstructions(frontend, backend, webPort, hasNative, isConvex)}
+${generateRunningInstructions(frontend, backend, webPort, hasNative)}
 ${generateReactUiSection(hasReactWeb, projectName)}
 ${
   addons.includes("pwa") && hasReactRouter
@@ -282,7 +132,6 @@ function generateStackDescription(
   frontend: ProjectConfig["frontend"],
   backend: ProjectConfig["backend"],
   api: ProjectConfig["api"],
-  isConvex: boolean,
 ): string {
   const parts: string[] = [];
 
@@ -291,10 +140,6 @@ function generateStackDescription(
     "react-router": "React, React Router",
     next: "Next.js",
     "tanstack-start": "React, TanStack Start",
-    svelte: "SvelteKit",
-    nuxt: "Nuxt",
-    solid: "Solid",
-    astro: "Astro",
     "native-bare": "React Native, Expo",
     "native-uniwind": "React Native, Expo",
     "native-unistyles": "React Native, Expo",
@@ -311,7 +156,7 @@ function generateStackDescription(
     parts.push((backend[0]?.toUpperCase() ?? "") + backend.slice(1));
   }
 
-  if (!isConvex && api !== "none") {
+  if (api !== "none") {
     parts.push(api.toUpperCase());
   }
 
@@ -323,7 +168,6 @@ function generateRunningInstructions(
   backend: ProjectConfig["backend"],
   webPort: string,
   hasNative: boolean,
-  isConvex: boolean,
 ): string {
   const instructions: string[] = [];
   const hasAppWebFrontend = hasWebFrontend(frontend);
@@ -340,9 +184,7 @@ function generateRunningInstructions(
     instructions.push("Use the Expo Go app to run the mobile application.");
   }
 
-  if (isConvex) {
-    instructions.push("Your app will connect to the Convex cloud backend automatically.");
-  } else if (backend !== "none" && !isBackendSelf) {
+  if (backend !== "none" && !isBackendSelf) {
     instructions.push("The API is running at [http://localhost:3000](http://localhost:3000).");
   }
 
@@ -382,8 +224,7 @@ If you want to add app-specific blocks instead of shared primitives, run the sha
 }
 
 function generateProjectStructure(config: ProjectConfig): string {
-  const { projectName, frontend, backend, addons, api, auth, database, orm } = config;
-  const isConvex = backend === "convex";
+  const { projectName, frontend, backend, api, auth, database, orm } = config;
   const structure: string[] = [`${projectName}/`, "├── apps/"];
   const hasAppWebFrontend = hasWebFrontend(frontend);
   const isBackendSelf = backend === "self";
@@ -391,7 +232,7 @@ function generateProjectStructure(config: ProjectConfig): string {
     ["tanstack-router", "react-router", "tanstack-start", "next"].includes(f),
   );
   const hasNative = hasNativeFrontend(frontend);
-  const hasDbPackage = !isConvex && database !== "none" && orm !== "none";
+  const hasDbPackage = database !== "none" && orm !== "none";
 
   if (hasAppWebFrontend) {
     const frontendTypes = {
@@ -399,10 +240,6 @@ function generateProjectStructure(config: ProjectConfig): string {
       "react-router": "React + React Router",
       next: "Next.js",
       "tanstack-start": "React + TanStack Start",
-      svelte: "SvelteKit",
-      nuxt: "Nuxt",
-      solid: "Solid",
-      astro: "Astro",
     } satisfies Record<string, string>;
     let frontendType = "";
     for (const selectedFrontend of frontend) {
@@ -421,44 +258,28 @@ function generateProjectStructure(config: ProjectConfig): string {
     structure.push("│   ├── native/      # Mobile application (React Native, Expo)");
   }
 
-  if (addons.includes("starlight")) {
-    structure.push("│   ├── docs/        # Documentation site (Astro Starlight)");
-  }
-
-  if (!isBackendSelf && backend !== "none" && !isConvex) {
+  if (!isBackendSelf && backend !== "none") {
     const backendName = (backend[0]?.toUpperCase() ?? "") + backend.slice(1);
     const apiName = api !== "none" ? api.toUpperCase() : "";
     const desc = apiName ? `${backendName}, ${apiName}` : backendName;
     structure.push(`│   └── server/      # Backend API (${desc})`);
   }
 
-  if (isConvex || backend !== "none" || hasReactWeb) {
+  if (backend !== "none" || hasReactWeb) {
     structure.push("├── packages/");
 
     if (hasReactWeb) {
       structure.push("│   ├── ui/          # Shared shadcn/ui components and styles");
     }
 
-    if (isConvex) {
-      structure.push("│   ├── backend/     # Convex backend functions and schema");
-      if (auth === "clerk") {
-        structure.push(
-          "│   │   ├── convex/    # Convex functions and schema",
-          "│   │   └── .env.local # Convex environment variables",
-        );
-      }
+    if (api !== "none") {
+      structure.push("│   ├── api/         # API layer / business logic");
     }
-
-    if (!isConvex) {
-      if (api !== "none") {
-        structure.push("│   ├── api/         # API layer / business logic");
-      }
-      if (auth === "better-auth") {
-        structure.push("│   ├── auth/        # Authentication configuration & logic");
-      }
-      if (hasDbPackage) {
-        structure.push("│   └── db/          # Database schema & queries");
-      }
+    if (auth === "better-auth") {
+      structure.push("│   ├── auth/        # Authentication configuration & logic");
+    }
+    if (hasDbPackage) {
+      structure.push("│   └── db/          # Database schema & queries");
     }
   }
 
@@ -476,7 +297,6 @@ function generateFeaturesList(
   api: ProjectConfig["api"],
   dbSetup: ProjectConfig["dbSetup"],
 ): string {
-  const isConvex = backend === "convex";
   const hasNative = hasNativeFrontend(frontend);
   const hasAppWebFrontend = hasWebFrontend(frontend);
   const hasReactWeb = frontend.some((f) =>
@@ -491,10 +311,6 @@ function generateFeaturesList(
     "react-router": "- **React Router** - Declarative routing for React",
     next: "- **Next.js** - Full-stack React framework",
     "tanstack-start": "- **TanStack Start** - SSR framework with TanStack Router",
-    svelte: "- **SvelteKit** - Web framework for building Svelte apps",
-    nuxt: "- **Nuxt** - The Intuitive Vue Framework",
-    solid: "- **Solid** - Solid application with file-based routing and SSR",
-    astro: "- **Astro** - The web framework for content-driven websites",
   } satisfies Record<string, string>;
 
   for (const fe of frontend) {
@@ -520,36 +336,31 @@ function generateFeaturesList(
   }
 
   const backendFeatures = {
-    convex: "- **Convex** - Reactive backend-as-a-service platform",
     hono: "- **Hono** - Lightweight, performant server framework",
-    express: "- **Express** - Fast, unopinionated web framework",
-    fastify: "- **Fastify** - Fast, low-overhead web framework",
-    elysia: "- **Elysia** - Type-safe, high-performance framework",
+    nest: "- **NestJS** - Progressive Node.js framework",
   } satisfies Record<string, string>;
 
   if (hasOwnKey(backendFeatures, backend)) {
     features.push(backendFeatures[backend]);
   }
 
-  if (!isConvex && api === "trpc") {
-    features.push("- **tRPC** - End-to-end type-safe APIs");
-  } else if (!isConvex && api === "orpc") {
+  if (api === "orpc") {
     features.push("- **oRPC** - End-to-end type-safe APIs with OpenAPI integration");
   }
 
-  if (!isConvex && backend !== "none" && runtime !== "none") {
+  if (backend !== "none" && runtime !== "none") {
     const runtimeName = runtime === "bun" ? "Bun" : runtime === "node" ? "Node.js" : runtime;
     features.push(`- **${runtimeName}** - Runtime environment`);
   }
 
-  if (database !== "none" && !isConvex) {
+  if (database !== "none") {
     const ormNames = {
       drizzle: "Drizzle",
       prisma: "Prisma",
       mongoose: "Mongoose",
     } satisfies Record<string, string>;
     const dbNames = {
-      sqlite: dbSetup === "d1" ? "Cloudflare D1" : "SQLite/Turso",
+      sqlite: dbSetup === "d1" ? "Cloudflare D1" : "SQLite",
       postgres: "PostgreSQL",
       mysql: "MySQL",
       mongodb: "MongoDB",
@@ -560,8 +371,7 @@ function generateFeaturesList(
   }
 
   if (auth !== "none") {
-    const authLabel = auth === "clerk" ? "Clerk" : "Better-Auth";
-    features.push(`- **Authentication** - ${authLabel}`);
+    features.push("- **Authentication** - Better Auth");
   }
 
   const addonFeatures = {
@@ -571,7 +381,6 @@ function generateFeaturesList(
     biome: "- **Biome** - Linting and formatting",
     oxlint: "- **Oxlint** - Oxlint + Oxfmt (linting & formatting)",
     husky: "- **Husky** - Git hooks for code quality",
-    starlight: "- **Starlight** - Documentation site with Astro",
     turborepo: "- **Turborepo** - Optimized monorepo build system",
     nx: "- **Nx** - Smart monorepo task orchestration and caching",
     "vite-plus":
@@ -607,24 +416,15 @@ function generateDatabaseSetup(config: ProjectConfig, packageManagerRunCmd: stri
   let setup = "## Database Setup\n\n";
 
   if (isAlchemyManagedDatabase) {
-    const provider =
-      dbSetup === "prisma-postgres"
-        ? "Prisma Postgres"
-        : dbSetup === "planetscale"
-          ? "PlanetScale"
-          : "Neon";
+    const provider = dbSetup === "prisma-postgres" ? "Prisma Postgres" : "Neon";
     const migrationWorkflow =
       orm === "prisma"
         ? `The scaffold includes an initial Prisma migration when generated models need one. Create and commit later migrations with \`${packageManagerRunCmd} db:migrate\`; deployment applies checked-in migrations with \`prisma migrate deploy\`.`
         : `Generate and commit migration SQL with \`${packageManagerRunCmd} db:generate\`. Deployment applies checked-in migrations after provisioning the database.`;
-    const costNote =
-      dbSetup === "planetscale"
-        ? "\n\nThe generated PlanetScale resource uses the `PS_DEV` size. PlanetScale may charge for this database; adjust `clusterSize` in `packages/infra/alchemy.run.ts` before deployment if needed."
-        : "";
 
     return `${setup}Alchemy provisions ${provider}, passes its connection credentials directly to the deployed application, and manages database deployment in the same stack as the consuming app. You do not need to copy a hosted \`DATABASE_URL\` into the app environment.
 
-${migrationWorkflow}${costNote}
+${migrationWorkflow}
 `;
   }
 
@@ -718,19 +518,9 @@ function generateScriptsList(
   hasNative: boolean,
 ): string {
   const { database, addons, backend, dbSetup, frontend, webDeploy, serverDeploy } = config;
-  const isConvex = backend === "convex";
   const isBackendSelf = backend === "self";
   const hasWeb = frontend.some((f) =>
-    [
-      "tanstack-router",
-      "react-router",
-      "tanstack-start",
-      "next",
-      "nuxt",
-      "svelte",
-      "solid",
-      "astro",
-    ].includes(f),
+    ["tanstack-router", "react-router", "tanstack-start", "next"].includes(f),
   );
   const dbSupport = getDbScriptSupport(config);
 
@@ -741,9 +531,7 @@ function generateScriptsList(
     scripts += `\n- \`${packageManagerRunCmd} dev:web\`: Start only the web application`;
   }
 
-  if (isConvex) {
-    scripts += `\n- \`${packageManagerRunCmd} dev:setup\`: Setup and configure your Convex project`;
-  } else if (backend !== "none" && !isBackendSelf) {
+  if (backend !== "none" && !isBackendSelf) {
     scripts += `\n- \`${packageManagerRunCmd} dev:server\`: Start only the server`;
   }
 
@@ -810,11 +598,6 @@ function generateScriptsList(
     if (staticBuildNote) {
       scripts += `\n- Note: ${staticBuildNote}`;
     }
-  }
-
-  if (addons.includes("starlight")) {
-    scripts += `\n- \`cd apps/docs && ${packageManagerRunCmd} dev\`: Start documentation site
-- \`cd apps/docs && ${packageManagerRunCmd} build\`: Build documentation site`;
   }
 
   if (webDeploy === "docker" || serverDeploy === "docker") {

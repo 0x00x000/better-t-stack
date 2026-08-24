@@ -40,10 +40,6 @@ describe("Alchemy providers", () => {
       { frontend: "react-router", port: 5173 },
       { frontend: "tanstack-start", port: 3001 },
       { frontend: "next", port: 3001 },
-      { frontend: "nuxt", port: 3001 },
-      { frontend: "svelte", port: 5173 },
-      { frontend: "solid", port: 3001 },
-      { frontend: "astro", port: 4321 },
     ] as const;
 
     for (const scenario of scenarios) {
@@ -53,7 +49,7 @@ describe("Alchemy providers", () => {
       });
       const infra = files.get("packages/infra/alchemy.run.ts") ?? "";
 
-      if (scenario.frontend === "next" || scenario.frontend === "svelte") {
+      if (scenario.frontend === "next") {
         expect(infra).toContain(`url: "http://localhost:${scenario.port}"`);
       } else {
         expect(infra).toContain(`dev: {\n        port: ${scenario.port},\n      }`);
@@ -64,7 +60,7 @@ describe("Alchemy providers", () => {
   it("keeps self-hosted applications same-origin", async () => {
     const cloudflareFiles = await generate({
       projectName: "cloudflare-self-origin",
-      frontend: ["solid"],
+      frontend: ["tanstack-start"],
       backend: "self",
       runtime: "none",
       webDeploy: "cloudflare",
@@ -72,7 +68,7 @@ describe("Alchemy providers", () => {
     });
     const prismaFiles = await generate({
       projectName: "prisma-self-origin",
-      frontend: ["solid"],
+      frontend: ["tanstack-start"],
       backend: "self",
       runtime: "none",
       webDeploy: "prisma",
@@ -89,16 +85,18 @@ describe("Alchemy providers", () => {
   });
 
   it("rejects OpenNext combinations that are broken in the current release", async () => {
-    const nextPlanetScalePostgres = await createVirtual({
+    const nextGenericPostgres = await createVirtual({
       ...baseConfig,
-      projectName: "next-planetscale-postgres-blocked",
+      projectName: "next-generic-postgres-blocked",
       backend: "self",
       runtime: "none",
       serverDeploy: "none",
-      dbSetup: "planetscale",
+      database: "postgres",
+      orm: "prisma",
+      dbSetup: "none",
     });
-    expect(nextPlanetScalePostgres.isErr()).toBe(true);
-    expect(nextPlanetScalePostgres.isErr() && nextPlanetScalePostgres.error.message).toContain(
+    expect(nextGenericPostgres.isErr()).toBe(true);
+    expect(nextGenericPostgres.isErr() && nextGenericPostgres.error.message).toContain(
       "OpenNext does not preserve pg-cloudflare's workerd files",
     );
   });
@@ -115,7 +113,7 @@ describe("Alchemy providers", () => {
     expect(
       usesAlchemyManagedDatabase({
         backend: "hono",
-        dbSetup: "planetscale",
+        dbSetup: "neon",
         webDeploy: "none",
         serverDeploy: "cloudflare",
       }),
@@ -151,7 +149,6 @@ describe("Alchemy providers", () => {
   it("keeps Alchemy compute while allowing externally provisioned databases", async () => {
     const combinations = [
       { dbSetup: "neon", mode: "auto", providerResource: "Neon.Project" },
-      { dbSetup: "planetscale", mode: "manual", providerResource: "Planetscale.PostgresDatabase" },
       { dbSetup: "prisma-postgres", mode: "auto", providerResource: "Prisma.Postgres" },
     ] as const;
 
@@ -209,33 +206,6 @@ describe("Alchemy providers", () => {
     });
   });
 
-  it("uses PlanetScale Postgres migrations and a least-privilege runtime role", async () => {
-    const files = await generate({
-      projectName: "planetscale-postgres-drizzle",
-      orm: "drizzle",
-      dbSetup: "planetscale",
-      frontend: ["tanstack-router"],
-    });
-    const infra = files.get("packages/infra/alchemy.run.ts") ?? "";
-    const dbSource = files.get("packages/db/src/index.ts") ?? "";
-    const dbPackage = JSON.parse(files.get("packages/db/package.json") ?? "{}") as {
-      dependencies?: Record<string, string>;
-    };
-    const readme = files.get("README.md") ?? "";
-
-    expect(infra).toContain('Planetscale.PostgresDatabase("database"');
-    expect(infra).toContain('clusterSize: "PS_DEV"');
-    expect(infra).toContain('migrationsDir: "../../packages/db/src/migrations"');
-    expect(infra).toContain('inheritedRoles: ["pg_read_all_data", "pg_write_all_data"]');
-    expect(infra).not.toContain('Command.Exec("database-migrations"');
-    expect(dbSource).toContain("drizzle-orm/postgres-js");
-    expect(dbSource).toContain('from "postgres"');
-    expect(dbPackage.dependencies?.postgres).toBe("^3.4.9");
-    expect(dbPackage.dependencies?.pg).toBeUndefined();
-    expect(readme).toContain("PS_DEV");
-    expect(readme).toContain("may charge for this database");
-  });
-
   it("does not emit Prisma-only Neon migration credentials for Drizzle", async () => {
     const files = await generate({
       projectName: "neon-drizzle-prisma-web",
@@ -244,57 +214,13 @@ describe("Alchemy providers", () => {
       backend: "self",
       runtime: "none",
       orm: "drizzle",
-      frontend: ["solid"],
+      frontend: ["tanstack-start"],
     });
     const infra = files.get("packages/infra/alchemy.run.ts") ?? "";
 
     expect(infra).toContain("database.pooledConnectionUri.pipe(Output.map(Redacted.make))");
     expect(infra).not.toContain("database.connectionUri");
     expect(infra).not.toContain("migrationUrl");
-  });
-
-  it("does not import Prisma-only Redacted helpers for PlanetScale MySQL with Drizzle", async () => {
-    const files = await generate({
-      projectName: "planetscale-mysql-drizzle",
-      database: "mysql",
-      orm: "drizzle",
-      dbSetup: "planetscale",
-      frontend: ["tanstack-router"],
-    });
-    const infra = files.get("packages/infra/alchemy.run.ts") ?? "";
-
-    expect(infra).toContain('Planetscale.MySQLDatabase("database"');
-    expect(infra).not.toContain('import * as Redacted from "effect/Redacted"');
-    expect(infra).not.toContain("migrationUrl");
-  });
-
-  it("creates separate PlanetScale MySQL runtime and migration credentials", async () => {
-    const files = await generate({
-      projectName: "planetscale-mysql-prisma",
-      webDeploy: "prisma",
-      serverDeploy: "none",
-      backend: "self",
-      runtime: "none",
-      database: "mysql",
-      orm: "prisma",
-      dbSetup: "planetscale",
-      frontend: ["solid"],
-    });
-    const infra = files.get("packages/infra/alchemy.run.ts") ?? "";
-    const readme = files.get("README.md") ?? "";
-
-    expect(infra).toContain('Planetscale.MySQLDatabase("database"');
-    expect(infra).toContain('role: "readwriter"');
-    expect(infra).toContain('role: "admin"');
-    expect(infra).toContain("ttl: 600");
-    expect(infra).toContain("Output.all(");
-    expect(infra).toContain("Redacted.value(secret)");
-    expect(infra).toContain("?sslaccept=strict");
-    expect(infra).toContain('export const web = Prisma.Compute("web"');
-    expect(infra).toContain('entrypoint: "server/index.mjs"');
-    expect(files.has("packages/db/prisma/migrations/0000_init/migration.sql")).toBe(true);
-    expect(readme).toContain("web on Prisma");
-    expect(readme).not.toContain("Prisma Compute");
   });
 
   it("provisions Prisma Postgres and narrows optional provider URLs once", async () => {
@@ -305,7 +231,7 @@ describe("Alchemy providers", () => {
       backend: "self",
       runtime: "none",
       dbSetup: "prisma-postgres",
-      frontend: ["solid"],
+      frontend: ["tanstack-start"],
     });
     const infra = files.get("packages/infra/alchemy.run.ts") ?? "";
     const webVite = files.get("apps/web/vite.config.ts") ?? "";
@@ -341,12 +267,7 @@ describe("Alchemy providers", () => {
   });
 
   it("preserves Prisma WASM modules across Cloudflare framework builds", async () => {
-    const frameworkConfigs = [
-      ["nuxt", "apps/web/nuxt.config.ts"],
-      ["svelte", "apps/web/vite.config.ts"],
-      ["solid", "apps/web/vite.config.ts"],
-      ["tanstack-start", "apps/web/vite.config.ts"],
-    ] as const;
+    const frameworkConfigs = [["tanstack-start", "apps/web/vite.config.ts"]] as const;
 
     for (const [frontend, configPath] of frameworkConfigs) {
       const files = await generate({
@@ -359,7 +280,6 @@ describe("Alchemy providers", () => {
         frontend: [frontend],
       });
       const frameworkConfig = files.get(configPath) ?? "";
-      const nuxtServerPlugin = files.get("apps/web/app/plugins/orpc.server.ts") ?? "";
       const webPackage = JSON.parse(files.get("apps/web/package.json") ?? "{}") as {
         devDependencies?: Record<string, string>;
       };
@@ -367,46 +287,7 @@ describe("Alchemy providers", () => {
       expect(frameworkConfig).toContain('from "unwasm/plugin"');
       expect(frameworkConfig).toContain("unwasm({ esmImport: true })");
       expect(webPackage.devDependencies?.unwasm).toBe("^0.6.0");
-
-      if (frontend === "nuxt") {
-        expect(frameworkConfig).toContain("wasm: true");
-        expect(frameworkConfig).toContain("'pg-native': 'unenv/mock/proxy'");
-        expect(nuxtServerPlugin).toContain('url: "/rpc"');
-        expect(nuxtServerPlugin).toContain("event.fetch(request, init)");
-        expect(nuxtServerPlugin).not.toContain("createRouterClient");
-      }
     }
-  });
-
-  it("uses Nuxt request context for native Alchemy bindings", async () => {
-    const files = await generate({
-      projectName: "nuxt-native-cloudflare-bindings",
-      webDeploy: "cloudflare",
-      serverDeploy: "none",
-      backend: "self",
-      runtime: "none",
-      dbSetup: "prisma-postgres",
-      frontend: ["nuxt"],
-    });
-    const infra = files.get("packages/infra/alchemy.run.ts") ?? "";
-    const auth = files.get("packages/auth/src/index.ts") ?? "";
-    const db = files.get("packages/db/src/index.ts") ?? "";
-    const context = files.get("packages/api/src/context.ts") ?? "";
-    const authRoute = files.get("apps/web/server/api/auth/[...all].ts") ?? "";
-    const rpcRoute = files.get("apps/web/server/routes/rpc/[...].ts") ?? "";
-    const todoRouter = files.get("packages/api/src/routers/todo.ts") ?? "";
-
-    expect(infra).toContain('Cloudflare.Website.Nuxt("web", {');
-    expect(auth).toContain("createAuth(env: CloudflareEnv)");
-    expect(auth).toContain("createPrismaClient(env)");
-    expect(db).toContain("createPrismaClient(env: CloudflareEnv)");
-    expect(context).toContain("env: CloudflareEnv;");
-    expect(context).toContain("createAuth(env)");
-    expect(authRoute).toContain("event.context.cloudflare as { env: CloudflareEnv }");
-    expect(rpcRoute).toContain("event.context.cloudflare as { env: CloudflareEnv }");
-    expect(todoRouter).toContain("createPrismaClient(context.env)");
-    expect(files.has("apps/web/cloudflare-workers.dev.ts")).toBe(false);
-    expect(files.has("apps/web/wrangler.jsonc")).toBe(false);
   });
 
   it("preserves Prisma WASM modules in standalone Cloudflare server builds", async () => {
@@ -503,30 +384,6 @@ describe("Alchemy providers", () => {
       "@react-router/express": "^8.3.0",
       express: "^5.2.1",
     });
-
-    const svelte = await generate({
-      ...standalone,
-      projectName: "prisma-sveltekit",
-      webDeploy: "prisma",
-      frontend: ["svelte"],
-    });
-    const svelteInfra = svelte.get("packages/infra/alchemy.run.ts") ?? "";
-    const svelteConfig = svelte.get("apps/web/svelte.config.js") ?? "";
-    const svelteVite = svelte.get("apps/web/vite.config.ts") ?? "";
-    const sveltePackage = JSON.parse(svelte.get("apps/web/package.json") ?? "{}") as {
-      scripts?: Record<string, string>;
-      devDependencies?: Record<string, string>;
-    };
-
-    expect(svelteInfra).toContain('command: "bun run build"');
-    expect(svelteInfra).toContain('outdir: "build"');
-    expect(svelteInfra).toContain('entrypoint: "index.js"');
-    expect(svelteConfig).toContain("@sveltejs/adapter-node");
-    expect(svelteVite).toContain("noExternal: true");
-    expect(svelte.has("apps/web/vite.prisma.config.ts")).toBe(false);
-    expect(sveltePackage.scripts?.["build:prisma"]).toBeUndefined();
-    expect(sveltePackage.devDependencies?.["@sveltejs/adapter-node"]).toBe("^5.5.7");
-    expect(sveltePackage.devDependencies?.["@sveltejs/adapter-auto"]).toBeUndefined();
   });
 
   it("rejects static SPAs for Prisma Compute instead of generating a server shim", async () => {
@@ -552,7 +409,7 @@ describe("Alchemy providers", () => {
   });
 
   it("rejects desktop builds that replace Prisma server artifacts with static exports", async () => {
-    for (const frontend of ["next", "react-router", "svelte", "astro"] as const) {
+    for (const frontend of ["next", "react-router"] as const) {
       const result = await createVirtual({
         ...baseConfig,
         projectName: `prisma-${frontend}-tauri`,
@@ -585,7 +442,7 @@ describe("Alchemy providers", () => {
       backend: "self",
       runtime: "none",
       dbSetup: "prisma-postgres",
-      frontend: ["solid"],
+      frontend: ["tanstack-start"],
     });
     const rootPackage = JSON.parse(files.get("package.json") ?? "{}") as {
       allowScripts?: Record<string, boolean>;

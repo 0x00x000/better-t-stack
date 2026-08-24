@@ -146,8 +146,8 @@ describe("programmatic API input validation", () => {
     expect(result.error.message).toContain("runtime");
   });
 
-  it("rejects unsupported database modes through create without writing files", async () => {
-    const projectDir = join(SMOKE_DIR, "invalid-planetscale-auto");
+  it("rejects unsupported database setups through create without writing files", async () => {
+    const projectDir = join(SMOKE_DIR, "invalid-db-setup");
     await fs.remove(projectDir);
 
     const result = await create(projectDir, {
@@ -157,8 +157,7 @@ describe("programmatic API input validation", () => {
       database: "postgres",
       orm: "drizzle",
       dbSetup: "planetscale",
-      dbSetupOptions: { mode: "auto" },
-      api: "trpc",
+      api: "orpc",
       auth: "none",
       payments: "none",
       addons: ["none"],
@@ -168,27 +167,23 @@ describe("programmatic API input validation", () => {
       git: false,
       install: false,
       disableAnalytics: true,
-    });
+    } as never);
 
     expect(result.isErr()).toBe(true);
-    if (result.isOk()) throw new Error("Expected create() to reject PlanetScale automatic setup");
-    expect(CLIError.is(result.error)).toBe(true);
-    expect(ValidationError.is(result.error.cause)).toBe(true);
-    expect(result.error.message).toContain("PlanetScale does not support automatic database setup");
+    if (result.isOk()) throw new Error("Expected create() to reject an unsupported db setup");
     expect(await fs.pathExists(projectDir)).toBe(false);
   });
 
-  it("rejects unsupported database modes through createVirtual", async () => {
+  it("rejects unsupported database setups through createVirtual", async () => {
     const result = await createVirtual({
-      projectName: "invalid-planetscale-auto-virtual",
+      projectName: "invalid-db-setup-virtual",
       frontend: ["tanstack-router"],
       backend: "hono",
       runtime: "bun",
       database: "postgres",
       orm: "drizzle",
       dbSetup: "planetscale",
-      dbSetupOptions: { mode: "auto" },
-      api: "trpc",
+      api: "orpc",
       auth: "none",
       payments: "none",
       addons: ["none"],
@@ -197,12 +192,12 @@ describe("programmatic API input validation", () => {
       serverDeploy: "prisma",
       git: false,
       packageManager: "bun",
-    });
+    } as never);
 
     expect(result.isErr()).toBe(true);
-    if (result.isOk()) throw new Error("Expected createVirtual() to reject PlanetScale auto setup");
+    if (result.isOk())
+      throw new Error("Expected createVirtual() to reject an unsupported db setup");
     expect(result.error.phase).toBe("validation");
-    expect(result.error.message).toContain("PlanetScale does not support automatic database setup");
   });
 
   it("returns a structured failure instead of throwing for an invalid add input shape", async () => {

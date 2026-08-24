@@ -46,18 +46,18 @@ describe("agent discovery content", () => {
   test("describes the selected stack and preserves it in agent-facing links", () => {
     const markdown = buildStackMarkdown({
       ...DEFAULT_STACK,
-      backend: "elysia",
+      backend: "hono",
       database: "postgres",
       orm: "drizzle",
       projectName: "review-app",
     });
 
     expect(markdown).toContain("Project name: `review-app`");
-    expect(markdown).toContain("Backend: Elysia");
+    expect(markdown).toContain("Backend: Hono");
     expect(markdown).toContain("Database: PostgreSQL");
-    expect(markdown).toContain("--backend elysia");
-    expect(markdown).toContain(`${SITE_URL}/stack?`);
-    expect(markdown).toContain("be=elysia");
+    expect(markdown).toContain("--backend hono");
+    expect(markdown).toContain("/stack?");
+    expect(markdown).toContain("be=hono");
   });
 });
 
@@ -86,8 +86,8 @@ describe("Markdown content negotiation", () => {
   });
 
   test("preserves stack selections through the rewrite and Markdown route", async () => {
-    const response = proxy(markdownRequest("/stack?name=agent-app&be=elysia&db=postgres"));
-    const destination = `${SITE_URL}/agent-content/stack?name=agent-app&be=elysia&db=postgres`;
+    const response = proxy(markdownRequest("/stack?name=agent-app&be=hono&db=postgres"));
+    const destination = `${SITE_URL}/agent-content/stack?name=agent-app&be=hono&db=postgres`;
 
     expect(response.headers.get("x-middleware-rewrite")).toBe(destination);
 
@@ -97,7 +97,7 @@ describe("Markdown content negotiation", () => {
     const markdown = await markdownResponse.text();
 
     expect(markdown).toContain("Project name: `agent-app`");
-    expect(markdown).toContain("Backend: Elysia");
+    expect(markdown).toContain("Backend: Hono");
     expect(markdown).toContain("Database: PostgreSQL");
   });
 

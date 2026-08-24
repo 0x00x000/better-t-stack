@@ -1,6 +1,6 @@
 ---
 name: add-to-project
-description: Add addons or features (PWA, Tauri, Starlight/Fumadocs docs, Biome/Oxlint, Husky/Lefthook, Turborepo/Nx, the MCP addon, etc.) to an existing Better-T-Stack project. Use when the user wants to extend, enhance, or add tooling to a project that was created with Better-T-Stack.
+description: Add addons or features (PWA, Tauri, Fumadocs docs, Biome/Oxlint, Husky/Lefthook, Turborepo/Nx, the MCP addon, etc.) to an existing Better-T-Stack project. Use when the user wants to extend, enhance, or add tooling to a project that was created with Better-T-Stack.
 metadata:
   priority: 7
   docs:
@@ -28,7 +28,7 @@ For brand-new projects, use the **scaffold-project** skill instead.
 
 ## Available addons
 
-`pwa`, `tauri`, `electrobun`, `starlight`, `biome`, `lefthook`, `husky`, `mcp`, `turborepo`, `nx`, `vite-plus`, `fumadocs`, `ultracite`, `oxlint`, `opentui`, `wxt`, `skills`, `evlog`.
+`pwa`, `tauri`, `electrobun`, `biome`, `lefthook`, `husky`, `mcp`, `turborepo`, `nx`, `vite-plus`, `fumadocs`, `ultracite`, `oxlint`, `opentui`, `wxt`, `skills`, `evlog`.
 
 Note: `nx`, `turborepo`, and `vite-plus` are mutually exclusive task runners. Use `bts_get_schema` for nested addon options (e.g. Fumadocs templates/search/AI chat, WXT templates, OpenTUI templates).
 

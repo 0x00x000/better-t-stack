@@ -26,6 +26,7 @@ import {
   validateCloudflareWebDeployKnownIssues,
   validateWebDeployRequiresWebFrontend,
   validateWorkersCompatibility,
+  validateNestRuntimeCompatibility,
 } from "./compatibility-rules";
 import { ValidationError } from "./errors";
 
@@ -239,13 +240,6 @@ export function validateDatabaseProvisioningMode(config: Partial<ProjectConfig>)
   return Result.ok(undefined);
 }
 
-export function validateConvexConstraints(
-  _config: Partial<ProjectConfig>,
-  _providedFlags: Set<string>,
-): ValidationResult {
-  return Result.ok(undefined);
-}
-
 export function validateBackendNoneConstraints(
   config: Partial<ProjectConfig>,
   providedFlags: Set<string>,
@@ -405,7 +399,6 @@ export function validateFullConfig(
     yield* validateDatabaseSetup(config, providedFlags);
     yield* validateDatabaseProvisioningMode(config);
 
-    yield* validateConvexConstraints(config, providedFlags);
     yield* validateBackendNoneConstraints(config, providedFlags);
     yield* validateSelfBackendConstraints(config, providedFlags);
     yield* validateBackendConstraints(config, providedFlags, options);
@@ -430,6 +423,7 @@ export function validateFullConfig(
     yield* validatePrismaWebDeployDesktopAddons(config.webDeploy, config.addons, config.frontend);
 
     yield* validateSelfBackendCompatibility(providedFlags, options, config);
+    yield* validateNestRuntimeCompatibility(providedFlags, options, config);
     yield* validateWorkersCompatibility(providedFlags, options, config);
 
     if (config.runtime === "workers" && config.serverDeploy === "none") {

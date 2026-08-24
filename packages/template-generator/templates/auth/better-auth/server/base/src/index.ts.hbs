@@ -6,14 +6,6 @@ import type { CloudflareEnv } from "@{{projectName}}/env/server";
 {{else}}
 import { env } from "@{{projectName}}/env/server";
 {{/if}}
-{{#if (eq payments "polar")}}
-import { polar, checkout, portal } from "@polar-sh/better-auth";
-{{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}
-import { createPolarClient } from "./lib/payments";
-{{else}}
-import { polarClient } from "./lib/payments";
-{{/if}}
-{{/if}}
 import { createPrismaClient } from "@{{projectName}}/db";
 
 export function createAuth({{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}env: CloudflareEnv{{/if}}) {
@@ -49,27 +41,6 @@ export function createAuth({{#if (usesRequestScopedCloudflareEnv backend webDepl
 			},
 		},
 {{/if}}
-		plugins: [
-{{#if (eq payments "polar")}}
-			polar({
-				client: {{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}createPolarClient(env){{else}}polarClient{{/if}},
-				createCustomerOnSignUp: true,
-				use: [
-					checkout({
-						products: [
-							{
-								productId: "your-product-id",
-								slug: "pro",
-							},
-						],
-						successUrl: env.POLAR_SUCCESS_URL,
-						authenticatedUsersOnly: true,
-					}),
-					portal(),
-				],
-			}),
-{{/if}}
-		],
 	});
 }
 
@@ -86,14 +57,6 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import type { CloudflareEnv } from "@{{projectName}}/env/server";
 {{else}}
 import { env } from "@{{projectName}}/env/server";
-{{/if}}
-{{#if (eq payments "polar")}}
-import { polar, checkout, portal } from "@polar-sh/better-auth";
-{{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}
-import { createPolarClient } from "./lib/payments";
-{{else}}
-import { polarClient } from "./lib/payments";
-{{/if}}
 {{/if}}
 import { createDb } from "@{{projectName}}/db";
 import * as schema from "@{{projectName}}/db/schema/auth";
@@ -131,27 +94,6 @@ export function createAuth({{#if (usesRequestScopedCloudflareEnv backend webDepl
 			},
 		},
 {{/if}}
-		plugins: [
-{{#if (eq payments "polar")}}
-			polar({
-				client: {{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}createPolarClient(env){{else}}polarClient{{/if}},
-				createCustomerOnSignUp: true,
-				use: [
-					checkout({
-						products: [
-							{
-								productId: "your-product-id",
-								slug: "pro",
-							},
-						],
-						successUrl: env.POLAR_SUCCESS_URL,
-						authenticatedUsersOnly: true,
-					}),
-					portal(),
-				],
-			}),
-{{/if}}
-		],
 	});
 }
 
@@ -164,10 +106,6 @@ export const auth = createAuth();
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { env } from "@{{projectName}}/env/server";
-{{#if (eq payments "polar")}}
-import { polar, checkout, portal } from "@polar-sh/better-auth";
-import { polarClient } from "./lib/payments";
-{{/if}}
 import { createDb } from "@{{projectName}}/db";
 import * as schema from "@{{projectName}}/db/schema/auth";
 
@@ -215,27 +153,6 @@ export function createAuth() {
 			//   domain: "<your-workers-subdomain>",
 			// },
 		},
-{{#if (eq payments "polar")}}
-		plugins: [
-			polar({
-				client: polarClient,
-				createCustomerOnSignUp: true,
-				use: [
-					checkout({
-						products: [
-							{
-								productId: "your-product-id",
-								slug: "pro",
-							},
-						],
-						successUrl: env.POLAR_SUCCESS_URL,
-						authenticatedUsersOnly: true,
-					}),
-					portal(),
-				],
-			}),
-		],
-{{/if}}
 	});
 }
 {{/if}}
@@ -248,14 +165,6 @@ import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import type { CloudflareEnv } from "@{{projectName}}/env/server";
 {{else}}
 import { env } from "@{{projectName}}/env/server";
-{{/if}}
-{{#if (eq payments "polar")}}
-import { polar, checkout, portal } from "@polar-sh/better-auth";
-{{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}
-import { createPolarClient } from "./lib/payments";
-{{else}}
-import { polarClient } from "./lib/payments";
-{{/if}}
 {{/if}}
 import { client } from "@{{projectName}}/db";
 
@@ -284,27 +193,6 @@ export function createAuth({{#if (usesRequestScopedCloudflareEnv backend webDepl
 			},
 		},
 {{/if}}
-{{#if (eq payments "polar")}}
-		plugins: [
-			polar({
-				client: {{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}createPolarClient(env){{else}}polarClient{{/if}},
-				createCustomerOnSignUp: true,
-				use: [
-					checkout({
-						products: [
-							{
-								productId: "your-product-id",
-								slug: "pro",
-							},
-						],
-						successUrl: env.POLAR_SUCCESS_URL,
-						authenticatedUsersOnly: true,
-					}),
-					portal(),
-				],
-			}),
-		],
-{{/if}}
 	});
 }
 
@@ -319,14 +207,6 @@ import { betterAuth } from "better-auth";
 import type { CloudflareEnv } from "@{{projectName}}/env/server";
 {{else}}
 import { env } from "@{{projectName}}/env/server";
-{{/if}}
-{{#if (eq payments "polar")}}
-import { polar, checkout, portal } from "@polar-sh/better-auth";
-{{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}
-import { createPolarClient } from "./lib/payments";
-{{else}}
-import { polarClient } from "./lib/payments";
-{{/if}}
 {{/if}}
 
 
@@ -354,27 +234,6 @@ export function createAuth({{#if (usesRequestScopedCloudflareEnv backend webDepl
 				httpOnly: true,
 			},
 		},
-{{/if}}
-{{#if (eq payments "polar")}}
-		plugins: [
-			polar({
-				client: {{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}createPolarClient(env){{else}}polarClient{{/if}},
-				createCustomerOnSignUp: true,
-				use: [
-					checkout({
-						products: [
-							{
-								productId: "your-product-id",
-								slug: "pro",
-							},
-						],
-						successUrl: env.POLAR_SUCCESS_URL,
-						authenticatedUsersOnly: true,
-					}),
-					portal(),
-				],
-			}),
-		],
 {{/if}}
 	});
 }

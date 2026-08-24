@@ -82,7 +82,7 @@ describe("README generation", () => {
 
   it("does not request a separate CORS origin for self deployments", async () => {
     const readme = await generateReadme({
-      frontend: ["solid"],
+      frontend: ["tanstack-start"],
       backend: "self",
       runtime: "none",
       webDeploy: "prisma",

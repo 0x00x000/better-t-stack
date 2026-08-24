@@ -4,7 +4,11 @@ import path from "node:path";
 import fs from "fs-extra";
 
 import { setupMcp, getRecommendedMcpServers } from "../src/helpers/addons/mcp-setup";
-import { setupSkills, UNIVERSAL_SKILLS_AGENTS } from "../src/helpers/addons/skills-setup";
+import {
+  setupSkills,
+  setupRequiredNestSkills,
+  UNIVERSAL_SKILLS_AGENTS,
+} from "../src/helpers/addons/skills-setup";
 import type { ProjectConfig } from "../src/types";
 import { runWithContextAsync } from "../src/utils/context";
 import { SMOKE_DIR } from "./setup";
@@ -379,5 +383,37 @@ describe("Addon setup regressions", () => {
     expect(commandLog).toContain("skills@latest add expo/skills");
     expect(commandLog).not.toContain("upgrading-expo");
     expect(commandLog).not.toContain("upgrade");
+  });
+
+  it("installs required nest skills without the skills addon", async () => {
+    const projectDir = path.join(SMOKE_DIR, "nest-required-skills");
+    await fs.remove(projectDir);
+
+    const config = createProjectConfig({
+      projectDir,
+      backend: "nest",
+      runtime: "bun",
+      api: "none",
+      auth: "none",
+      database: "none",
+      orm: "none",
+      frontend: [],
+      addons: [],
+    });
+
+    const { markerFile, result } = await runWithFakeBunx(
+      projectDir,
+      () => runWithContextAsync({ silent: true }, () => setupRequiredNestSkills(config)),
+      0,
+    );
+
+    expect(result.isOk()).toBe(true);
+    const commandLog = await fs.readFile(markerFile, "utf8");
+    expect(commandLog).toContain("skills@latest add anasx7/skills --skill nestjs-better-auth");
+    expect(commandLog).toContain(
+      "skills@latest add 0x00x000/skills --skill nestjs-modular-monolith",
+    );
+    expect(commandLog).not.toContain("yusukebe/hono-skill");
+    expect(commandLog).toContain(`--agent ${UNIVERSAL_SKILLS_AGENTS.join(" ")}`);
   });
 });

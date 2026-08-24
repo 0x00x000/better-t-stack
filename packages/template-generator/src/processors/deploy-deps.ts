@@ -27,14 +27,6 @@ export function processDeployDeps(vfs: VirtualFileSystem, config: ProjectConfig)
     return;
   }
 
-  if (isPrismaWeb && frontend.includes("solid")) {
-    addPackageDependency({
-      vfs,
-      packagePath: "apps/web/package.json",
-      dependencies: ["nitro"],
-    });
-  }
-
   if (isPrismaWeb && frontend.includes("react-router")) {
     addPackageDependency({
       vfs,
@@ -42,22 +34,9 @@ export function processDeployDeps(vfs: VirtualFileSystem, config: ProjectConfig)
       dependencies: ["@react-router/express", "express"],
       devDependencies: ["@types/express"],
     });
-  } else if (isPrismaWeb && frontend.includes("svelte")) {
-    addPackageDependency({
-      vfs,
-      packagePath: "apps/web/package.json",
-      devDependencies: ["@sveltejs/adapter-node"],
-    });
   }
 
-  if (
-    isCloudflareWeb &&
-    isBackendSelf &&
-    orm === "prisma" &&
-    (["nuxt", "svelte", "solid", "tanstack-start"] as const).some((framework) =>
-      frontend.includes(framework),
-    )
-  ) {
+  if (isCloudflareWeb && isBackendSelf && orm === "prisma" && frontend.includes("tanstack-start")) {
     addPackageDependency({
       vfs,
       packagePath: "apps/web/package.json",
@@ -82,58 +61,15 @@ export function processDeployDeps(vfs: VirtualFileSystem, config: ProjectConfig)
     }
   }
 
-  if (
-    isVercelWeb &&
-    frontend.includes("astro") &&
-    !addons.includes("electrobun") &&
-    !addons.includes("tauri")
-  ) {
-    // Astro needs the Vercel adapter for SSR; the default @astrojs/node
-    // standalone output is not served by Vercel's astro framework preset.
-    const webPkgPath = "apps/web/package.json";
-    if (vfs.exists(webPkgPath)) {
-      addPackageDependency({
-        vfs,
-        packagePath: webPkgPath,
-        dependencies: ["@astrojs/vercel"],
-      });
-    }
-  }
-
-  if (
-    isVercelWeb &&
-    frontend.includes("svelte") &&
-    !addons.includes("electrobun") &&
-    !addons.includes("tauri")
-  ) {
-    // Vercel docs recommend the explicit adapter over adapter-auto resolving it at build time
-    const webPkgPath = "apps/web/package.json";
-    if (vfs.exists(webPkgPath)) {
-      addPackageDependency({
-        vfs,
-        packagePath: webPkgPath,
-        devDependencies: ["@sveltejs/adapter-vercel"],
-      });
-    }
-  }
-
   if (isDockerWeb) {
     const webPkgPath = "apps/web/package.json";
-    if (vfs.exists(webPkgPath)) {
-      if (frontend.includes("svelte")) {
-        addPackageDependency({
-          vfs,
-          packagePath: webPkgPath,
-          devDependencies: ["@sveltejs/adapter-node"],
-        });
-      } else if (frontend.includes("tanstack-start")) {
-        // Same section as the evlog addon so the two never duplicate nitro
-        addPackageDependency({
-          vfs,
-          packagePath: webPkgPath,
-          dependencies: ["nitro"],
-        });
-      }
+    if (vfs.exists(webPkgPath) && frontend.includes("tanstack-start")) {
+      // Same section as the evlog addon so the two never duplicate nitro
+      addPackageDependency({
+        vfs,
+        packagePath: webPkgPath,
+        dependencies: ["nitro"],
+      });
     }
   }
 
@@ -160,40 +96,12 @@ export function processDeployDeps(vfs: VirtualFileSystem, config: ProjectConfig)
     const webPkgPath = "apps/web/package.json";
     if (!vfs.exists(webPkgPath)) return;
 
-    const needsWranglerLocalD1 = getLocalD1Owner(config) === "wrangler";
-
     if (frontend.includes("next")) {
       addPackageDependency({
         vfs,
         packagePath: webPkgPath,
         dependencies: ["@opennextjs/cloudflare"],
         devDependencies: ["wrangler", "@cloudflare/workers-types"],
-      });
-    } else if (frontend.includes("nuxt")) {
-      addPackageDependency({
-        vfs,
-        packagePath: webPkgPath,
-        devDependencies: ["@alchemy.run/cloudflare-frameworks"],
-      });
-    } else if (frontend.includes("svelte")) {
-      addPackageDependency({
-        vfs,
-        packagePath: webPkgPath,
-        devDependencies: needsWranglerLocalD1
-          ? ["@sveltejs/adapter-cloudflare", "wrangler"]
-          : ["@sveltejs/adapter-cloudflare"],
-      });
-    } else if (frontend.includes("solid") && needsWranglerLocalD1) {
-      addPackageDependency({
-        vfs,
-        packagePath: webPkgPath,
-        devDependencies: ["wrangler"],
-      });
-    } else if (frontend.includes("astro")) {
-      addPackageDependency({
-        vfs,
-        packagePath: webPkgPath,
-        devDependencies: ["@alchemy.run/cloudflare-frameworks", "@cloudflare/workers-types"],
       });
     }
   }

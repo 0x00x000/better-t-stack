@@ -13,7 +13,6 @@ import { setupFumadocs } from "./fumadocs-setup";
 import { setupMcp } from "./mcp-setup";
 import { setupOxlint } from "./oxlint-setup";
 import { setupSkills } from "./skills-setup";
-import { setupStarlight } from "./starlight-setup";
 import { setupTauri } from "./tauri-setup";
 import { setupTui } from "./tui-setup";
 import { setupUltracite } from "./ultracite-setup";
@@ -97,10 +96,6 @@ export async function setupAddons(config: ProjectConfig): Promise<void> {
         await runAddonStep("lefthook", () => setupLefthook(projectDir));
       }
     }
-  }
-
-  if (addons.includes("starlight")) {
-    await runSetup(() => setupStarlight(config));
   }
 
   if (addons.includes("fumadocs")) {

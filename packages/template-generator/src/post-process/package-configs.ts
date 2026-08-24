@@ -46,9 +46,7 @@ export function processPackageConfigs(vfs: VirtualFileSystem, config: ProjectCon
   updateDesktopPackageJson(vfs, config);
   updateVitePlusPackageScripts(vfs, config);
 
-  if (config.backend === "convex") {
-    updateConvexPackageJson(vfs, config);
-  } else if (config.backend !== "none") {
+  if (config.backend !== "none") {
     updateDbPackageJson(vfs, config);
     updateAuthPackageJson(vfs, config);
     updateApiPackageJson(vfs, config);
@@ -72,7 +70,7 @@ function updateRootPackageJson(vfs: VirtualFileSystem, config: ProjectConfig): v
     ["native-bare", "native-uniwind", "native-unistyles"].includes(item),
   );
 
-  const backendPackageName = backend === "convex" ? `@${projectName}/backend` : "server";
+  const backendPackageName = "server";
   const dbPackageName = `@${projectName}/db`;
   const hasTurborepo = addons.includes("turborepo");
   const hasNx = addons.includes("nx");
@@ -132,10 +130,6 @@ function updateRootPackageJson(vfs: VirtualFileSystem, config: ProjectConfig): v
 
   if (backend !== "self" && backend !== "none") {
     scripts["dev:server"] = pmConfig.filter(backendPackageName, "dev");
-  }
-
-  if (backend === "convex") {
-    scripts["dev:setup"] = pmConfig.filter(backendPackageName, "dev:setup");
   }
 
   if (needsDbScripts) {
@@ -237,13 +231,6 @@ function updateRootPackageJson(vfs: VirtualFileSystem, config: ProjectConfig): v
     }
   }
 
-  if (config.api === "orpc" && config.frontend.includes("nuxt")) {
-    pkgJson.overrides = {
-      ...pkgJson.overrides,
-      "@vue/devtools-api": "^8.2.1",
-    };
-  }
-
   if (hasVitePlus) {
     pkgJson.overrides = {
       ...pkgJson.overrides,
@@ -252,21 +239,11 @@ function updateRootPackageJson(vfs: VirtualFileSystem, config: ProjectConfig): v
     };
   }
 
-  if (backend === "convex") {
-    if (!workspaces.includes("packages/*")) {
-      workspaces.push("packages/*");
-    }
-    const needsAppsDir = config.frontend.length > 0 || addons.includes("starlight");
-    if (needsAppsDir && !workspaces.includes("apps/*")) {
-      workspaces.push("apps/*");
-    }
-  } else {
-    if (!workspaces.includes("apps/*")) {
-      workspaces.push("apps/*");
-    }
-    if (!workspaces.includes("packages/*")) {
-      workspaces.push("packages/*");
-    }
+  if (!workspaces.includes("apps/*")) {
+    workspaces.push("apps/*");
+  }
+  if (!workspaces.includes("packages/*")) {
+    workspaces.push("packages/*");
   }
 
   pkgJson.workspaces = getUpdatedWorkspaces(existingWorkspaces, workspaces);
@@ -291,14 +268,9 @@ function getNpmAllowedScripts(config: ProjectConfig): NpmAllowedScripts {
     config.addons.includes("turborepo") ||
     config.addons.includes("vite-plus") ||
     config.frontend.includes("react-router") ||
-    config.frontend.includes("nuxt")
+    config.frontend.includes("next")
   ) {
     allowed.esbuild = true;
-  }
-
-  if (config.frontend.includes("nuxt")) {
-    allowed["@parcel/watcher"] = true;
-    allowed["vue-demi"] = true;
   }
 
   if (
@@ -488,8 +460,7 @@ function updateDesktopPackageJson(vfs: VirtualFileSystem, config: ProjectConfig)
   const hasTurborepo = addons.includes("turborepo");
   const hasNx = addons.includes("nx");
   const hasVitePlus = addons.includes("vite-plus");
-  // Nuxt emits its static bundle via `generate`; every other frontend via `build`.
-  const desktopBuildScript: DesktopWebScript = frontend.includes("nuxt") ? "generate" : "build";
+  const desktopBuildScript: DesktopWebScript = "build";
   const webBuildCommand = getDesktopWebCommand(
     packageManager,
     { hasTurborepo, hasNx, hasVitePlus },
@@ -650,7 +621,7 @@ function updateEnvPackageJson(vfs: VirtualFileSystem, config: ProjectConfig): vo
   const hasNative = config.frontend.some((f: string) =>
     ["native-bare", "native-uniwind", "native-unistyles"].includes(f),
   );
-  const needsServerEnv = config.backend !== "none" && config.backend !== "convex";
+  const needsServerEnv = config.backend !== "none";
 
   const exports: Record<string, string> = {};
 
@@ -685,17 +656,8 @@ function updateInfraPackageJson(vfs: VirtualFileSystem, config: ProjectConfig): 
   vfs.writeJson("packages/infra/package.json", pkgJson);
 }
 
-function updateConvexPackageJson(vfs: VirtualFileSystem, config: ProjectConfig): void {
-  const pkgJson = vfs.readJson<PackageJson>("packages/backend/package.json");
-  if (!pkgJson) return;
-
-  pkgJson.name = `@${config.projectName}/backend`;
-  pkgJson.scripts = pkgJson.scripts || {};
-  vfs.writeJson("packages/backend/package.json", pkgJson);
-}
-
 export function finalizeAlchemyDevScripts(vfs: VirtualFileSystem, config: ProjectConfig): void {
-  const { serverDeploy, webDeploy, backend } = config;
+  const { backend, serverDeploy, webDeploy } = config;
   const rootPkgPath = "package.json";
   const rootPkg = vfs.readJson<PackageJson>(rootPkgPath);
 

@@ -40,7 +40,7 @@ export async function getFrontendChoice(
         {
           value: "web",
           label: "Web",
-          hint: "React, Vue or Svelte Web Application",
+          hint: "React Web Application",
         },
         {
           value: "native",

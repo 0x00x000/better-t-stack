@@ -7,11 +7,11 @@ import { expectError, expectSuccess, runTRPCTest, type TestConfig } from "./test
 
 describe("API Configurations", () => {
   describe("oRPC API", () => {
-    it("should wire Solid 2 self-hosted oRPC routes and optimized SSR", async () => {
+    it("should wire TanStack Start self-hosted oRPC routes", async () => {
       const config = {
-        projectName: "orpc-solid-self",
+        projectName: "orpc-tanstack-start-self",
         api: "orpc",
-        frontend: ["solid"],
+        frontend: ["tanstack-start"],
         backend: "self",
         runtime: "none",
         database: "sqlite",
@@ -35,34 +35,13 @@ describe("API Configurations", () => {
       }
 
       const files = collectFiles(result.value.root, result.value.root.path);
-      const rpcRoute = files.get("apps/web/src/routes/rpc/[...rest].ts");
-      const rpcIndex = files.get("apps/web/src/routes/rpc/index.ts");
-      const appFile = files.get("apps/web/src/App.tsx");
+      const rpcRoute = files.get("apps/web/src/routes/api/rpc/$.ts");
       const homeRoute = files.get("apps/web/src/routes/index.tsx");
       const orpcClient = files.get("apps/web/src/utils/orpc.ts");
-      const orpcServer = files.get("apps/web/src/utils/orpc.server.ts");
 
-      expect(appFile).toBeDefined();
-      if (!appFile) throw new Error("Expected Solid app template");
-
-      expect(rpcRoute).toContain('import type { APIHandler } from "filesystem-routing/api";');
-      expect(rpcRoute).toContain('prefix: "/rpc"');
-      expect(rpcRoute).toContain("createContext({ headers: request.headers })");
-      expect(rpcIndex).toContain('from "./[...rest]"');
-      expect(orpcClient).toContain("if (import.meta.env.SSR)");
-      expect(orpcClient).toContain('await import("./orpc.server")');
-      expect(orpcClient).toContain("globalThis.$client ?? createORPCClient(link)");
-      expect(orpcServer).toContain("createRouterClient(appRouter");
-      expect(orpcServer).toContain("globalThis.$client");
-      expect(orpcServer).toContain("getRequestEvent()?.request.headers");
+      expect(rpcRoute).toContain('prefix: "/api/rpc"');
       expect(homeRoute).toContain('healthCheck.data === "OK"');
-      expect(homeRoute).toContain("healthCheck.isPending");
-      expect(homeRoute).toContain("deferStream: true");
-      const queryClientProviderIndex = appFile.indexOf("<QueryClientProvider");
-      const routerIndex = appFile.indexOf("<Router>");
-      expect(queryClientProviderIndex).toBeGreaterThanOrEqual(0);
-      expect(routerIndex).toBeGreaterThanOrEqual(0);
-      expect(queryClientProviderIndex).toBeLessThan(routerIndex);
+      expect(orpcClient).toBeDefined();
     });
 
     const frontends = [
@@ -205,7 +184,7 @@ describe("API Configurations", () => {
       expect(baseTsconfig).toContain('"node"');
     });
 
-    it("should fail with API none + examples (non-convex backend)", async () => {
+    it("should fail with API none + examples", async () => {
       const result = await runTRPCTest({
         projectName: "api-none-examples-fail",
         api: "none",

@@ -35,7 +35,6 @@ export function processTurboConfig(vfs: VirtualFileSystem, config: ProjectConfig
 export function generateTurboConfig(config: ProjectConfig): TurboConfig {
   const { backend, database, dbSetup, webDeploy, serverDeploy, frontend } = config;
 
-  const isConvex = backend === "convex";
   const dbSupport = getDbScriptSupport(config);
   const hasDatabase = dbSupport.hasDbScripts;
   const isDocker = dbSetup === "docker";
@@ -46,8 +45,7 @@ export function generateTurboConfig(config: ProjectConfig): TurboConfig {
   const tasks: TurboTasks = getBaseTasks(frontend, config.addons);
 
   if (config.addons.includes("electrobun")) Object.assign(tasks, getElectrobunTasks());
-  if (isConvex) Object.assign(tasks, getConvexTasks());
-  if (!isConvex && hasDatabase) Object.assign(tasks, getDatabaseTasks(dbSupport));
+  if (hasDatabase) Object.assign(tasks, getDatabaseTasks(dbSupport));
   if (isDocker) Object.assign(tasks, getDockerTasks());
   if (isSqliteLocal) Object.assign(tasks, getSqliteLocalTask());
   if (hasLocalD1) Object.assign(tasks, getLocalD1Task());
@@ -69,24 +67,6 @@ function getBaseTasks(frontend: string[], addons: string[]): TurboTasks {
 
   if (frontend.includes("next")) {
     buildOutputs.push(".next/**", "!.next/cache/**");
-  }
-
-  if (frontend.includes("nuxt")) {
-    buildOutputs.push(".nuxt/**", ".output/**");
-  }
-
-  if (frontend.includes("solid")) {
-    buildOutputs.push(".output/**");
-  }
-
-  // SvelteKit outputs to .svelte-kit/** in addition to build/
-  if (frontend.includes("svelte")) {
-    buildOutputs.push(".svelte-kit/**", "build/**");
-  }
-
-  // Astro outputs to dist/**
-  if (frontend.includes("astro")) {
-    buildOutputs.push(".astro/**");
   }
 
   if (addons.includes("electrobun")) {
@@ -127,15 +107,6 @@ function getElectrobunTasks(): TurboTasks {
       dependsOn: ["^build"],
       inputs: ["$TURBO_DEFAULT$", ".env*"],
       outputs: ["artifacts/**", "build/**"],
-    },
-  };
-}
-
-function getConvexTasks(): TurboTasks {
-  return {
-    "dev:setup": {
-      cache: false,
-      interactive: true,
     },
   };
 }

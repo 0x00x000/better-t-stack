@@ -22,7 +22,18 @@ export function processRuntimeDeps(vfs: VirtualFileSystem, config: ProjectConfig
 
   pkgJson.scripts = pkgJson.scripts || {};
 
-  if (runtime === "bun") {
+  if (backend === "nest") {
+    pkgJson.scripts.dev = "bun run --hot src/main.ts";
+    pkgJson.scripts.start = "bun dist/main.js";
+    pkgJson.scripts.build = "tsc --noEmit && bun build.ts";
+    delete pkgJson.scripts.compile;
+
+    addPackageDependency({
+      vfs,
+      packagePath: serverPath,
+      devDependencies: ["@types/bun"],
+    });
+  } else if (runtime === "bun") {
     pkgJson.scripts.dev = "bun run --hot src/index.ts";
     pkgJson.scripts.start = "bun run dist/index.mjs";
 

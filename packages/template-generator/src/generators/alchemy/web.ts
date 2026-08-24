@@ -11,103 +11,45 @@ function writeEnv(writer: AlchemyWriter, entries: readonly string[]): void {
 }
 
 function cloudflareDevPort(framework: DeployedWebFramework): number {
-  if (framework === "react-router" || framework === "svelte") return 5173;
-  if (framework === "astro") return 4321;
+  if (framework === "react-router") return 5173;
   return 3001;
 }
 
-function writeStaticSite(
+function writeNextStaticSite(
   writer: AlchemyWriter,
   plan: AlchemyDeploymentPlan,
-  framework: "next" | "svelte",
   declaration: string,
   entries: readonly string[],
 ): void {
-  if (framework === "svelte") {
-    writer.writeLine(
-      "// _worker.js is a shim importing outside its directory, so it must be bundled",
-    );
-  }
   writeObject(
     writer,
     `${declaration} Cloudflare.Website.StaticSite("web", {`,
     () => {
       writer.writeLine('cwd: "../../apps/web",');
-      writer.writeLine(
-        `command: "${plan.config.packageManager} run ${framework === "next" ? "build:cloudflare" : "build"}",`,
-      );
+      writer.writeLine(`command: "${plan.config.packageManager} run build:cloudflare",`);
       writer.writeLine(
         "// Rebuild shared workspace dependencies until Alchemy has a workspace-aware default memo.",
       );
       writer.writeLine("memo: false,");
-      if (framework === "next") {
-        writer.writeLine('outdir: ".open-next/assets",');
-        writer.writeLine('main: "../../apps/web/.open-next/worker.js",');
-        writer.writeLine("bundle: false,");
-        writeObject(
-          writer,
-          "compatibility: {",
-          () => {
-            writer.writeLine('flags: ["nodejs_compat", "global_fetch_strictly_public"],');
-          },
-          "},",
-        );
-      } else {
-        writer.writeLine('outdir: ".svelte-kit/cloudflare",');
-        writer.writeLine('main: "../../apps/web/.svelte-kit/cloudflare/_worker.js",');
-        writeObject(
-          writer,
-          "compatibility: {",
-          () => {
-            writer.writeLine('flags: ["nodejs_compat"],');
-          },
-          "},",
-        );
-      }
+      writer.writeLine('outdir: ".open-next/assets",');
+      writer.writeLine('main: "../../apps/web/.open-next/worker.js",');
+      writer.writeLine("bundle: false,");
+      writeObject(
+        writer,
+        "compatibility: {",
+        () => {
+          writer.writeLine('flags: ["nodejs_compat", "global_fetch_strictly_public"],');
+        },
+        "},",
+      );
       writeEnv(writer, entries);
       writeObject(
         writer,
         "dev: {",
         () => {
           writer.writeLine(`command: "${plan.config.packageManager} run dev:bare",`);
-          writer.writeLine(`url: "http://localhost:${cloudflareDevPort(framework)}",`);
+          writer.writeLine(`url: "http://localhost:${cloudflareDevPort("next")}",`);
         },
-        "},",
-      );
-    },
-    "});",
-  );
-}
-
-function writeNuxt(writer: AlchemyWriter, declaration: string, entries: readonly string[]): void {
-  writeObject(
-    writer,
-    `${declaration} Cloudflare.Website.Nuxt("web", {`,
-    () => {
-      writer.writeLine('rootDir: "../../apps/web",');
-      writeEnv(writer, entries);
-      writeObject(
-        writer,
-        "dev: {",
-        () => writer.writeLine(`port: ${cloudflareDevPort("nuxt")},`),
-        "},",
-      );
-    },
-    "});",
-  );
-}
-
-function writeAstro(writer: AlchemyWriter, declaration: string, entries: readonly string[]): void {
-  writeObject(
-    writer,
-    `${declaration} Cloudflare.Website.Astro("web", {`,
-    () => {
-      writer.writeLine('rootDir: "../../apps/web",');
-      writeEnv(writer, entries);
-      writeObject(
-        writer,
-        "dev: {",
-        () => writer.writeLine(`port: ${cloudflareDevPort("astro")},`),
         "},",
       );
     },
@@ -118,7 +60,7 @@ function writeAstro(writer: AlchemyWriter, declaration: string, entries: readonl
 function writeVite(
   writer: AlchemyWriter,
   declaration: string,
-  framework: "tanstack-router" | "react-router" | "tanstack-start" | "solid",
+  framework: "tanstack-router" | "react-router" | "tanstack-start",
   entries: readonly string[],
 ): void {
   writeObject(
@@ -173,19 +115,11 @@ function writeCloudflareWeb(
 
   switch (framework) {
     case "next":
-    case "svelte":
-      writeStaticSite(writer, plan, framework, declaration, entries);
-      break;
-    case "nuxt":
-      writeNuxt(writer, declaration, entries);
-      break;
-    case "astro":
-      writeAstro(writer, declaration, entries);
+      writeNextStaticSite(writer, plan, declaration, entries);
       break;
     case "tanstack-router":
     case "react-router":
     case "tanstack-start":
-    case "solid":
       writeVite(writer, declaration, framework, entries);
       break;
     default:
@@ -197,16 +131,10 @@ function prismaFramework(framework: DeployedWebFramework): string | undefined {
   switch (framework) {
     case "next":
       return "nextjs";
-    case "nuxt":
-      return "nuxt";
-    case "astro":
-      return "astro";
     case "tanstack-start":
       return "tanstack-start";
     case "tanstack-router":
     case "react-router":
-    case "svelte":
-    case "solid":
       return undefined;
     default:
       return assertNever(framework);
@@ -221,31 +149,17 @@ interface PrismaCustomBuild {
 
 function prismaCustomBuild(framework: DeployedWebFramework): PrismaCustomBuild {
   switch (framework) {
-    case "solid":
-      return {
-        script: "build",
-        outdir: ".output",
-        entrypoint: "server/index.mjs",
-      };
     case "react-router":
       return {
         script: "build",
         outdir: "build",
         entrypoint: "server/index.js",
       };
-    case "svelte":
-      return {
-        script: "build",
-        outdir: "build",
-        entrypoint: "index.js",
-      };
     case "tanstack-router":
       throw new Error(
         "TanStack Router is a static SPA and Prisma Compute requires an executable server artifact",
       );
     case "next":
-    case "nuxt":
-    case "astro":
     case "tanstack-start":
       throw new Error(`${framework} uses Prisma Compute's automatic framework build`);
     default:
@@ -308,7 +222,7 @@ function writePrismaWeb(writer: AlchemyWriter, plan: AlchemyDeploymentPlan): voi
         "dev: {",
         () => {
           writer.writeLine(`command: "${plan.config.packageManager} run dev:bare",`);
-          writer.writeLine(`port: ${framework === "astro" ? "4321" : "3001"},`);
+          writer.writeLine("port: 3001,");
           writer.writeLine("env: webEnv,");
         },
         "},",

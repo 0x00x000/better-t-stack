@@ -13,7 +13,7 @@ import { shouldSkipExternalCommands } from "../../utils/external-commands";
 import { getPackageExecutionArgs } from "../../utils/package-runner";
 import { cliLog, createSpinner } from "../../utils/terminal-output";
 
-type TuiTemplate = "core" | "react" | "solid";
+type TuiTemplate = "core" | "react";
 
 type TuiSetupResult = Result<void, AddonSetupError | UserCancelledError>;
 
@@ -25,10 +25,6 @@ const TEMPLATES = {
   react: {
     label: "React",
     hint: "React-based OpenTUI template",
-  },
-  solid: {
-    label: "Solid",
-    hint: "SolidJS-based OpenTUI template",
   },
 } as const;
 

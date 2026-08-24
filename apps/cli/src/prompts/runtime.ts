@@ -12,6 +12,11 @@ export async function getRuntimeChoice(
     return "none";
   }
 
+  if (backend === "nest") {
+    if (runtime !== undefined) return runtime;
+    return "bun";
+  }
+
   if (runtime !== undefined) return runtime;
 
   const runtimeOptions: Array<{

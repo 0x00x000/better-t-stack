@@ -33,7 +33,6 @@ export function processNxConfig(vfs: VirtualFileSystem, config: ProjectConfig): 
 
 export function generateNxConfig(config: ProjectConfig): NxConfig {
   const { backend, database, dbSetup, webDeploy, serverDeploy } = config;
-  const isConvex = backend === "convex";
   const dbSupport = getDbScriptSupport(config);
   const hasDatabase = dbSupport.hasDbScripts;
   const isDocker = dbSetup === "docker";
@@ -57,8 +56,7 @@ export function generateNxConfig(config: ProjectConfig): NxConfig {
   };
 
   if (config.addons.includes("electrobun")) Object.assign(targetDefaults, getElectrobunTargets());
-  if (isConvex) Object.assign(targetDefaults, getConvexTargets());
-  if (!isConvex && hasDatabase) Object.assign(targetDefaults, getDatabaseTargets(dbSupport));
+  if (hasDatabase) Object.assign(targetDefaults, getDatabaseTargets(dbSupport));
   if (isDocker) Object.assign(targetDefaults, getDockerTargets());
   if (isSqliteLocal) Object.assign(targetDefaults, getSqliteLocalTarget());
   if (hasLocalD1) Object.assign(targetDefaults, getLocalD1Target());
@@ -91,14 +89,6 @@ function getElectrobunTargets(): NxTargetMap {
 
 export function getNxProductionInputExclusions(config: ProjectConfig): string[] {
   return getStackGeneratedIgnorePatterns(config).map((pattern) => `!{workspaceRoot}/${pattern}`);
-}
-
-function getConvexTargets(): NxTargetMap {
-  return {
-    "dev:setup": {
-      cache: false,
-    },
-  };
 }
 
 function getDatabaseTargets(dbSupport: DbScriptSupport): NxTargetMap {

@@ -71,8 +71,6 @@ function isSelfCloudflareD1Target(config: ProjectConfig) {
 
 function expectedDatabaseForSetup(dbSetup: DatabaseSetup) {
   switch (dbSetup) {
-    case "turso":
-      return "sqlite";
     case "neon":
     case "prisma-postgres":
     case "supabase":
@@ -119,18 +117,9 @@ function validateDatabaseSetup(config: ProjectConfig, rules: Set<MatrixRule>) {
       neon: "db-setup-neon-requires-postgres",
       "prisma-postgres": "db-setup-prisma-postgres-requires-postgres",
       supabase: "db-setup-supabase-requires-postgres",
-      turso: "db-setup-turso-requires-sqlite",
-    } satisfies Record<Exclude<DatabaseSetup, "docker" | "none" | "planetscale">, MatrixRule>;
+    } satisfies Record<Exclude<DatabaseSetup, "docker" | "none">, MatrixRule>;
     rules.add(ruleBySetup[config.dbSetup as keyof typeof ruleBySetup]);
   }
-
-  addRule(
-    rules,
-    config.dbSetup === "planetscale" &&
-      config.database !== "postgres" &&
-      config.database !== "mysql",
-    "db-setup-planetscale-requires-postgres-or-mysql",
-  );
 
   addRule(
     rules,

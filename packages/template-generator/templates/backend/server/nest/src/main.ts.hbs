@@ -1,0 +1,30 @@
+import "reflect-metadata";
+import { NestFactory } from "@nestjs/core";
+import {
+  FastifyAdapter,
+  type NestFastifyApplication,
+} from "@nestjs/platform-fastify";
+import fastifyCors from "@fastify/cors";
+import { AppModule } from "./app.module";
+import { env } from "@{{projectName}}/env/server";
+
+async function bootstrap() {
+  const adapter = new FastifyAdapter({
+    trustProxy: ["loopback", "linklocal", "uniquelocal"],
+  });
+  const fastify = adapter.getInstance();
+
+  // Must run before Nest modules mount httpAdapter.use routes.
+  await fastify.register(fastifyCors as never, {
+    origin: env.CORS_ORIGIN,
+    methods: ["GET", "POST", "OPTIONS"],
+  });
+
+  const app = await NestFactory.create<NestFastifyApplication>(AppModule, adapter, {
+    bodyParser: false,
+  });
+
+  await app.listen(3000, "0.0.0.0");
+}
+
+void bootstrap();

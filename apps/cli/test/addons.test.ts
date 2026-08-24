@@ -61,7 +61,7 @@ function expectDocsWithEvlogAuth(content: string) {
 describe("Addon Configurations", () => {
   describe("Frontend-Specific Addons", () => {
     describe("PWA Addon", () => {
-      const pwaCompatibleFrontends = ["tanstack-router", "react-router", "solid", "next"];
+      const pwaCompatibleFrontends = ["tanstack-router", "react-router", "next"];
 
       for (const frontend of pwaCompatibleFrontends) {
         it(`should work with PWA + ${frontend}`, async () => {
@@ -74,6 +74,7 @@ describe("Addon Configurations", () => {
             database: "sqlite",
             orm: "drizzle",
             auth: "none",
+            api: "orpc",
             examples: ["none"],
             dbSetup: "none",
             webDeploy: "none",
@@ -81,25 +82,12 @@ describe("Addon Configurations", () => {
             install: false,
           };
 
-          // Handle special frontend requirements
-          if (frontend === "solid") {
-            config.api = "orpc"; // tRPC not supported with solid
-          } else {
-            config.api = "orpc";
-          }
-
           const result = await runTRPCTest(config);
           expectSuccess(result);
         });
       }
 
-      const pwaIncompatibleFrontends = [
-        "nuxt",
-        "svelte",
-        "native-bare",
-        "native-uniwind",
-        "native-unistyles",
-      ];
+      const pwaIncompatibleFrontends = ["native-bare", "native-uniwind", "native-unistyles"];
 
       for (const frontend of pwaIncompatibleFrontends) {
         it(`should fail with PWA + ${frontend}`, async () => {
@@ -112,6 +100,7 @@ describe("Addon Configurations", () => {
             database: "sqlite",
             orm: "drizzle",
             auth: "none",
+            api: "orpc",
             examples: ["none"],
             dbSetup: "none",
             webDeploy: "none",
@@ -119,16 +108,10 @@ describe("Addon Configurations", () => {
             expectError: true,
           };
 
-          if (["nuxt", "svelte"].includes(frontend)) {
-            config.api = "orpc";
-          } else {
-            config.api = "orpc";
-          }
-
           const result = await runTRPCTest(config);
           expectError(
             result,
-            "pwa addon requires one of these frontends: tanstack-router, react-router, solid, next",
+            "pwa addon requires one of these frontends: tanstack-router, react-router, next",
           );
         });
       }
@@ -140,10 +123,6 @@ describe("Addon Configurations", () => {
         "react-router",
         "tanstack-start",
         "next",
-        "nuxt",
-        "svelte",
-        "solid",
-        "astro",
       ];
 
       for (const frontend of tauriCompatibleFrontends) {
@@ -157,18 +136,13 @@ describe("Addon Configurations", () => {
             database: "sqlite",
             orm: "drizzle",
             auth: "none",
+            api: "orpc",
             examples: ["none"],
             dbSetup: "none",
             webDeploy: "none",
             serverDeploy: "none",
             install: false,
           };
-
-          if (["nuxt", "svelte", "solid", "astro"].includes(frontend)) {
-            config.api = "orpc";
-          } else {
-            config.api = "orpc";
-          }
 
           const result = await runTRPCTest(config);
           expectSuccess(result);
@@ -222,12 +196,12 @@ describe("Addon Configurations", () => {
       });
 
       for (const frontend of ["next", "tanstack-start"] as const) {
-        it(`should fail with Tauri + Convex Better Auth + ${frontend}`, async () => {
+        it(`should fail with Tauri + Better Auth + ${frontend} without backend`, async () => {
           const result = await runTRPCTest({
-            projectName: `tauri-convex-better-auth-${frontend}-fail`,
+            projectName: `tauri-better-auth-${frontend}-fail`,
             addons: ["tauri"],
             frontend: [frontend],
-            backend: "convex",
+            backend: "none",
             runtime: "none",
             database: "none",
             orm: "none",
@@ -240,7 +214,7 @@ describe("Addon Configurations", () => {
             expectError: true,
           });
 
-          expectError(result, "server auth bootstrap");
+          expectError(result, "tauri addon requires a separate backend or no backend");
         });
       }
     });
@@ -251,10 +225,6 @@ describe("Addon Configurations", () => {
         "react-router",
         "tanstack-start",
         "next",
-        "nuxt",
-        "svelte",
-        "solid",
-        "astro",
       ];
 
       for (const frontend of electrobunCompatibleFrontends) {
@@ -268,14 +238,13 @@ describe("Addon Configurations", () => {
             database: "sqlite",
             orm: "drizzle",
             auth: "none",
+            api: "orpc",
             examples: ["none"],
             dbSetup: "none",
             webDeploy: "none",
             serverDeploy: "none",
             install: false,
           };
-
-          config.api = ["nuxt", "svelte", "solid", "astro"].includes(frontend) ? "orpc" : "orpc";
 
           const result = await runTRPCTest(config);
           expectSuccess(result);
@@ -330,17 +299,17 @@ describe("Addon Configurations", () => {
         expectError(result, "electrobun addon requires a separate backend or no backend");
       });
 
-      it("should work with Electrobun + Convex Better Auth + Next.js for desktop HMR", async () => {
+      it("should work with Electrobun + Better Auth + Next.js for desktop HMR", async () => {
         const result = await runTRPCTest({
-          projectName: "electrobun-convex-better-auth-next",
+          projectName: "electrobun-better-auth-next",
           addons: ["turborepo", "electrobun"],
           frontend: ["next"],
-          backend: "convex",
-          runtime: "none",
-          database: "none",
-          orm: "none",
+          backend: "hono",
+          runtime: "bun",
+          database: "sqlite",
+          orm: "drizzle",
           auth: "better-auth",
-          api: "none",
+          api: "orpc",
           examples: ["ai"],
           dbSetup: "none",
           webDeploy: "none",
@@ -438,7 +407,7 @@ describe("Addon Configurations", () => {
     it("should fail with incompatible addon combination", async () => {
       const result = await runTRPCTest({
         projectName: "incompatible-addons-fail",
-        addons: ["pwa"], // PWA not compatible with nuxt
+        addons: ["pwa"], // PWA not compatible with native frontends
         frontend: ["tanstack-router"],
         backend: "hono",
         runtime: "bun",
@@ -1026,31 +995,14 @@ describe("Addon Configurations", () => {
   });
 
   describe("Evlog Addon", () => {
-    it("should not offer evlog for Convex projects", () => {
-      const compatibleAddons = getCompatibleAddons(
-        ["evlog", "mcp"] as Addons[],
-        ["tanstack-start", "native-uniwind"] as Frontend[],
-        [],
-        "better-auth",
-        "convex",
-        "none",
-      );
-
-      expect(compatibleAddons).not.toContain("evlog");
-      expect(compatibleAddons).toContain("mcp");
-    });
-
     const backendSnippets = {
       hono: 'import { evlog, type EvlogVariables } from "evlog/hono";',
-      express: 'import { evlog } from "evlog/express";',
-      fastify: 'import { evlog } from "evlog/fastify";',
-      elysia: 'import { evlog } from "evlog/elysia";',
-      convex: "",
+      nest: "",
       self: "",
       none: "",
     } satisfies Record<Backend, string>;
 
-    for (const backend of ["hono", "express", "fastify", "elysia"] as const) {
+    for (const backend of ["hono"] as const) {
       it(`should wire evlog middleware for ${backend}`, async () => {
         const result = await runTRPCTest({
           projectName: `evlog-${backend}`,
@@ -1134,24 +1086,6 @@ describe("Addon Configurations", () => {
         ],
       },
       {
-        frontend: "tanstack-router",
-        api: "orpc",
-        files: [
-          ["apps/web/nuxt.config.ts", '"evlog/nuxt"'],
-          ["apps/web/server/plugins/evlog-drain.ts", "createFsDrain"],
-        ],
-      },
-      {
-        frontend: "react-router",
-        api: "orpc",
-        files: [
-          ["apps/web/vite.config.ts", "evlog({ service:"],
-          ["apps/web/src/hooks.server.ts", "createEvlogHooks"],
-          ["apps/web/src/hooks.server.ts", "createFsDrain"],
-          ["apps/web/src/app.d.ts", "log: RequestLogger"],
-        ],
-      },
-      {
         frontend: "tanstack-start",
         api: "orpc",
         files: [
@@ -1209,124 +1143,11 @@ describe("Addon Configurations", () => {
       });
     }
 
-    it("should keep Nuxt config parseable with Cloudflare web deploy", async () => {
-      const result = await runTRPCTest({
-        projectName: "evlog-nuxt-cloudflare-web",
-        addons: ["evlog"],
-        frontend: ["tanstack-router"],
-        backend: "self",
-        runtime: "none",
-        database: "sqlite",
-        orm: "drizzle",
-        auth: "none",
-        api: "orpc",
-        examples: ["none"],
-        dbSetup: "none",
-        webDeploy: "cloudflare",
-        serverDeploy: "none",
-        install: false,
-      });
-
-      expectSuccess(result);
-      const projectDir = result.result?.projectDirectory;
-      if (!projectDir) throw new Error("Expected generated project directory");
-
-      const nuxtConfig = await readFile(join(projectDir, "apps/web/nuxt.config.ts"), "utf-8");
-
-      expect(nuxtConfig).toContain('"evlog/nuxt"');
-      expect(nuxtConfig).toContain("nitro:");
-      expect(nuxtConfig).toContain('import { existsSync } from "node:fs";');
-      expect(nuxtConfig).toContain('import { fileURLToPath } from "node:url";');
-      expect(nuxtConfig).toContain("const alchemyConfigPath = fileURLToPath");
-      expect(nuxtConfig).toContain("const hasAlchemyConfig = existsSync(alchemyConfigPath);");
-      expect(nuxtConfig).toContain("const shouldUseAlchemy = !isNuxtPrepare && hasAlchemyConfig;");
-      expect(nuxtConfig).toContain("alchemy({ dev: { configPath: alchemyConfigPath } })");
-      expect(nuxtConfig).toContain("isNuxtDev");
-      expect(nuxtConfig).toContain("const cloudflareWorkersShimPath = fileURLToPath");
-      expect(nuxtConfig).toContain(
-        "const cloudflareWorkersAlias: Record<string, string> = shouldUseAlchemy",
-      );
-      expect(nuxtConfig).toContain('"cloudflare:workers"');
-      expect(nuxtConfig).toContain("cloudflareWorkersShimPath");
-      expect(nuxtConfig).toContain("evlog:");
-      expect(existsSync(join(projectDir, "apps/web/server/plugins/evlog-drain.ts"))).toBe(false);
-      expectParseableTypeScript(nuxtConfig);
-    });
-
-    it("should type Nitro Better Auth events for Nuxt Cloudflare projects", async () => {
-      const result = await runTRPCTest({
-        projectName: "evlog-nuxt-cloudflare-auth",
-        addons: ["evlog"],
-        frontend: ["tanstack-router"],
-        backend: "self",
-        runtime: "none",
-        database: "sqlite",
-        orm: "drizzle",
-        auth: "better-auth",
-        api: "orpc",
-        examples: ["none"],
-        dbSetup: "none",
-        webDeploy: "cloudflare",
-        serverDeploy: "none",
-        install: false,
-      });
-
-      expectSuccess(result);
-      const projectDir = result.result?.projectDirectory;
-      if (!projectDir) throw new Error("Expected generated project directory");
-
-      const authMiddleware = await readFile(
-        join(projectDir, "apps/web/server/middleware/evlog-auth.ts"),
-        "utf-8",
-      );
-      const authClient = await readFile(
-        join(projectDir, "apps/web/app/plugins/auth-client.ts"),
-        "utf-8",
-      );
-      const envServer = await readFile(join(projectDir, "packages/env/src/server.ts"), "utf-8");
-
-      expect(existsSync(join(projectDir, "apps/web/server/plugins/evlog-auth.ts"))).toBe(false);
-      expect(authMiddleware).toContain(
-        'import { createAuthMiddleware, type BetterAuthInstance } from "evlog/better-auth";',
-      );
-      expect(authMiddleware).toContain(
-        "const identify = createAuthMiddleware(createAuth() as BetterAuthInstance, {",
-      );
-      expect(authMiddleware).toContain('exclude: ["/api/auth/**"]');
-      expect(authMiddleware).toContain("maskEmail: true");
-      expect(authMiddleware).toContain("export default defineEventHandler(async (event) => {");
-      expect(authMiddleware).toContain(
-        "await identify(event.context.log, event.headers, event.path);",
-      );
-      expect(authMiddleware).not.toContain("createAuthIdentifier(");
-      expectDocsWithEvlogAuth(authMiddleware);
-      expectParseableTypeScript(authMiddleware);
-
-      expect(authClient).not.toContain("baseURL:");
-      expect(authClient).not.toContain("as string");
-      expectParseableTypeScript(authClient);
-
-      expect(envServer).toContain('/// <reference types="@cloudflare/workers-types" />');
-      expectParseableTypeScript(envServer);
-    });
-
     const fullstackBetterAuthEvlogCases = [
       {
         frontend: "next",
         api: "orpc",
         path: "apps/web/src/lib/evlog-auth.ts",
-        expected: "createAuthMiddleware(auth as BetterAuthInstance",
-      },
-      {
-        frontend: "tanstack-router",
-        api: "orpc",
-        path: "apps/web/server/middleware/evlog-auth.ts",
-        expected: "createAuthMiddleware(auth as BetterAuthInstance",
-      },
-      {
-        frontend: "react-router",
-        api: "orpc",
-        path: "apps/web/src/hooks.server.ts",
         expected: "createAuthMiddleware(auth as BetterAuthInstance",
       },
       {
@@ -1394,20 +1215,6 @@ describe("Addon Configurations", () => {
         insideMarker: "export async function identifyEvlogUser",
       },
       {
-        frontend: "tanstack-router",
-        api: "orpc",
-        path: "apps/web/server/middleware/evlog-auth.ts",
-        expected: "createAuthMiddleware(createAuth() as BetterAuthInstance",
-        insideMarker: "export default defineEventHandler",
-      },
-      {
-        frontend: "react-router",
-        api: "orpc",
-        path: "apps/web/src/hooks.server.ts",
-        expected: "createAuthMiddleware(createAuth(authEnv) as BetterAuthInstance",
-        insideMarker: "const evlogAuthHandle",
-      },
-      {
         frontend: "tanstack-start",
         api: "orpc",
         path: "apps/web/server/plugins/evlog-auth.ts",
@@ -1458,28 +1265,6 @@ describe("Addon Configurations", () => {
       });
     }
 
-    it("should reject evlog for Convex backend projects", async () => {
-      const result = await runTRPCTest({
-        projectName: "evlog-convex-fail",
-        addons: ["evlog"],
-        frontend: ["tanstack-start", "native-uniwind"],
-        backend: "convex",
-        runtime: "none",
-        database: "none",
-        orm: "none",
-        auth: "better-auth",
-        api: "none",
-        examples: ["none"],
-        dbSetup: "none",
-        webDeploy: "none",
-        serverDeploy: "none",
-        install: false,
-        expectError: true,
-      });
-
-      expectError(result, "Convex and backend none are not supported yet");
-    });
-
     it("should wire evlog Better Auth and AI SDK helpers for server projects", async () => {
       const result = await runTRPCTest({
         projectName: "evlog-hono-auth-ai",
@@ -1523,76 +1308,16 @@ describe("Addon Configurations", () => {
       expect(serverIndex).toContain("integrations: [createEvlogIntegration(ai)]");
     });
 
-    it("should wire evlog AI SDK helpers for Express server projects", async () => {
-      const result = await runTRPCTest({
-        projectName: "evlog-express-ai",
-        addons: ["evlog"],
-        frontend: ["tanstack-router"],
-        backend: "hono",
-        runtime: "node",
-        database: "sqlite",
-        orm: "drizzle",
-        auth: "better-auth",
-        api: "orpc",
-        examples: ["ai"],
-        dbSetup: "none",
-        webDeploy: "none",
-        serverDeploy: "none",
-        install: false,
-      });
-
-      expectSuccess(result);
-      const projectDir = result.result?.projectDirectory;
-      if (!projectDir) throw new Error("Expected generated project directory");
-
-      const serverIndex = await readFile(join(projectDir, "apps/server/src/index.ts"), "utf-8");
-      expect(serverIndex).toContain(
-        'import { createAILogger, createEvlogIntegration } from "evlog/ai";',
-      );
-      expect(serverIndex).toContain("const ai = createAILogger(useLogger());");
-      expect(serverIndex).toContain("model: ai.wrap(model)");
-      expect(serverIndex).toContain("telemetry:");
-      expect(serverIndex).not.toContain("experimental_telemetry");
-      expect(serverIndex).toContain("integrations: [createEvlogIntegration(ai)]");
-    });
-
     it("should wire evlog AI SDK helpers to every supported AI route", async () => {
       const cases = [
         {
-          projectName: "evlog-fastify-ai",
-          frontend: "tanstack-router",
-          backend: "hono",
-          runtime: "node",
-          api: "orpc",
-          filePath: "apps/server/src/index.ts",
-          expectedLogger: "const ai = createAILogger(useLogger());",
-        },
-        {
-          projectName: "evlog-elysia-ai",
+          projectName: "evlog-hono-ai",
           frontend: "tanstack-router",
           backend: "hono",
           runtime: "bun",
           api: "orpc",
           filePath: "apps/server/src/index.ts",
-          expectedLogger: "const ai = createAILogger(context.log);",
-        },
-        {
-          projectName: "evlog-nuxt-self-ai",
-          frontend: "tanstack-router",
-          backend: "self",
-          runtime: "none",
-          api: "orpc",
-          filePath: "apps/web/server/api/ai.post.ts",
-          expectedLogger: "const ai = createAILogger(useLogger(event));",
-        },
-        {
-          projectName: "evlog-svelte-self-ai",
-          frontend: "react-router",
-          backend: "self",
-          runtime: "none",
-          api: "orpc",
-          filePath: "apps/web/src/routes/api/ai/+server.ts",
-          expectedLogger: "const ai = createAILogger(locals.log);",
+          expectedLogger: 'const ai = createAILogger(c.get("log"));',
         },
         {
           projectName: "evlog-tanstack-start-self-ai",
@@ -1631,19 +1356,12 @@ describe("Addon Configurations", () => {
         expect(aiFile).toContain(
           'import { createAILogger, createEvlogIntegration } from "evlog/ai";',
         );
-        if (testCase.frontend === "nuxt") {
-          expect(aiFile).toContain('import { useLogger } from "evlog/nitro";');
-        }
         expect(aiFile).toContain(testCase.expectedLogger);
         expect(aiFile).toContain("model: ai.wrap(model)");
         expect(aiFile).toContain("telemetry:");
         expect(aiFile).toContain("isEnabled: true");
         expect(aiFile).toContain("integrations: [createEvlogIntegration(ai)]");
         expect(aiFile).not.toContain("experimental_telemetry");
-        if (testCase.backend === "elysia") {
-          expect(aiFile).toContain("new Elysia()");
-          expect(aiFile).not.toContain("const app =");
-        }
       }
     });
 
@@ -1700,7 +1418,7 @@ describe("Addon Configurations", () => {
 
     for (const webCase of separateBackendWebAuthCases) {
       it(`should keep Better Auth identifiers in the server for ${webCase.frontend} + separate backend projects`, async () => {
-        const projectName = `evlog-${webCase.frontend}-express-auth-ai`;
+        const projectName = `evlog-${webCase.frontend}-hono-auth-ai`;
         const result = await runTRPCTest({
           projectName,
           addons: ["evlog"],
@@ -1711,7 +1429,7 @@ describe("Addon Configurations", () => {
           orm: "drizzle",
           auth: "better-auth",
           api: webCase.api,
-          examples: webCase.frontend === "astro" ? ["todo"] : ["todo", "ai"],
+          examples: ["todo", "ai"],
           dbSetup: "neon",
           webDeploy: "none",
           serverDeploy: "none",
@@ -1789,38 +1507,6 @@ describe("Addon Configurations", () => {
         'app.use(evlog({ drain: process.env.NODE_ENV === "production" ? undefined : createFsDrain() }));',
       );
       expect(serverPackageJson).toContain('"evlog": "^2.22.4"');
-    });
-
-    it("should reject evlog when added later to a Convex project", async () => {
-      const created = await runTRPCTest({
-        projectName: "evlog-add-convex-fail",
-        addons: ["none"],
-        frontend: ["tanstack-start", "native-uniwind"],
-        backend: "convex",
-        runtime: "none",
-        database: "none",
-        orm: "none",
-        auth: "better-auth",
-        api: "none",
-        examples: ["none"],
-        dbSetup: "none",
-        webDeploy: "none",
-        serverDeploy: "none",
-        install: false,
-      });
-
-      expectSuccess(created);
-      const projectDir = created.result?.projectDirectory;
-      if (!projectDir) throw new Error("Expected generated project directory");
-
-      const addResult = await add({
-        projectDir,
-        addons: ["evlog"],
-        install: false,
-      });
-
-      expect(addResult?.success).toBe(false);
-      expect(addResult?.error).toContain("Convex and backend none are not supported yet");
     });
   });
 

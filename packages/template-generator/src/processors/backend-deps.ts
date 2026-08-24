@@ -17,7 +17,20 @@ export function processBackendDeps(vfs: VirtualFileSystem, config: ProjectConfig
     if (runtime === "node") deps.push("@hono/node-server");
   }
 
-  if (api === "orpc") {
+  if (backend === "nest") {
+    deps.push(
+      "@nestjs/common",
+      "@nestjs/core",
+      "@nestjs/platform-fastify",
+      "fastify",
+      "@fastify/cors",
+      "reflect-metadata",
+      "rxjs",
+    );
+    devDeps.push("@nestjs/cli", "@nestjs/schematics");
+  }
+
+  if (api === "orpc" && backend !== "nest") {
     deps.push("@orpc/server", "@orpc/openapi", "@orpc/zod");
   }
 

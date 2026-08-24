@@ -12,6 +12,7 @@ import { ProjectCreationError } from "../../utils/errors";
 import { formatProject } from "../../utils/file-formatter";
 import { getLatestCLIVersion } from "../../utils/get-latest-cli-version";
 import { setupAddons } from "../addons/addons-setup";
+import { setupRequiredNestSkills } from "../addons/skills-setup";
 import { setupDatabase } from "../core/db-setup";
 import { initializeGit } from "./git";
 import { installDependencies } from "./install-dependencies";
@@ -33,7 +34,6 @@ export async function createProject(
 ): Promise<Result<string, ProjectCreationError>> {
   return Result.gen(async function* () {
     const projectDir = options.projectDir;
-    const isConvex = options.backend === "convex";
 
     // Ensure project directory exists
     yield* Result.await(
@@ -86,7 +86,7 @@ export async function createProject(
     );
 
     // Setup database if needed
-    if (!isConvex && options.database !== "none") {
+    if (options.database !== "none") {
       yield* Result.await(
         Result.tryPromise({
           try: () => setupDatabase(options, cliInput),
@@ -109,6 +109,26 @@ export async function createProject(
             new ProjectCreationError({
               phase: "addons-setup",
               message: `Failed to setup addons: ${e instanceof Error ? e.message : String(e)}`,
+              cause: e,
+            }),
+        }),
+      );
+    }
+
+    // Nest always installs its two skills, even without --addons skills.
+    if (options.backend === "nest") {
+      yield* Result.await(
+        Result.tryPromise({
+          try: async () => {
+            const result = await setupRequiredNestSkills(options);
+            if (result.isErr()) {
+              throw result.error;
+            }
+          },
+          catch: (e) =>
+            new ProjectCreationError({
+              phase: "addons-setup",
+              message: `Failed to install NestJS skills: ${e instanceof Error ? e.message : String(e)}`,
               cause: e,
             }),
         }),

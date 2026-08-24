@@ -13,14 +13,6 @@ export type ManagedDatabasePlan =
   | { kind: "none" }
   | { kind: "neon"; orm: "drizzle" | "prisma" }
   | {
-      kind: "planetscale-postgres";
-      orm: "drizzle" | "prisma";
-    }
-  | {
-      kind: "planetscale-mysql";
-      orm: "drizzle" | "prisma";
-    }
-  | {
       kind: "prisma-postgres";
       orm: "drizzle" | "prisma";
     };
@@ -74,14 +66,6 @@ function createManagedDatabasePlan(config: ProjectConfig): ManagedDatabasePlan {
 
   if (config.dbSetup === "prisma-postgres") {
     return { kind: "prisma-postgres", orm: config.orm };
-  }
-
-  if (config.dbSetup === "planetscale" && config.database === "postgres") {
-    return { kind: "planetscale-postgres", orm: config.orm };
-  }
-
-  if (config.dbSetup === "planetscale" && config.database === "mysql") {
-    return { kind: "planetscale-mysql", orm: config.orm };
   }
 
   throw new Error(

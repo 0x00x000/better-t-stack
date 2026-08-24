@@ -44,7 +44,6 @@ describe("Vite+ config generator", () => {
     expect(patterns).not.toContain("apps/web/.nuxt/**");
     expect(patterns).not.toContain("packages/db/prisma/generated/**");
     expect(patterns).not.toContain("packages/db/prisma/**/*.db*");
-    expect(patterns).not.toContain("packages/backend/convex/_generated/**");
     expect(patterns).not.toContain(".wrangler/**");
   });
 
@@ -69,16 +68,16 @@ describe("Vite+ config generator", () => {
     expect(nextPatterns).not.toContain("apps/web/.nuxt/**");
     expect(nextPatterns).not.toContain("apps/server/dist/**");
 
-    const nuxtPatterns = getVitePlusIgnorePatterns(
+    const tanstackStartPatterns = getVitePlusIgnorePatterns(
       configWith({
-        frontend: ["tanstack-router"],
+        frontend: ["tanstack-start"],
         api: "orpc",
       }),
     );
 
-    expect(nuxtPatterns).toContain("apps/web/.nuxt/**");
-    expect(nuxtPatterns).toContain("apps/web/.output/**");
-    expect(nuxtPatterns).not.toContain("apps/web/.next/**");
+    expect(tanstackStartPatterns).toContain("apps/web/dist/**");
+    expect(tanstackStartPatterns).toContain("apps/web/.vinxi/**");
+    expect(tanstackStartPatterns).not.toContain("apps/web/.next/**");
   });
 
   it("adds native and Cloudflare ignore patterns only when selected", () => {

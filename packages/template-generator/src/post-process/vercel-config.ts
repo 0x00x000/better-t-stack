@@ -27,11 +27,7 @@ type VercelService = {
 
 function getWebFramework(frontend: ProjectConfig["frontend"], isDesktop: boolean): string {
   if (frontend.includes("next")) return "nextjs";
-  if (frontend.includes("nuxt")) return "nuxtjs";
-  if (frontend.includes("svelte")) return "sveltekit";
-  if (frontend.includes("astro")) return "astro";
   if (frontend.includes("tanstack-start")) return "tanstack-start";
-  if (frontend.includes("solid")) return "nitro";
   // Desktop addons force React Router into a static export served as a plain vite app
   if (frontend.includes("react-router") && !isDesktop) return "react-router";
   return "vite";
@@ -39,8 +35,6 @@ function getWebFramework(frontend: ProjectConfig["frontend"], isDesktop: boolean
 
 function getPublicServerUrlVar(frontend: ProjectConfig["frontend"]): string {
   if (frontend.includes("next")) return "NEXT_PUBLIC_SERVER_URL";
-  if (frontend.includes("nuxt")) return "NUXT_PUBLIC_SERVER_URL";
-  if (frontend.includes("svelte") || frontend.includes("astro")) return "PUBLIC_SERVER_URL";
   return "VITE_SERVER_URL";
 }
 

@@ -129,34 +129,10 @@ describe("Electrobun addon scaffolding", () => {
         expectedWebConfig: ['output: "export"'],
       },
       {
-        frontend: "tanstack-router",
-        api: "orpc",
-        expectedOutputDir: 'const webBuildDir = "../web/.output/public";',
-        expectedPort: "const DEV_SERVER_PORT = 3001;",
-        expectedBuildCommand: "bun run --filter web generate",
-      },
-      {
         frontend: "react-router",
         api: "orpc",
-        expectedOutputDir: 'const webBuildDir = "../web/build";',
+        expectedOutputDir: 'const webBuildDir = "../web/build/client";',
         expectedPort: "const DEV_SERVER_PORT = 5173;",
-        expectedWebConfigPath: "svelte.config.js",
-        expectedWebConfig: ["@sveltejs/adapter-static", 'fallback: "index.html"'],
-      },
-      {
-        frontend: "tanstack-router",
-        api: "orpc",
-        expectedOutputDir: 'const webBuildDir = "../web/dist";',
-        expectedPort: "const DEV_SERVER_PORT = 3001;",
-      },
-      {
-        frontend: "next",
-        api: "orpc",
-        expectedOutputDir: 'const webBuildDir = "../web/dist";',
-        expectedPort: "const DEV_SERVER_PORT = 4321;",
-        expectedWebConfigPath: "astro.config.mjs",
-        expectedWebConfig: ['output: "static"'],
-        unexpectedWebDependency: "@astrojs/node",
       },
     ] as const;
 

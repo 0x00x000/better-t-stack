@@ -17,16 +17,7 @@ export async function processEnvPackage(
   config: ProjectConfig,
 ): Promise<void> {
   const hasWebFrontend = config.frontend.some((f) =>
-    [
-      "tanstack-router",
-      "react-router",
-      "tanstack-start",
-      "next",
-      "nuxt",
-      "svelte",
-      "solid",
-      "astro",
-    ].includes(f),
+    ["tanstack-router", "react-router", "tanstack-start", "next"].includes(f),
   );
   const hasNative = config.frontend.some((f) =>
     ["native-bare", "native-uniwind", "native-unistyles"].includes(f),
@@ -72,7 +63,7 @@ export async function processEnvPackage(
     );
   }
 
-  // Conditionally include server.ts when backend is NOT none and NOT convex
+  // Conditionally include server.ts when backend is not none
   if (config.backend !== "none") {
     processSingleTemplate(
       vfs,

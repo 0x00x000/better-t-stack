@@ -14,18 +14,13 @@ sedi() { if sed --version >/dev/null 2>&1; then sed -i "$@"; else sed -i '' "$@"
 # name|flags|web_port_internal(3001|80|none)|has_server|spa(0|1)
 TESTS=(
 "next-hono-node-pnpm|--frontend next --backend hono --runtime node --database postgres --orm drizzle --db-setup docker --web-deploy docker --server-deploy docker --api trpc --auth better-auth --payments none --addons turborepo --examples none --package-manager pnpm|3001|1|0"
-"nuxt-fastify-node-pnpm|--frontend nuxt --backend fastify --runtime node --database none --orm none --db-setup none --web-deploy docker --server-deploy docker --api orpc --auth none --payments none --addons none --examples none --package-manager pnpm|3001|1|0"
-"nuxt-express-node-npm|--frontend nuxt --backend express --runtime node --database postgres --orm drizzle --db-setup docker --web-deploy docker --server-deploy docker --api orpc --auth none --payments none --addons none --examples none --package-manager npm|3001|1|0"
-"svelte-self-npm|--frontend svelte --backend self --runtime none --database postgres --orm drizzle --db-setup docker --web-deploy docker --server-deploy none --api orpc --auth better-auth --payments none --addons none --examples none --package-manager npm|3001|0|0"
-"astro-elysia-bun-bun|--frontend astro --backend elysia --runtime bun --database none --orm none --db-setup none --web-deploy docker --server-deploy docker --api orpc --auth none --payments none --addons none --examples none --package-manager bun|3001|1|0"
 "react-router-npm|--frontend react-router --backend none --runtime none --database none --orm none --db-setup none --web-deploy docker --server-deploy none --api none --auth none --payments none --addons none --examples none --package-manager npm|3001|0|0"
 "tanstack-router-hono-bun-bun|--frontend tanstack-router --backend hono --runtime bun --database postgres --orm drizzle --db-setup docker --web-deploy docker --server-deploy docker --api trpc --auth better-auth --payments none --addons turborepo --examples none --package-manager bun|80|1|1"
 "tanstack-start-express-node-pnpm|--frontend tanstack-start --backend express --runtime node --database none --orm none --db-setup none --web-deploy docker --server-deploy docker --api orpc --auth none --payments none --addons none --examples none --package-manager pnpm|3001|1|0"
-"solid-bun|--frontend solid --backend none --runtime none --database none --orm none --db-setup none --web-deploy docker --server-deploy none --api none --auth none --payments none --addons none --examples none --package-manager bun|80|0|1"
 "mongo-hono-bun-bun|--frontend tanstack-router --backend hono --runtime bun --database mongodb --orm mongoose --db-setup docker --web-deploy docker --server-deploy docker --api orpc --auth none --payments none --addons none --examples none --package-manager bun|80|1|1"
 "mysql-elysia-bun-prisma|--frontend tanstack-start --backend elysia --runtime bun --database mysql --orm prisma --db-setup docker --web-deploy docker --server-deploy docker --api orpc --auth better-auth --payments none --addons turborepo --examples none --package-manager bun|3001|1|0"
 "fastify-node-server-only-npm|--frontend none --backend fastify --runtime node --database postgres --orm drizzle --db-setup docker --web-deploy none --server-deploy docker --api orpc --auth none --payments none --addons none --examples none --package-manager npm|none|1|0"
-"nuxt-self-bun|--frontend nuxt --backend self --runtime none --database postgres --orm drizzle --db-setup docker --web-deploy docker --server-deploy none --api orpc --auth better-auth --payments none --addons none --examples none --package-manager bun|3001|0|0"
+"tanstack-start-self-bun|--frontend tanstack-start --backend self --runtime none --database postgres --orm drizzle --db-setup docker --web-deploy docker --server-deploy none --api orpc --auth better-auth --payments none --addons none --examples none --package-manager bun|3001|0|0"
 )
 
 i=0

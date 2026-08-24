@@ -18,20 +18,10 @@ export const dependencyVersionMap = {
   "better-auth": "1.6.30",
   "@better-auth/expo": "1.6.30",
 
-  "@clerk/backend": "^3.16.10",
-  "@clerk/express": "^2.1.61",
-  "@clerk/fastify": "^3.1.71",
-  "@clerk/nextjs": "^7.8.0",
-  "@clerk/react": "^6.14.5",
-  "@clerk/react-router": "^3.6.15",
   "@react-router/express": "^8.3.0",
-  "@clerk/tanstack-react-start": "^1.5.6",
-  "@clerk/expo": "^4.5.2",
 
   "drizzle-orm": "^0.45.2",
   "drizzle-kit": "^0.31.10",
-  "@planetscale/database": "^1.20.1",
-
   "@libsql/client": "0.17.4",
   libsql: "0.5.29",
 
@@ -53,7 +43,6 @@ export const dependencyVersionMap = {
   "@prisma/adapter-better-sqlite3": "^7.9.1",
   "@prisma/adapter-pg": "^7.9.1",
   "@prisma/adapter-ppg": "^7.9.1",
-  "@prisma/adapter-planetscale": "^7.9.1",
 
   mongoose: "^9.8.1",
   mongodb: "^7.5.0",
@@ -77,16 +66,7 @@ export const dependencyVersionMap = {
 
   "@types/bun": "^1.3.14",
 
-  "@elysiajs/node": "^1.4.5",
-
-  "@elysiajs/cors": "^1.4.2",
-  "@elysiajs/trpc": "^1.1.0",
-  elysia: "^1.4.29",
-  // Peer dep of elysia; Bun isolated linker won't install peers, so Node/tsx fails without it.
-  "@sinclair/typebox": "^0.34.52",
-
   "@hono/node-server": "^2.0.12",
-  "@hono/trpc-server": "^0.4.2",
   hono: "^4.12.32",
 
   cors: "^2.8.6",
@@ -96,6 +76,14 @@ export const dependencyVersionMap = {
 
   fastify: "^5.10.0",
   "@fastify/cors": "^11.3.0",
+
+  "@nestjs/common": "^11.2.1",
+  "@nestjs/core": "^11.2.1",
+  "@nestjs/platform-fastify": "^11.2.1",
+  "@nestjs/cli": "^11.0.24",
+  "@nestjs/schematics": "^11.1.0",
+  "reflect-metadata": "^0.2.2",
+  rxjs: "^7.8.1",
 
   turbo: "^2.10.7",
   nx: "^23.1.0",
@@ -118,21 +106,8 @@ export const dependencyVersionMap = {
   "@orpc/zod": "^1.14.12",
   "@orpc/tanstack-query": "^1.14.12",
 
-  "@trpc/tanstack-react-query": "^11.18.0",
-  "@trpc/server": "^11.18.0",
-  "@trpc/client": "^11.18.0",
-
   next: "^16.3.0",
   nitro: "^3.0.260610-beta",
-
-  convex: "^1.45.0",
-  "@convex-dev/react-query": "^0.1.0",
-  "@convex-dev/agent": "^0.6.4",
-  "@convex-dev/polar": "^0.9.2",
-  "convex-svelte": "^0.14.0",
-  "convex-nuxt": "0.1.5",
-  "convex-vue": "^0.1.5",
-  "@convex-dev/better-auth": "^0.12.5",
 
   "@tanstack/svelte-query": "^6.1.38",
   "@tanstack/svelte-query-devtools": "^6.1.38",
@@ -174,12 +149,6 @@ export const dependencyVersionMap = {
   "@t3-oss/env-core": "^0.13.11",
   "@t3-oss/env-nextjs": "^0.13.11",
   "@t3-oss/env-nuxt": "^0.13.11",
-
-  "@polar-sh/better-auth": "^1.8.4",
-  "@polar-sh/checkout": "^0.4.0",
-  "@polar-sh/sdk": "^0.47.0",
-  "@stripe/react-stripe-js": "^6.8.0",
-  "@stripe/stripe-js": "^9.12.1",
 
   evlog: "^2.22.4",
 } as const;

@@ -43,7 +43,6 @@ const PACKAGE_PATHS = [
   "packages/api",
   "packages/db",
   "packages/auth",
-  "packages/backend",
   "packages/config",
   "packages/env",
   "packages/infra",

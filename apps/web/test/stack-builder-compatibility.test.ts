@@ -31,26 +31,20 @@ function createStack(overrides: Partial<StackState> = {}): StackState {
 }
 
 describe("stack builder D1 compatibility", () => {
-  test("supports Solid 2 as a self-hosted fullstack backend", () => {
+  test("supports TanStack Start as a self-hosted fullstack backend", () => {
     const stack = createStack({
-      webFrontend: ["solid"],
-      backend: "self-solid",
+      webFrontend: ["tanstack-start"],
+      backend: "self-tanstack-start",
       runtime: "none",
       api: "orpc",
       serverDeploy: "none",
     });
 
-    expect(getDisabledReason(stack, "backend", "self-solid")).toBeNull();
-    expect(getDisabledReason(stack, "api", "trpc")).toBe(
-      "tRPC is not compatible with Solid (use oRPC)",
-    );
-    expect(getDisabledReason(stack, "addons", "evlog")).toBe(
-      "evlog requires Hono, Express, Fastify, Elysia, or a fullstack backend",
-    );
+    expect(getDisabledReason(stack, "backend", "self-tanstack-start")).toBeNull();
     expect(analyzeStackCompatibility(stack).adjustedStack).toBeNull();
 
     const command = generateStackCommand(stack);
-    expect(command).toContain("--frontend solid");
+    expect(command).toContain("--frontend tanstack-start");
     expect(command).toContain("--backend self");
   });
 
@@ -454,6 +448,44 @@ describe("stack builder Vercel deployment compatibility", () => {
   });
 });
 
+describe("stack builder NestJS backend", () => {
+  test("exposes NestJS next to Hono", () => {
+    expect(TECH_OPTIONS.backend.map((option) => option.id)).toContain("nest");
+  });
+
+  test("locks NestJS to the Bun runtime", () => {
+    const nestStack = createStack({ backend: "nest", runtime: "bun" });
+
+    expect(getDisabledReason(nestStack, "runtime", "bun")).toBeNull();
+    expect(getDisabledReason(nestStack, "runtime", "node")).toBe("NestJS requires Bun runtime");
+    expect(getDisabledReason(nestStack, "runtime", "workers")).toBe("NestJS requires Bun runtime");
+    expect(getDisabledReason(nestStack, "backend", "nest")).toBeNull();
+  });
+
+  test("switches workers stacks to bun when NestJS is selected", () => {
+    const result = analyzeStackCompatibility(
+      createStack({
+        backend: "nest",
+        runtime: "workers",
+        serverDeploy: "cloudflare",
+      }),
+    );
+
+    expect(result.adjustedStack).toMatchObject({
+      backend: "nest",
+      runtime: "bun",
+      serverDeploy: "none",
+    });
+  });
+
+  test("emits --backend nest in the generated command", () => {
+    const command = generateStackCommand(createStack({ backend: "nest", runtime: "bun" }));
+
+    expect(command).toContain("--backend nest");
+    expect(command).toContain("--runtime bun");
+  });
+});
+
 describe("stack builder option parity", () => {
   test("exposes every CLI addon and deployment option", () => {
     expect(TECH_OPTIONS.addons.map((option) => option.id).sort()).toEqual(
@@ -482,15 +514,7 @@ describe("stack builder option parity", () => {
 
 describe("stack builder Prisma deployment compatibility", () => {
   test("allows Prisma web deployment only for supported SSR frontends", () => {
-    for (const frontend of [
-      "next",
-      "nuxt",
-      "astro",
-      "react-router",
-      "tanstack-start",
-      "svelte",
-      "solid",
-    ]) {
+    for (const frontend of ["next", "react-router", "tanstack-start"]) {
       expect(
         getDisabledReason(createStack({ webFrontend: [frontend] }), "webDeploy", "prisma"),
       ).toBeNull();
@@ -499,9 +523,7 @@ describe("stack builder Prisma deployment compatibility", () => {
     for (const frontend of ["tanstack-router"]) {
       expect(
         getDisabledReason(createStack({ webFrontend: [frontend] }), "webDeploy", "prisma"),
-      ).toBe(
-        "Prisma requires Next.js, Nuxt, Astro, React Router, TanStack Start, SvelteKit, or Solid",
-      );
+      ).toBe("Prisma requires Next.js, React Router, or TanStack Start");
     }
   });
 

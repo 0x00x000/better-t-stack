@@ -518,42 +518,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
   "devDependencies": {},
   "dependencies": {}
 }`],
-  ["api/orpc/server/src/context.ts.hbs", `{{#if (eq auth "clerk")}}
-type ClerkContextAuth = {
-	userId: string | null;
-};
-
-type ClerkRequestContext = {
-	auth: ClerkContextAuth | null;
-	session: null;
-};
-
-function toClerkContextAuth(auth: { userId: string | null } | null): ClerkContextAuth | null {
-	return auth ? { userId: auth.userId } : null;
-}
-{{/if}}
-
-{{#if (and (eq auth "clerk") (or (eq backend 'self') (eq backend 'hono') (eq backend 'elysia')))}}
-{{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}
-{{else}}
-import { createClerkClient } from "@clerk/backend";
-import { env } from "@{{projectName}}/env/server";
-
-const clerkClient = createClerkClient({
-	secretKey: env.CLERK_SECRET_KEY,
-	publishableKey: env.CLERK_PUBLISHABLE_KEY,
-});
-
-async function authenticateClerkRequest(request: Request): Promise<ClerkContextAuth | null> {
-	const requestState = await clerkClient.authenticateRequest(request, {
-		authorizedParties: [env.CORS_ORIGIN],
-	});
-	return toClerkContextAuth(requestState.toAuth());
-}
-{{/if}}
-{{/if}}
-
-{{#if (and (eq backend 'self') (includes frontend "next"))}}
+  ["api/orpc/server/src/context.ts.hbs", `{{#if (and (eq backend 'self') (includes frontend "next"))}}
 import type { NextRequest } from "next/server";
 {{#if (eq auth "better-auth")}}
 {{#if (or (eq runtime "workers") (eq serverDeploy "cloudflare") (and (eq backend "self") (eq webDeploy "cloudflare")))}}
@@ -563,7 +528,7 @@ import { auth } from "@{{projectName}}/auth";
 {{/if}}
 {{/if}}
 
-export async function createContext({{#if (eq auth "none")}}_req{{else}}req{{/if}}: NextRequest){{#if (eq auth "clerk")}}: Promise<ClerkRequestContext>{{/if}} {
+export async function createContext({{#if (eq auth "none")}}_req{{else}}req{{/if}}: NextRequest) {
 {{#if (eq auth "better-auth")}}
 	const session = await {{#if (or (eq runtime "workers") (eq serverDeploy "cloudflare") (and (eq backend "self") (eq webDeploy "cloudflare")))}}createAuth(){{else}}auth{{/if}}.api.getSession({
 		headers: req.headers,
@@ -571,12 +536,6 @@ export async function createContext({{#if (eq auth "none")}}_req{{else}}req{{/if
 	return {
 		auth: null,
 		session,
-	};
-{{else if (eq auth "clerk")}}
-	const clerkAuth = await authenticateClerkRequest(req);
-	return {
-		auth: clerkAuth,
-		session: null,
 	};
 {{else}}
 	return {
@@ -595,153 +554,11 @@ import { auth } from "@{{projectName}}/auth";
 {{/if}}
 {{/if}}
 
-export async function createContext({{#if (eq auth "none")}}_options{{else}}{ req }{{/if}}: { req: Request }){{#if (eq auth "clerk")}}: Promise<ClerkRequestContext>{{/if}} {
+export async function createContext({{#if (eq auth "none")}}_options{{else}}{ req }{{/if}}: { req: Request }) {
 {{#if (eq auth "better-auth")}}
 	const session = await {{#if (or (eq runtime "workers") (eq serverDeploy "cloudflare") (and (eq backend "self") (eq webDeploy "cloudflare")))}}createAuth(){{else}}auth{{/if}}.api.getSession({
 		headers: req.headers,
 	});
-	return {
-		auth: null,
-		session,
-	};
-{{else if (eq auth "clerk")}}
-	const clerkAuth = await authenticateClerkRequest(req);
-	return {
-		auth: clerkAuth,
-		session: null,
-	};
-{{else}}
-	return {
-		auth: null,
-		session: null,
-	};
-{{/if}}
-}
-
-{{else if (and (eq backend 'self') (includes frontend "nuxt"))}}
-{{#if (eq auth "better-auth")}}
-{{#if (or (eq runtime "workers") (eq serverDeploy "cloudflare") (and (eq backend "self") (eq webDeploy "cloudflare")))}}
-import { createAuth } from "@{{projectName}}/auth";
-{{else}}
-import { auth } from "@{{projectName}}/auth";
-{{/if}}
-{{/if}}
-{{#if (eq webDeploy "cloudflare")}}
-import type { CloudflareEnv } from "@{{projectName}}/env/server";
-{{/if}}
-
-export type CreateContextOptions = {
-	headers: Headers;
-{{#if (eq webDeploy "cloudflare")}}
-	env: CloudflareEnv;
-{{/if}}
-};
-
-export async function createContext({{#if (eq auth "none")}}{{#if (eq webDeploy "cloudflare")}}{ env }{{else}}_options{{/if}}{{else}}{ headers{{#if (eq webDeploy "cloudflare")}}, env{{/if}} }{{/if}}: CreateContextOptions) {
-{{#if (eq auth "better-auth")}}
-	const session = await {{#if (or (eq runtime "workers") (eq serverDeploy "cloudflare") (and (eq backend "self") (eq webDeploy "cloudflare")))}}createAuth({{#if (eq webDeploy "cloudflare")}}env{{/if}}){{else}}auth{{/if}}.api.getSession({ headers });
-	return {
-		auth: null,
-		session,
-{{#if (eq webDeploy "cloudflare")}}
-		env,
-{{/if}}
-	};
-{{else}}
-	return {
-		auth: null,
-		session: null,
-{{#if (eq webDeploy "cloudflare")}}
-		env,
-{{/if}}
-	};
-{{/if}}
-}
-
-{{else if (and (eq backend 'self') (includes frontend "svelte"))}}
-{{#if (eq auth "better-auth")}}
-{{#if (or (eq runtime "workers") (eq serverDeploy "cloudflare") (and (eq backend "self") (eq webDeploy "cloudflare")))}}
-import { createAuth } from "@{{projectName}}/auth";
-{{else}}
-import { auth } from "@{{projectName}}/auth";
-{{/if}}
-{{/if}}
-{{#if (eq webDeploy "cloudflare")}}
-import type { CloudflareEnv } from "@{{projectName}}/env/server";
-{{/if}}
-
-export type CreateContextOptions = {
-	headers: Headers;
-{{#if (eq webDeploy "cloudflare")}}
-	env: CloudflareEnv;
-{{/if}}
-};
-
-export async function createContext({{#if (eq auth "none")}}{{#if (eq webDeploy "cloudflare")}}{ env }{{else}}_options{{/if}}{{else}}{ headers{{#if (eq webDeploy "cloudflare")}}, env{{/if}} }{{/if}}: CreateContextOptions) {
-{{#if (eq auth "better-auth")}}
-	const session = await {{#if (or (eq runtime "workers") (eq serverDeploy "cloudflare") (and (eq backend "self") (eq webDeploy "cloudflare")))}}createAuth({{#if (eq webDeploy "cloudflare")}}env{{/if}}){{else}}auth{{/if}}.api.getSession({ headers });
-	return {
-		auth: null,
-		session,
-{{#if (eq webDeploy "cloudflare")}}
-		env,
-{{/if}}
-	};
-{{else}}
-	return {
-		auth: null,
-		session: null,
-{{#if (eq webDeploy "cloudflare")}}
-		env,
-{{/if}}
-	};
-{{/if}}
-}
-
-{{else if (and (eq backend 'self') (includes frontend "solid"))}}
-{{#if (eq auth "better-auth")}}
-{{#if (and (eq webDeploy "cloudflare") (eq backend "self"))}}
-import { createAuth } from "@{{projectName}}/auth";
-{{else}}
-import { auth } from "@{{projectName}}/auth";
-{{/if}}
-{{/if}}
-
-export type CreateContextOptions = {
-	headers: Headers;
-};
-
-export async function createContext({{#if (eq auth "none")}}_options{{else}}{ headers }{{/if}}: CreateContextOptions) {
-{{#if (eq auth "better-auth")}}
-	const session = await {{#if (and (eq webDeploy "cloudflare") (eq backend "self"))}}createAuth(){{else}}auth{{/if}}.api.getSession({ headers });
-	return {
-		auth: null,
-		session,
-	};
-{{else}}
-	return {
-		auth: null,
-		session: null,
-	};
-{{/if}}
-}
-
-{{else if (and (eq backend 'self') (includes frontend "astro"))}}
-{{#if (eq auth "better-auth")}}
-{{#if (or (eq runtime "workers") (eq serverDeploy "cloudflare") (and (eq backend "self") (eq webDeploy "cloudflare")))}}
-import { createAuth } from "@{{projectName}}/auth";
-{{else}}
-import { auth } from "@{{projectName}}/auth";
-{{/if}}
-{{/if}}
-
-export type CreateContextOptions = {
-	headers: Headers;
-};
-
-export async function createContext({{#if (eq auth "none")}}_options{{else}}{ headers }{{/if}}: CreateContextOptions) {
-{{#if (eq auth "better-auth")}}
-	const session = await {{#if (or (eq runtime "workers") (eq serverDeploy "cloudflare") (and (eq backend "self") (eq webDeploy "cloudflare")))}}createAuth(){{else}}auth{{/if}}.api.getSession({ headers });
 	return {
 		auth: null,
 		session,
@@ -768,7 +585,7 @@ export type CreateContextOptions = {
 	context: HonoContext;
 };
 
-export async function createContext({{#if (eq auth "none")}}_options{{else}}{ context }{{/if}}: CreateContextOptions){{#if (eq auth "clerk")}}: Promise<ClerkRequestContext>{{/if}} {
+export async function createContext({{#if (eq auth "none")}}_options{{else}}{ context }{{/if}}: CreateContextOptions) {
 {{#if (eq auth "better-auth")}}
 	const session = await {{#if (or (eq runtime "workers") (eq serverDeploy "cloudflare") (and (eq backend "self") (eq webDeploy "cloudflare")))}}createAuth(){{else}}auth{{/if}}.api.getSession({
 		headers: context.req.raw.headers,
@@ -777,12 +594,6 @@ export async function createContext({{#if (eq auth "none")}}_options{{else}}{ co
 		auth: null,
 		session,
 	};
-{{else if (eq auth "clerk")}}
-	const clerkAuth = await authenticateClerkRequest(context.req.raw);
-	return {
-		auth: clerkAuth,
-		session: null,
-	};
 {{else}}
 	return {
 		auth: null,
@@ -791,87 +602,16 @@ export async function createContext({{#if (eq auth "none")}}_options{{else}}{ co
 {{/if}}
 }
 
-{{else if (eq backend 'elysia')}}
-import type { Context as ElysiaContext } from "elysia";
-{{#if (eq auth "better-auth")}}
-import { auth } from "@{{projectName}}/auth";
-{{/if}}
-
-export type CreateContextOptions = {
-	context: ElysiaContext;
-};
-
-export async function createContext({{#if (eq auth "none")}}_options{{else}}{ context }{{/if}}: CreateContextOptions){{#if (eq auth "clerk")}}: Promise<ClerkRequestContext>{{/if}} {
-{{#if (eq auth "better-auth")}}
-	const session = await auth.api.getSession({
-		headers: context.request.headers,
-	});
-	return {
-		auth: null,
-		session,
-	};
-{{else if (eq auth "clerk")}}
-	const clerkAuth = await authenticateClerkRequest(context.request);
-	return {
-		auth: clerkAuth,
-		session: null,
-	};
-{{else}}
-	return {
-		auth: null,
-		session: null,
-	};
-{{/if}}
-}
-
-{{else if (eq backend 'express')}}
-import type { Request } from "express";
-{{#if (eq auth "better-auth")}}
-import { fromNodeHeaders } from "better-auth/node";
-import { auth } from "@{{projectName}}/auth";
-{{else if (eq auth "clerk")}}
-import { getAuth } from "@clerk/express";
-{{/if}}
-
-interface CreateContextOptions {
-	req: Request;
-}
-
-export async function createContext({{#if (eq auth "none")}}_opts{{else}}opts{{/if}}: CreateContextOptions){{#if (eq auth "clerk")}}: Promise<ClerkRequestContext>{{/if}} {
-{{#if (eq auth "better-auth")}}
-	const session = await auth.api.getSession({
-		headers: fromNodeHeaders(opts.req.headers),
-	});
-	return {
-		auth: null,
-		session,
-	};
-{{else if (eq auth "clerk")}}
-	const clerkAuth = toClerkContextAuth(getAuth(opts.req));
-	return {
-		auth: clerkAuth,
-		session: null,
-	};
-{{else}}
-	return {
-		auth: null,
-		session: null,
-	};
-{{/if}}
-}
-
-{{else if (eq backend 'fastify')}}
+{{else if (eq backend 'nest')}}
 {{#if (eq auth "better-auth")}}
 import type { IncomingHttpHeaders } from "node:http";
 import { fromNodeHeaders } from "better-auth/node";
 import { auth } from "@{{projectName}}/auth";
-{{else if (eq auth "clerk")}}
-import { getAuth } from "@clerk/fastify";
 {{else}}
 import type { IncomingHttpHeaders } from "node:http";
 {{/if}}
 
-export async function createContext(req: {{#if (eq auth "clerk")}}Parameters<typeof getAuth>[0]{{else}}IncomingHttpHeaders{{/if}}){{#if (eq auth "clerk")}}: Promise<ClerkRequestContext>{{/if}} {
+export async function createContext(req: IncomingHttpHeaders) {
 {{#if (eq auth "better-auth")}}
 	const session = await auth.api.getSession({
 		headers: fromNodeHeaders(req),
@@ -879,12 +619,6 @@ export async function createContext(req: {{#if (eq auth "clerk")}}Parameters<typ
 	return {
 		auth: null,
 		session,
-	};
-{{else if (eq auth "clerk")}}
-	const clerkAuth = toClerkContextAuth(getAuth(req));
-	return {
-		auth: clerkAuth,
-		session: null,
 	};
 {{else}}
 	void req;
@@ -906,16 +640,15 @@ export async function createContext() {
 
 export type Context = Awaited<ReturnType<typeof createContext>>;
 `],
-  ["api/orpc/server/src/index.ts.hbs", `import { {{#if (or (eq auth "better-auth") (eq auth "clerk"))}}ORPCError, {{/if}}os } from "@orpc/server";
+  ["api/orpc/server/src/index.ts.hbs", `import { {{#if (eq auth "better-auth")}}ORPCError, {{/if}}os } from "@orpc/server";
 import type { Context } from "./context";
 
 export const o = os.$context<Context>();
 
 export const publicProcedure = o;
 
-{{#if (or (eq auth "better-auth") (eq auth "clerk"))}}
+{{#if (eq auth "better-auth")}}
 const requireAuth = o.middleware(async ({ context, next }) => {
-  {{#if (eq auth "better-auth")}}
   if (!context.session?.user) {
     throw new ORPCError("UNAUTHORIZED");
   }
@@ -924,23 +657,13 @@ const requireAuth = o.middleware(async ({ context, next }) => {
       session: context.session,
     },
   });
-  {{else}}
-  if (!context.auth?.userId) {
-    throw new ORPCError("UNAUTHORIZED");
-  }
-  return next({
-    context: {
-      auth: context.auth,
-    },
-  });
-  {{/if}}
 });
 
 export const protectedProcedure = publicProcedure.use(requireAuth);
 {{/if}}
 `],
-  ["api/orpc/server/src/routers/index.ts.hbs", `{{#if (eq api "orpc")}}
-import { {{#if (or (eq auth "better-auth") (eq auth "clerk"))}}protectedProcedure, {{/if}}publicProcedure } from "../index";
+  ["api/orpc/server/src/routers/index.ts.hbs", `{{#unless (eq api "none")}}
+import { {{#if (eq auth "better-auth")}}protectedProcedure, {{/if}}publicProcedure } from "../index";
 import type { RouterClient } from "@orpc/server";
 {{#if (includes examples "todo")}}
 import { todoRouter } from "./todo";
@@ -950,15 +673,11 @@ export const appRouter = {
   healthCheck: publicProcedure.handler(() => {
     return "OK";
   }),
-  {{#if (or (eq auth "better-auth") (eq auth "clerk"))}}
+  {{#if (eq auth "better-auth")}}
   privateData: protectedProcedure.handler(({ context }) => {
     return {
       message: "This is private",
-      {{#if (eq auth "better-auth")}}
       user: context.session?.user,
-      {{else}}
-      userId: context.auth?.userId,
-      {{/if}}
     };
   }),
   {{/if}}
@@ -968,36 +687,10 @@ export const appRouter = {
 };
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<typeof appRouter>;
-{{else if (eq api "trpc")}}
-import {
-  {{#if (eq auth "better-auth")}}protectedProcedure, {{/if}}publicProcedure,
-  router,
-} from "../index";
-{{#if (includes examples "todo")}}
-import { todoRouter } from "./todo";
-{{/if}}
-
-export const appRouter = router({
-  healthCheck: publicProcedure.query(() => {
-    return "OK";
-  }),
-  {{#if (eq auth "better-auth")}}
-  privateData: protectedProcedure.query(({ ctx }) => {
-    return {
-      message: "This is private",
-      user: ctx.session.user,
-    };
-  }),
-  {{/if}}
-  {{#if (includes examples "todo")}}
-  todo: todoRouter,
-  {{/if}}
-});
-export type AppRouter = typeof appRouter;
 {{else}}
 export const appRouter = {};
 export type AppRouter = typeof appRouter;
-{{/if}}
+{{/unless}}
 `],
   ["api/orpc/server/tsconfig.json.hbs", `{
   "extends": "@{{projectName}}/config/tsconfig.base.json",
@@ -1274,7 +967,7 @@ return (
                 <ExpoUIText
                   textStyle=\\{{ color: theme.text, fontSize: 14, fontWeight: "bold" }}
                 >
-                  {{#if (eq api "orpc")}}ORPC{{else}}TRPC{{/if}} Backend
+                  ORPC Backend
                 </ExpoUIText>
                 <ExpoUIText
                   textStyle=\\{{ color: theme.text, fontSize: 12 }}
@@ -1347,9 +1040,6 @@ borderRadius: 16,
 },
 userHeader: {
 marginBottom: 8,
-},
-paymentActions: {
-marginTop: 12,
 },
 statusCard: {
 marginBottom: 16,
@@ -2033,32 +1723,6 @@ const styles = StyleSheet.create((theme) => ({
   signOutButtonText: {
     fontWeight: "500",
   },
-  paymentActions: {
-    marginTop: 12,
-    gap: 8,
-    alignItems: "flex-start",
-  },
-  polarPrimaryButton: {
-    backgroundColor: theme?.colors?.primary,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-  },
-  polarPrimaryButtonText: {
-    color: theme?.colors?.primaryForeground,
-    fontWeight: "500",
-  },
-  polarSecondaryButton: {
-    borderWidth: 1,
-    borderColor: theme?.colors?.border,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-  },
-  polarSecondaryButtonText: {
-    color: theme?.colors?.typography,
-    fontWeight: "500",
-  },
   apiStatusCard: {
     marginBottom: 24,
     borderRadius: 8,
@@ -2627,7 +2291,7 @@ return (
         <View className={\`w-3 h-3 rounded-full mr-3 \${isConnected ? "bg-success" : "bg-muted" }\`} />
         <View className="flex-1">
           <Text className="text-foreground font-medium mb-1">
-            {{#if (eq api "orpc")}}ORPC{{else}}TRPC{{/if}} Backend
+            oRPC Backend
           </Text>
           <Card.Description>
             {isLoading
@@ -3095,14 +2759,6 @@ import type { CloudflareEnv } from "@{{projectName}}/env/server";
 {{else}}
 import { env } from "@{{projectName}}/env/server";
 {{/if}}
-{{#if (eq payments "polar")}}
-import { polar, checkout, portal } from "@polar-sh/better-auth";
-{{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}
-import { createPolarClient } from "./lib/payments";
-{{else}}
-import { polarClient } from "./lib/payments";
-{{/if}}
-{{/if}}
 import { createPrismaClient } from "@{{projectName}}/db";
 
 export function createAuth({{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}env: CloudflareEnv{{/if}}) {
@@ -3138,27 +2794,6 @@ export function createAuth({{#if (usesRequestScopedCloudflareEnv backend webDepl
 			},
 		},
 {{/if}}
-		plugins: [
-{{#if (eq payments "polar")}}
-			polar({
-				client: {{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}createPolarClient(env){{else}}polarClient{{/if}},
-				createCustomerOnSignUp: true,
-				use: [
-					checkout({
-						products: [
-							{
-								productId: "your-product-id",
-								slug: "pro",
-							},
-						],
-						successUrl: env.POLAR_SUCCESS_URL,
-						authenticatedUsersOnly: true,
-					}),
-					portal(),
-				],
-			}),
-{{/if}}
-		],
 	});
 }
 
@@ -3175,14 +2810,6 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import type { CloudflareEnv } from "@{{projectName}}/env/server";
 {{else}}
 import { env } from "@{{projectName}}/env/server";
-{{/if}}
-{{#if (eq payments "polar")}}
-import { polar, checkout, portal } from "@polar-sh/better-auth";
-{{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}
-import { createPolarClient } from "./lib/payments";
-{{else}}
-import { polarClient } from "./lib/payments";
-{{/if}}
 {{/if}}
 import { createDb } from "@{{projectName}}/db";
 import * as schema from "@{{projectName}}/db/schema/auth";
@@ -3220,27 +2847,6 @@ export function createAuth({{#if (usesRequestScopedCloudflareEnv backend webDepl
 			},
 		},
 {{/if}}
-		plugins: [
-{{#if (eq payments "polar")}}
-			polar({
-				client: {{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}createPolarClient(env){{else}}polarClient{{/if}},
-				createCustomerOnSignUp: true,
-				use: [
-					checkout({
-						products: [
-							{
-								productId: "your-product-id",
-								slug: "pro",
-							},
-						],
-						successUrl: env.POLAR_SUCCESS_URL,
-						authenticatedUsersOnly: true,
-					}),
-					portal(),
-				],
-			}),
-{{/if}}
-		],
 	});
 }
 
@@ -3253,10 +2859,6 @@ export const auth = createAuth();
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { env } from "@{{projectName}}/env/server";
-{{#if (eq payments "polar")}}
-import { polar, checkout, portal } from "@polar-sh/better-auth";
-import { polarClient } from "./lib/payments";
-{{/if}}
 import { createDb } from "@{{projectName}}/db";
 import * as schema from "@{{projectName}}/db/schema/auth";
 
@@ -3304,27 +2906,6 @@ export function createAuth() {
 			//   domain: "<your-workers-subdomain>",
 			// },
 		},
-{{#if (eq payments "polar")}}
-		plugins: [
-			polar({
-				client: polarClient,
-				createCustomerOnSignUp: true,
-				use: [
-					checkout({
-						products: [
-							{
-								productId: "your-product-id",
-								slug: "pro",
-							},
-						],
-						successUrl: env.POLAR_SUCCESS_URL,
-						authenticatedUsersOnly: true,
-					}),
-					portal(),
-				],
-			}),
-		],
-{{/if}}
 	});
 }
 {{/if}}
@@ -3337,14 +2918,6 @@ import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import type { CloudflareEnv } from "@{{projectName}}/env/server";
 {{else}}
 import { env } from "@{{projectName}}/env/server";
-{{/if}}
-{{#if (eq payments "polar")}}
-import { polar, checkout, portal } from "@polar-sh/better-auth";
-{{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}
-import { createPolarClient } from "./lib/payments";
-{{else}}
-import { polarClient } from "./lib/payments";
-{{/if}}
 {{/if}}
 import { client } from "@{{projectName}}/db";
 
@@ -3373,27 +2946,6 @@ export function createAuth({{#if (usesRequestScopedCloudflareEnv backend webDepl
 			},
 		},
 {{/if}}
-{{#if (eq payments "polar")}}
-		plugins: [
-			polar({
-				client: {{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}createPolarClient(env){{else}}polarClient{{/if}},
-				createCustomerOnSignUp: true,
-				use: [
-					checkout({
-						products: [
-							{
-								productId: "your-product-id",
-								slug: "pro",
-							},
-						],
-						successUrl: env.POLAR_SUCCESS_URL,
-						authenticatedUsersOnly: true,
-					}),
-					portal(),
-				],
-			}),
-		],
-{{/if}}
 	});
 }
 
@@ -3408,14 +2960,6 @@ import { betterAuth } from "better-auth";
 import type { CloudflareEnv } from "@{{projectName}}/env/server";
 {{else}}
 import { env } from "@{{projectName}}/env/server";
-{{/if}}
-{{#if (eq payments "polar")}}
-import { polar, checkout, portal } from "@polar-sh/better-auth";
-{{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}
-import { createPolarClient } from "./lib/payments";
-{{else}}
-import { polarClient } from "./lib/payments";
-{{/if}}
 {{/if}}
 
 
@@ -3443,27 +2987,6 @@ export function createAuth({{#if (usesRequestScopedCloudflareEnv backend webDepl
 				httpOnly: true,
 			},
 		},
-{{/if}}
-{{#if (eq payments "polar")}}
-		plugins: [
-			polar({
-				client: {{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}createPolarClient(env){{else}}polarClient{{/if}},
-				createCustomerOnSignUp: true,
-				use: [
-					checkout({
-						products: [
-							{
-								productId: "your-product-id",
-								slug: "pro",
-							},
-						],
-						successUrl: env.POLAR_SUCCESS_URL,
-						authenticatedUsersOnly: true,
-					}),
-					portal(),
-				],
-			}),
-		],
 {{/if}}
 	});
 }
@@ -6197,6 +5720,151 @@ export default app;
 {{/if}}
 {{/if}}
 `],
+  ["backend/server/nest/build.ts.hbs", `export {};
+
+const result = await Bun.build({
+  entrypoints: ["./src/main.ts"],
+  outdir: "./dist",
+  target: "bun",
+  external: [
+    // NestJS core – must stay external so every package resolves the same
+    // class references (DI tokens rely on identity equality)
+    "@nestjs/core",
+    "@nestjs/common",
+    "@nestjs/platform-fastify",
+
+    // NestJS lazy imports (loadPackage / optionalRequire)
+    "@nestjs/microservices",
+    "@nestjs/websockets",
+    "class-validator",
+    "class-transformer",
+    "@nestjs/graphql",
+  ],
+});
+
+if (!result.success) {
+  for (const log of result.logs) {
+    console.error(log);
+  }
+  process.exit(1);
+}
+
+const total = result.outputs.reduce((sum, o) => sum + o.size, 0);
+
+for (const output of result.outputs) {
+  const sizeMB = (output.size / 1024 / 1024).toFixed(2);
+  console.log(\`  \${output.kind}  \${output.path}  \${sizeMB} MB\`);
+}
+
+console.log(
+  \`\\nBundled \${result.outputs.length} output(s), total \${(total / 1024 / 1024).toFixed(2)} MB\`,
+);
+`],
+  ["backend/server/nest/nest-cli.json.hbs", `{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "src",
+  "compilerOptions": {
+    "deleteOutDir": true
+  }
+}
+`],
+  ["backend/server/nest/package.json.hbs", `{
+	"name": "server",
+	"main": "src/main.ts",
+	"type": "module",
+	"scripts": {
+		"build": "tsc --noEmit && bun build.ts",
+		"dev": "bun run --hot src/main.ts",
+		"start": "bun dist/main.js",
+		"check-types": "tsc -b"
+	},
+	"dependencies": {},
+	{{#if (eq dbSetup 'supabase')}}
+	"trustedDependencies": [
+        "supabase"
+    ],
+    {{/if}}
+	"devDependencies": {}
+}
+`],
+  ["backend/server/nest/src/app.module.ts.hbs", `import { Module } from "@nestjs/common";
+import { HealthModule } from "./modules/health/health.module";
+
+@Module({
+  imports: [HealthModule],
+})
+export class AppModule {}
+`],
+  ["backend/server/nest/src/main.ts.hbs", `import "reflect-metadata";
+import { NestFactory } from "@nestjs/core";
+import {
+  FastifyAdapter,
+  type NestFastifyApplication,
+} from "@nestjs/platform-fastify";
+import fastifyCors from "@fastify/cors";
+import { AppModule } from "./app.module";
+import { env } from "@{{projectName}}/env/server";
+
+async function bootstrap() {
+  const adapter = new FastifyAdapter({
+    trustProxy: ["loopback", "linklocal", "uniquelocal"],
+  });
+  const fastify = adapter.getInstance();
+
+  // Must run before Nest modules mount httpAdapter.use routes.
+  await fastify.register(fastifyCors as never, {
+    origin: env.CORS_ORIGIN,
+    methods: ["GET", "POST", "OPTIONS"],
+  });
+
+  const app = await NestFactory.create<NestFastifyApplication>(AppModule, adapter, {
+    bodyParser: false,
+  });
+
+  await app.listen(3000, "0.0.0.0");
+}
+
+void bootstrap();
+`],
+  ["backend/server/nest/src/modules/health/health.controller.ts.hbs", `import { Controller, Get, Header } from "@nestjs/common";
+
+@Controller()
+export class HealthController {
+  @Get()
+  @Header("Content-Type", "text/plain; charset=utf-8")
+  health(): string {
+    return "OK";
+  }
+}
+`],
+  ["backend/server/nest/src/modules/health/health.module.ts.hbs", `import { Module } from "@nestjs/common";
+import { HealthController } from "./health.controller";
+
+@Module({
+  controllers: [HealthController],
+})
+export class HealthModule {}
+`],
+  ["backend/server/nest/tsconfig.build.json.hbs", `{
+  "extends": "./tsconfig.json",
+  "exclude": ["node_modules", "test", "dist", "**/*spec.ts"]
+}
+`],
+  ["backend/server/nest/tsconfig.json.hbs", `{
+  "extends": "@{{projectName}}/config/tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "dist",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "esModuleInterop": true
+  }
+}
+`],
   ["base/_gitignore", `# Dependencies
 node_modules
 .pnp
@@ -6435,21 +6103,6 @@ import type { CloudflareEnv } from "@{{projectName}}/env/server";
 import { env } from "@{{projectName}}/env/server";
 {{/if}}
 import * as schema from "./schema";
-
-{{#if (eq dbSetup "planetscale")}}
-import { drizzle } from "drizzle-orm/planetscale-serverless";
-
-export function createDb({{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}env: CloudflareEnv{{/if}}) {
-	return drizzle({
-		connection: {
-			host: env.DATABASE_HOST,
-			username: env.DATABASE_USERNAME,
-			password: env.DATABASE_PASSWORD,
-		},
-		schema,
-	});
-}
-{{else}}
 import { drizzle } from "drizzle-orm/mysql2";
 
 export function createDb({{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}env: CloudflareEnv{{/if}}) {
@@ -6461,7 +6114,6 @@ export function createDb({{#if (usesRequestScopedCloudflareEnv backend webDeploy
 		mode: "default",
 	});
 }
-{{/if}}
 
 {{#if (and (ne serverDeploy "cloudflare") (or (ne backend "self") (ne webDeploy "cloudflare")))}}
 export const db = createDb();
@@ -6470,22 +6122,6 @@ export const db = createDb();
 
 {{#if (eq runtime "workers")}}
 import * as schema from "./schema";
-
-{{#if (eq dbSetup "planetscale")}}
-import { drizzle } from "drizzle-orm/planetscale-serverless";
-import { env } from "@{{projectName}}/env/server";
-
-export function createDb() {
-	return drizzle({
-		connection: {
-			host: env.DATABASE_HOST,
-			username: env.DATABASE_USERNAME,
-			password: env.DATABASE_PASSWORD,
-		},
-		schema,
-	});
-}
-{{else}}
 import { drizzle } from "drizzle-orm/mysql2";
 import { env } from "@{{projectName}}/env/server";
 
@@ -6498,7 +6134,6 @@ export function createDb() {
 		mode: "default",
 	});
 }
-{{/if}}
 {{/if}}
 `],
   ["db/drizzle/mysql/src/migrations/.gitkeep", `
@@ -6642,9 +6277,6 @@ import { createClient } from "@libsql/client";
 export function createDb({{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}env: CloudflareEnv{{/if}}) {
 	const client = createClient({
 		url: env.DATABASE_URL,
-{{#if (eq dbSetup "turso")}}
-		authToken: env.DATABASE_AUTH_TOKEN,
-{{/if}}
 	});
 
 	return drizzle({ client, schema });
@@ -6662,9 +6294,6 @@ import { createClient } from "@libsql/client";
 export function createDb() {
 	const client = createClient({
 		url: env.DATABASE_URL || "",
-{{#if (eq dbSetup "turso")}}
-		authToken: env.DATABASE_AUTH_TOKEN,
-{{/if}}
 	});
 
 	return drizzle({ client, schema });
@@ -6847,23 +6476,11 @@ provider = "mysql"
 
 datasource db {
   provider = "mysql"
-  {{#if (eq dbSetup "planetscale")}}
-  relationMode = "prisma"
-  {{/if}}
 }
 `],
   ["db/prisma/mysql/src/index.ts.hbs", `{{#if (eq runtime "workers")}}
 import { PrismaClient } from "../prisma/generated/client";
 import { env } from "@{{projectName}}/env/server";
-
-{{#if (eq dbSetup "planetscale")}}
-import { PrismaPlanetScale } from "@prisma/adapter-planetscale";
-
-export function createPrismaClient() {
-	const adapter = new PrismaPlanetScale({ url: env.DATABASE_URL });
-	return new PrismaClient({ adapter });
-}
-{{else}}
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 
 export function createPrismaClient() {
@@ -6880,7 +6497,6 @@ export function createPrismaClient() {
 	const adapter = new PrismaMariaDb(connectionConfig);
 	return new PrismaClient({ adapter });
 }
-{{/if}}
 {{else}}
 import { PrismaClient } from "../prisma/generated/client";
 {{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}
@@ -6888,15 +6504,6 @@ import type { CloudflareEnv } from "@{{projectName}}/env/server";
 {{else}}
 import { env } from "@{{projectName}}/env/server";
 {{/if}}
-
-{{#if (eq dbSetup "planetscale")}}
-import { PrismaPlanetScale } from "@prisma/adapter-planetscale";
-
-export function createPrismaClient({{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}env: CloudflareEnv{{/if}}) {
-	const adapter = new PrismaPlanetScale({ url: env.DATABASE_URL });
-	return new PrismaClient({ adapter });
-}
-{{else}}
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 
 export function createPrismaClient({{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}env: CloudflareEnv{{/if}}) {
@@ -6913,7 +6520,6 @@ export function createPrismaClient({{#if (usesRequestScopedCloudflareEnv backend
 	const adapter = new PrismaMariaDb(connectionConfig);
 	return new PrismaClient({ adapter });
 }
-{{/if}}
 
 {{#if (and (ne serverDeploy "cloudflare") (or (ne backend "self") (ne webDeploy "cloudflare")))}}
 const prisma = createPrismaClient();
@@ -7035,13 +6641,11 @@ CREATE INDEX "account_userId_idx" ON "account"("userId");
 -- CreateIndex
 CREATE INDEX "verification_identifier_idx" ON "verification"("identifier");
 
-{{#unless (eq dbSetup "planetscale")}}
 -- AddForeignKey
 ALTER TABLE "session" ADD CONSTRAINT "session_userId_fkey" FOREIGN KEY ("userId") REFERENCES "user"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "account" ADD CONSTRAINT "account_userId_fkey" FOREIGN KEY ("userId") REFERENCES "user"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-{{/unless}}
 {{/if}}
 `],
   ["db/prisma/postgres/prisma/migrations/migration_lock.toml.hbs", `# Please do not edit this file manually
@@ -7228,9 +6832,6 @@ import { env } from "@{{projectName}}/env/server";
 export function createPrismaClient({{#if (usesRequestScopedCloudflareEnv backend webDeploy frontend)}}env: CloudflareEnv{{/if}}) {
 	const adapter = new PrismaLibSql({
 		url: env.DATABASE_URL,
-{{#if (eq dbSetup "turso")}}
-		authToken: env.DATABASE_AUTH_TOKEN || "",
-{{/if}}
 	});
 
 	return new PrismaClient({ adapter });
@@ -7283,17 +6884,9 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
-{{#if (or (and (ne backend "self") (ne backend "none") (ne backend "convex")) (eq backend "convex") (and (eq auth "clerk") (or (includes frontend "next") (includes frontend "react-router") (includes frontend "tanstack-router") (includes frontend "tanstack-start"))))}}
+{{#if (and (ne backend "self") (ne backend "none"))}}
       args:
-{{#if (and (ne backend "self") (ne backend "none") (ne backend "convex"))}}
-        {{#if (includes frontend "next")}}NEXT_PUBLIC_SERVER_URL{{else if (includes frontend "nuxt")}}NUXT_PUBLIC_SERVER_URL{{else if (or (includes frontend "svelte") (includes frontend "astro"))}}PUBLIC_SERVER_URL{{else}}VITE_SERVER_URL{{/if}}: http://localhost:3000
-{{/if}}
-{{#if (eq backend "convex")}}
-        {{#if (includes frontend "next")}}NEXT_PUBLIC_CONVEX_URL: \${NEXT_PUBLIC_CONVEX_URL:-}{{else if (or (includes frontend "svelte") (includes frontend "astro"))}}PUBLIC_CONVEX_URL: \${PUBLIC_CONVEX_URL:-}{{else}}VITE_CONVEX_URL: \${VITE_CONVEX_URL:-}{{/if}}
-{{/if}}
-{{#if (and (eq auth "clerk") (or (includes frontend "next") (includes frontend "react-router") (includes frontend "tanstack-router") (includes frontend "tanstack-start")))}}
-        {{#if (includes frontend "next")}}NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: \${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}{{else}}VITE_CLERK_PUBLISHABLE_KEY: \${VITE_CLERK_PUBLISHABLE_KEY:-}{{/if}}
-{{/if}}
+        {{#if (includes frontend "next")}}NEXT_PUBLIC_SERVER_URL{{else}}VITE_SERVER_URL{{/if}}: http://localhost:3000
 {{/if}}
     init: true
     ports:
@@ -7344,9 +6937,6 @@ services:
       SERVER_URL: http://server:3000
 {{#if (includes frontend "next")}}
       NEXT_PUBLIC_SERVER_URL: http://server:3000
-{{/if}}
-{{#if (includes frontend "nuxt")}}
-      NUXT_SERVER_URL: http://server:3000
 {{/if}}
 {{/unless}}
     depends_on:
@@ -7969,522 +7559,7 @@ export const Route = createFileRoute("/api/ai/$")({
   },
 });
 `],
-  ["examples/ai/native/bare/app/(drawer)/ai.tsx.hbs", `{{#if (eq backend "convex")}}
-import { Ionicons } from "@expo/vector-icons";
-import {
-  useUIMessages,
-  useSmoothText,
-} from "@convex-dev/agent/react";
-import { api } from "@{{projectName}}/backend/convex/_generated/api";
-import { useMutation } from "convex/react";
-import { useRef, useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  ActivityIndicator,
-} from "react-native";
-
-import { Container } from "@/components/container";
-import { useColorScheme } from "@/lib/use-color-scheme";
-import { NAV_THEME } from "@/lib/constants";
-
-const starterPrompts = [
-  {
-    label: "Plan a feature",
-    prompt: "Help me plan the first version of a habit tracking feature.",
-  },
-  {
-    label: "Draft an API",
-    prompt: "Sketch a clean API contract for projects, tasks, and comments.",
-  },
-  {
-    label: "Debug an issue",
-    prompt: "Walk me through debugging a slow mobile screen.",
-  },
-];
-
-function MessageContent({
-  text,
-  isStreaming,
-  textColor,
-}: {
-  text: string;
-  isStreaming: boolean;
-  textColor: string;
-}) {
-  const [visibleText] = useSmoothText(text, {
-    startStreaming: isStreaming,
-  });
-
-  return (
-    <Text selectable style={[styles.messageText, { color: textColor }]}>
-      {visibleText}
-    </Text>
-  );
-}
-
-export default function AIScreen() {
-  const { colorScheme } = useColorScheme();
-  const theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
-  const [input, setInput] = useState("");
-  const [threadId, setThreadId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const scrollViewRef = useRef<ScrollView>(null);
-
-  const createThread = useMutation(api.chat.createNewThread);
-  const sendMessage = useMutation(api.chat.sendMessage);
-
-  const { results: messages } = useUIMessages(
-    api.chat.listMessages,
-    threadId ? { threadId } : "skip",
-    { initialNumItems: 50, stream: true },
-  );
-
-  const hasStreamingMessage = messages?.some(
-    (m) => m.status === "streaming",
-  );
-  const hasMessages = Boolean(messages?.length);
-  const isBusy = isLoading || Boolean(hasStreamingMessage);
-  const canSend = Boolean(input.trim()) && !isBusy;
-
-  useEffect(() => {
-    scrollViewRef.current?.scrollToEnd({ animated: true });
-  }, [messages, isLoading]);
-
-  async function sendPrompt(prompt: string) {
-    const value = prompt.trim();
-    if (!value || isBusy) return;
-
-    setIsLoading(true);
-    setInput("");
-
-    try {
-      let currentThreadId = threadId;
-      if (!currentThreadId) {
-        currentThreadId = await createThread();
-        setThreadId(currentThreadId);
-      }
-
-      await sendMessage({ threadId: currentThreadId, prompt: value });
-    } catch (error) {
-      console.error("Failed to send message:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  function onNewChat() {
-    if (isBusy) return;
-    setInput("");
-    setThreadId(null);
-  }
-
-  return (
-    <Container>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <View style={styles.content}>
-          <View style={[styles.toolbar, { borderBottomColor: theme.border }]}>
-            <View style={styles.statusGroup}>
-              <View
-                style={[
-                  styles.statusDot,
-                  { backgroundColor: isBusy ? theme.primary : theme.border },
-                ]}
-              />
-              <Text style={[styles.statusText, { color: theme.text }]}>
-                {isBusy
-                  ? "Streaming"
-                  : hasMessages
-                    ? \`\${messages?.length ?? 0} messages\`
-                    : "Ready"}
-              </Text>
-            </View>
-            <TouchableOpacity
-              onPress={onNewChat}
-              disabled={isBusy || (!hasMessages && !threadId)}
-              style={[
-                styles.toolbarAction,
-                { borderColor: theme.border },
-                (isBusy || (!hasMessages && !threadId)) &&
-                  styles.toolbarActionDisabled,
-              ]}
-            >
-              <Ionicons name="add" size={16} color={theme.text} />
-              <Text style={[styles.toolbarActionText, { color: theme.text }]}>
-                New
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            ref={scrollViewRef}
-            style={styles.scrollView}
-            contentContainerStyle={styles.messagesContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            {!hasMessages ? (
-              <View style={styles.emptyContainer}>
-                <View style={[styles.emptyIcon, { borderColor: theme.border }]}>
-                  <Ionicons
-                    name="chatbubble-ellipses-outline"
-                    size={28}
-                    color={theme.text}
-                  />
-                </View>
-                <Text style={[styles.emptyTitle, { color: theme.text }]}>
-                  Start a conversation
-                </Text>
-                <Text
-                  style={[styles.emptyText, { color: theme.text }]}
-                  selectable
-                >
-                  Use a starter prompt or ask your own question.
-                </Text>
-                <View style={styles.promptList}>
-                  {starterPrompts.map((item) => (
-                    <TouchableOpacity
-                      key={item.label}
-                      onPress={() => sendPrompt(item.prompt)}
-                      disabled={isBusy}
-                      style={[
-                        styles.promptButton,
-                        {
-                          backgroundColor: theme.card,
-                          borderColor: theme.border,
-                        },
-                        isBusy && styles.toolbarActionDisabled,
-                      ]}
-                    >
-                      <Text
-                        style={[styles.promptLabel, { color: theme.text }]}
-                      >
-                        {item.label}
-                      </Text>
-                      <Text
-                        style={[styles.promptText, { color: theme.text }]}
-                      >
-                        {item.prompt}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            ) : (
-              <View style={styles.messagesList}>
-                {messages?.map((message) => {
-                  const isUser = message.role === "user";
-                  const messageText = (message.parts ?? [])
-                    .map((part) => (part.type === "text" ? part.text : ""))
-                    .join("");
-
-	                  return (
-	                    <View
-	                      key={\`\${message.order}-\${message.stepOrder}\`}
-	                      style={[
-                        styles.messageRow,
-                        isUser ? styles.userRow : styles.assistantRow,
-                      ]}
-                    >
-                      <View
-                        style={[
-                          styles.messageBubble,
-                          isUser
-                            ? [
-                                styles.userBubble,
-                                { backgroundColor: theme.primary },
-                              ]
-                            : [
-                                styles.assistantBubble,
-                                {
-                                  backgroundColor: theme.card,
-                                  borderColor: theme.border,
-                                },
-                              ],
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.messageRole,
-                            { color: isUser ? "#ffffff" : theme.text },
-                          ]}
-                        >
-                          {isUser ? "You" : "AI"}
-                        </Text>
-                        <MessageContent
-                          text={messageText}
-                          isStreaming={message.status === "streaming"}
-                          textColor={isUser ? "#ffffff" : theme.text}
-                        />
-                      </View>
-                    </View>
-                  );
-                })}
-                {isLoading && !hasStreamingMessage && (
-                  <View style={[styles.messageRow, styles.assistantRow]}>
-                    <View
-                      style={[
-                        styles.messageBubble,
-                        styles.assistantBubble,
-                        {
-                          backgroundColor: theme.card,
-                          borderColor: theme.border,
-                        },
-                      ]}
-                    >
-                      <Text style={[styles.messageRole, { color: theme.text }]}>
-                        AI
-                      </Text>
-                      <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="small" color={theme.primary} />
-                        <Text style={[styles.loadingText, { color: theme.text }]}>
-                          Thinking...
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                )}
-              </View>
-            )}
-          </ScrollView>
-
-          <View style={[styles.inputContainer, { borderTopColor: theme.border }]}>
-            <View style={styles.inputRow}>
-              <TextInput
-                value={input}
-                onChangeText={setInput}
-                placeholder="Message AI..."
-                placeholderTextColor={theme.border}
-                style={[
-                  styles.input,
-                  {
-                    color: theme.text,
-                    borderColor: theme.border,
-                    backgroundColor: theme.card,
-                  },
-                ]}
-                onSubmitEditing={(e) => {
-                  e.preventDefault();
-                  sendPrompt(input);
-                }}
-                editable={!isBusy}
-                returnKeyType="send"
-                multiline
-              />
-              <TouchableOpacity
-                onPress={() => sendPrompt(input)}
-                disabled={!canSend}
-                style={[
-                  styles.sendButton,
-                  {
-                    backgroundColor: canSend ? theme.primary : theme.card,
-                    borderColor: theme.border,
-                  },
-                  !canSend && styles.sendButtonDisabled,
-                ]}
-              >
-                <Ionicons
-                  name="arrow-up"
-                  size={20}
-                  color={canSend ? "#ffffff" : theme.text}
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Container>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 16,
-  },
-  toolbar: {
-    alignItems: "center",
-    borderBottomWidth: 1,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingBottom: 12,
-    paddingTop: 8,
-  },
-  statusGroup: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 8,
-  },
-  statusDot: {
-    borderRadius: 999,
-    height: 8,
-    width: 8,
-  },
-  statusText: {
-    fontSize: 13,
-    fontVariant: ["tabular-nums"],
-    fontWeight: "600",
-  },
-  toolbarAction: {
-    alignItems: "center",
-    borderRadius: 999,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: 4,
-    minHeight: 32,
-    paddingHorizontal: 10,
-  },
-  toolbarActionDisabled: {
-    opacity: 0.45,
-  },
-  toolbarActionText: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  scrollView: {
-    flex: 1,
-  },
-  messagesContent: {
-    flexGrow: 1,
-    paddingVertical: 16,
-  },
-  emptyContainer: {
-    alignItems: "center",
-    flex: 1,
-    justifyContent: "center",
-    gap: 12,
-  },
-  emptyIcon: {
-    alignItems: "center",
-    borderRadius: 999,
-    borderWidth: 1,
-    height: 56,
-    justifyContent: "center",
-    width: 56,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  emptyText: {
-    fontSize: 14,
-    lineHeight: 20,
-    opacity: 0.68,
-    textAlign: "center",
-  },
-  promptList: {
-    gap: 8,
-    marginTop: 8,
-    width: "100%",
-  },
-  promptButton: {
-    borderRadius: 14,
-    borderWidth: 1,
-    gap: 4,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  promptLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  promptText: {
-    fontSize: 13,
-    lineHeight: 18,
-    opacity: 0.68,
-  },
-  messagesList: {
-    gap: 12,
-  },
-  messageRow: {
-    flexDirection: "row",
-  },
-  userRow: {
-    justifyContent: "flex-end",
-  },
-  assistantRow: {
-    justifyContent: "flex-start",
-  },
-  messageBubble: {
-    borderRadius: 18,
-    maxWidth: "86%",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  userBubble: {
-    borderTopRightRadius: 6,
-  },
-  assistantBubble: {
-    borderTopLeftRadius: 6,
-    borderWidth: 1,
-  },
-  messageRole: {
-    fontSize: 12,
-    fontWeight: "700",
-    marginBottom: 4,
-    opacity: 0.72,
-  },
-  messageText: {
-    fontSize: 15,
-    lineHeight: 21,
-  },
-  loadingContainer: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 8,
-  },
-  loadingText: {
-    fontSize: 14,
-    opacity: 0.68,
-  },
-  inputContainer: {
-    borderTopWidth: 1,
-    paddingBottom: 12,
-    paddingTop: 12,
-  },
-  inputRow: {
-    alignItems: "flex-end",
-    flexDirection: "row",
-    gap: 8,
-  },
-  input: {
-    borderRadius: 18,
-    borderWidth: 1,
-    flex: 1,
-    fontSize: 15,
-    lineHeight: 20,
-    maxHeight: 120,
-    minHeight: 44,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-  },
-  sendButton: {
-    alignItems: "center",
-    borderRadius: 999,
-    height: 44,
-    justifyContent: "center",
-    width: 44,
-  },
-  sendButtonDisabled: {
-    borderWidth: 1,
-    opacity: 0.55,
-  },
-});
-{{else}}
-import { useRef, useEffect, useState } from "react";
+  ["examples/ai/native/bare/app/(drawer)/ai.tsx.hbs", `import { useRef, useEffect, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import {
   View,
@@ -9034,7 +8109,6 @@ const styles = StyleSheet.create({
     opacity: 0.55,
   },
 });
-{{/if}}
 `],
   ["examples/ai/native/bare/polyfills.js", `import structuredClone from "@ungap/structured-clone";
 import { Platform } from "react-native";
@@ -9061,527 +8135,6 @@ export {};
 `],
   ["examples/ai/native/unistyles/app/(drawer)/ai.tsx.hbs", `import "@/unistyles";
 
-{{#if (eq backend "convex")}}
-import { Ionicons } from "@expo/vector-icons";
-import {
-  useUIMessages,
-  useSmoothText,
-} from "@convex-dev/agent/react";
-import { api } from "@{{projectName}}/backend/convex/_generated/api";
-import { useMutation } from "convex/react";
-import { useRef, useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-} from "react-native";
-import { StyleSheet, useUnistyles } from "react-native-unistyles";
-
-import { Container } from "@/components/container";
-
-const starterPrompts = [
-  {
-    label: "Plan a feature",
-    prompt: "Help me plan the first version of a habit tracking feature.",
-  },
-  {
-    label: "Draft an API",
-    prompt: "Sketch a clean API contract for projects, tasks, and comments.",
-  },
-  {
-    label: "Debug an issue",
-    prompt: "Walk me through debugging a slow mobile screen.",
-  },
-];
-
-function MessageContent({
-  text,
-  isStreaming,
-  style,
-}: {
-  text: string;
-  isStreaming: boolean;
-  style: object;
-}) {
-  const [visibleText] = useSmoothText(text, {
-    startStreaming: isStreaming,
-  });
-
-  return (
-    <Text selectable style={style}>
-      {visibleText}
-    </Text>
-  );
-}
-
-export default function AIScreen() {
-  const { theme } = useUnistyles();
-  const [input, setInput] = useState("");
-  const [threadId, setThreadId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const scrollViewRef = useRef<ScrollView>(null);
-
-  const createThread = useMutation(api.chat.createNewThread);
-  const sendMessage = useMutation(api.chat.sendMessage);
-
-  const { results: messages } = useUIMessages(
-    api.chat.listMessages,
-    threadId ? { threadId } : "skip",
-    { initialNumItems: 50, stream: true },
-  );
-
-  const hasStreamingMessage = messages?.some(
-    (m) => m.status === "streaming",
-  );
-  const hasMessages = Boolean(messages?.length);
-  const isBusy = isLoading || Boolean(hasStreamingMessage);
-  const canSend = Boolean(input.trim()) && !isBusy;
-
-  useEffect(() => {
-    scrollViewRef.current?.scrollToEnd({ animated: true });
-  }, [messages, isLoading]);
-
-  const sendPrompt = async (prompt: string) => {
-    const value = prompt.trim();
-    if (!value || isBusy) return;
-
-    setIsLoading(true);
-    setInput("");
-
-    try {
-      let currentThreadId = threadId;
-      if (!currentThreadId) {
-        currentThreadId = await createThread();
-        setThreadId(currentThreadId);
-      }
-
-      await sendMessage({ threadId: currentThreadId, prompt: value });
-    } catch (error) {
-      console.error("Failed to send message:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const onNewChat = () => {
-    if (isBusy) return;
-    setInput("");
-    setThreadId(null);
-  };
-
-  return (
-    <Container>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <View style={styles.content}>
-          <View style={styles.toolbar}>
-            <View style={styles.statusGroup}>
-              <View
-                style={[
-                  styles.statusDot,
-                  isBusy ? styles.statusDotBusy : styles.statusDotIdle,
-                ]}
-              />
-              <Text style={styles.statusText}>
-                {isBusy
-                  ? "Streaming"
-                  : hasMessages
-                    ? \`\${messages?.length ?? 0} messages\`
-                    : "Ready"}
-              </Text>
-            </View>
-            <TouchableOpacity
-              onPress={onNewChat}
-              disabled={isBusy || (!hasMessages && !threadId)}
-              style={[
-                styles.toolbarAction,
-                (isBusy || (!hasMessages && !threadId)) &&
-                  styles.disabledAction,
-              ]}
-            >
-              <Ionicons
-                name="add"
-                size={16}
-                color={theme.colors.foreground}
-              />
-              <Text style={styles.toolbarActionText}>New</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            ref={scrollViewRef}
-            style={styles.messagesContainer}
-            contentContainerStyle={styles.messagesContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            {!hasMessages ? (
-              <View style={styles.emptyContainer}>
-                <View style={styles.emptyIcon}>
-                  <Ionicons
-                    name="chatbubble-ellipses-outline"
-                    size={28}
-                    color={theme.colors.foreground}
-                  />
-                </View>
-                <Text style={styles.emptyTitle}>Start a conversation</Text>
-                <Text selectable style={styles.emptyText}>
-                  Use a starter prompt or ask your own question.
-                </Text>
-                <View style={styles.promptList}>
-                  {starterPrompts.map((item) => (
-                    <TouchableOpacity
-                      key={item.label}
-                      onPress={() => sendPrompt(item.prompt)}
-                      disabled={isBusy}
-                      style={[
-                        styles.promptButton,
-                        isBusy && styles.disabledAction,
-                      ]}
-                    >
-                      <Text style={styles.promptLabel}>{item.label}</Text>
-                      <Text style={styles.promptText}>{item.prompt}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            ) : (
-              <View style={styles.messagesWrapper}>
-                {messages?.map((message) => {
-                  const isUser = message.role === "user";
-                  const messageText = (message.parts ?? [])
-                    .map((part) => (part.type === "text" ? part.text : ""))
-                    .join("");
-
-	                  return (
-	                    <View
-	                      key={\`\${message.order}-\${message.stepOrder}\`}
-	                      style={[
-                        styles.messageRow,
-                        isUser ? styles.userRow : styles.assistantRow,
-                      ]}
-                    >
-                      <View
-                        style={[
-                          styles.messageBubble,
-                          isUser ? styles.userBubble : styles.assistantBubble,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.messageRole,
-                            isUser
-                              ? styles.userMessageText
-                              : styles.assistantMessageText,
-                          ]}
-                        >
-                          {isUser ? "You" : "AI"}
-                        </Text>
-                        <MessageContent
-                          text={messageText}
-                          isStreaming={message.status === "streaming"}
-                          style={
-                            isUser
-                              ? styles.userMessageText
-                              : styles.assistantMessageText
-                          }
-                        />
-                      </View>
-                    </View>
-                  );
-                })}
-                {isLoading && !hasStreamingMessage && (
-                  <View style={[styles.messageRow, styles.assistantRow]}>
-                    <View style={[styles.messageBubble, styles.assistantBubble]}>
-                      <Text
-                        style={[
-                          styles.messageRole,
-                          styles.assistantMessageText,
-                        ]}
-                      >
-                        AI
-                      </Text>
-                      <View style={styles.loadingContainer}>
-                        <ActivityIndicator
-                          size="small"
-                          color={theme.colors.primary}
-                        />
-                        <Text style={styles.loadingText}>Thinking...</Text>
-                      </View>
-                    </View>
-                  </View>
-                )}
-              </View>
-            )}
-          </ScrollView>
-
-          <View style={styles.inputSection}>
-            <View style={styles.inputContainer}>
-              <TextInput
-                value={input}
-                onChangeText={setInput}
-                placeholder="Message AI..."
-                placeholderTextColor={theme.colors.mutedForeground}
-                style={styles.textInput}
-                onSubmitEditing={(e) => {
-                  e.preventDefault();
-                  sendPrompt(input);
-                }}
-                editable={!isBusy}
-                returnKeyType="send"
-                multiline
-              />
-              <TouchableOpacity
-                onPress={() => sendPrompt(input)}
-                disabled={!canSend}
-                style={[
-                  styles.sendButton,
-                  !canSend && styles.sendButtonDisabled,
-                ]}
-              >
-                <Ionicons
-                  name="arrow-up"
-                  size={20}
-                  color={
-                    canSend
-                      ? theme.colors.primaryForeground
-                      : theme.colors.mutedForeground
-                  }
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Container>
-  );
-}
-
-const styles = StyleSheet.create((theme) => ({
-  container: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: theme.spacing.md,
-  },
-  toolbar: {
-    alignItems: "center",
-    borderBottomColor: theme.colors.border,
-    borderBottomWidth: 1,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingBottom: theme.spacing.md,
-    paddingTop: theme.spacing.sm,
-  },
-  statusGroup: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: theme.spacing.sm,
-  },
-  statusDot: {
-    borderRadius: 999,
-    height: 8,
-    width: 8,
-  },
-  statusDotBusy: {
-    backgroundColor: theme.colors.primary,
-  },
-  statusDotIdle: {
-    backgroundColor: theme.colors.border,
-  },
-  statusText: {
-    color: theme.colors.foreground,
-    fontSize: theme.fontSize.sm,
-    fontVariant: ["tabular-nums"],
-    fontWeight: "600",
-  },
-  toolbarAction: {
-    alignItems: "center",
-    borderColor: theme.colors.border,
-    borderRadius: 999,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: theme.spacing.xs,
-    minHeight: 32,
-    paddingHorizontal: 10,
-  },
-  toolbarActionText: {
-    color: theme.colors.foreground,
-    fontSize: theme.fontSize.sm,
-    fontWeight: "600",
-  },
-  disabledAction: {
-    opacity: 0.45,
-  },
-  messagesContainer: {
-    flex: 1,
-  },
-  messagesContent: {
-    flexGrow: 1,
-    paddingVertical: theme.spacing.md,
-  },
-  emptyContainer: {
-    alignItems: "center",
-    flex: 1,
-    gap: theme.spacing.md,
-    justifyContent: "center",
-  },
-  emptyIcon: {
-    alignItems: "center",
-    borderColor: theme.colors.border,
-    borderRadius: 999,
-    borderWidth: 1,
-    height: 56,
-    justifyContent: "center",
-    width: 56,
-  },
-  emptyTitle: {
-    color: theme.colors.foreground,
-    fontSize: theme.fontSize["2xl"],
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  emptyText: {
-    color: theme.colors.mutedForeground,
-    fontSize: theme.fontSize.sm,
-    lineHeight: 20,
-    textAlign: "center",
-  },
-  promptList: {
-    gap: theme.spacing.sm,
-    marginTop: theme.spacing.xs,
-    width: "100%",
-  },
-  promptButton: {
-    backgroundColor: theme.colors.card,
-    borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.xl,
-    borderWidth: 1,
-    gap: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: 12,
-  },
-  promptLabel: {
-    color: theme.colors.foreground,
-    fontSize: theme.fontSize.sm,
-    fontWeight: "700",
-  },
-  promptText: {
-    color: theme.colors.mutedForeground,
-    fontSize: theme.fontSize.sm,
-    lineHeight: 18,
-  },
-  messagesWrapper: {
-    gap: theme.spacing.md,
-  },
-  messageRow: {
-    flexDirection: "row",
-  },
-  userRow: {
-    justifyContent: "flex-end",
-  },
-  assistantRow: {
-    justifyContent: "flex-start",
-  },
-  messageBubble: {
-    borderRadius: theme.borderRadius.xl,
-    maxWidth: "86%",
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: 10,
-  },
-  userBubble: {
-    backgroundColor: theme.colors.primary,
-    borderTopRightRadius: theme.borderRadius.sm,
-  },
-  assistantBubble: {
-    backgroundColor: theme.colors.card,
-    borderColor: theme.colors.border,
-    borderTopLeftRadius: theme.borderRadius.sm,
-    borderWidth: 1,
-  },
-  messageRole: {
-    fontSize: theme.fontSize.xs,
-    fontWeight: "700",
-    marginBottom: theme.spacing.xs,
-    opacity: 0.72,
-  },
-  userMessageText: {
-    color: theme.colors.primaryForeground,
-    fontSize: theme.fontSize.sm,
-    lineHeight: 21,
-  },
-  assistantMessageText: {
-    color: theme.colors.foreground,
-    fontSize: theme.fontSize.sm,
-    lineHeight: 21,
-  },
-  loadingContainer: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: theme.spacing.sm,
-  },
-  loadingText: {
-    color: theme.colors.mutedForeground,
-    fontSize: theme.fontSize.sm,
-  },
-  inputSection: {
-    borderTopColor: theme.colors.border,
-    borderTopWidth: 1,
-    paddingBottom: theme.spacing.md,
-    paddingTop: theme.spacing.md,
-  },
-  inputContainer: {
-    alignItems: "flex-end",
-    flexDirection: "row",
-    gap: theme.spacing.sm,
-  },
-  textInput: {
-    backgroundColor: theme.colors.card,
-    borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.xl,
-    borderWidth: 1,
-    color: theme.colors.foreground,
-    flex: 1,
-    fontSize: theme.fontSize.sm,
-    lineHeight: 20,
-    maxHeight: 120,
-    minHeight: 44,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: 11,
-  },
-  placeholder: {
-    color: theme.colors.mutedForeground,
-  },
-  sendButton: {
-    alignItems: "center",
-    backgroundColor: theme.colors.primary,
-    borderRadius: 999,
-    height: 44,
-    justifyContent: "center",
-    width: 44,
-  },
-  sendButtonIcon: {
-    color: theme.colors.primaryForeground,
-  },
-  sendButtonDisabled: {
-    backgroundColor: theme.colors.card,
-    borderColor: theme.colors.border,
-    borderWidth: 1,
-    opacity: 0.55,
-  },
-  sendButtonDisabledIcon: {
-    color: theme.colors.mutedForeground,
-  },
-}));
-{{else}}
 import { useRef, useEffect, useState } from "react";
 import {
   View,
@@ -10124,7 +8677,6 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.mutedForeground,
   },
 }));
-{{/if}}
 `],
   ["examples/ai/native/unistyles/polyfills.js", `import structuredClone from "@ungap/structured-clone";
 import { Platform } from "react-native";
@@ -10149,285 +8701,7 @@ if (Platform.OS !== "web") {
 
 export {};
 `],
-  ["examples/ai/native/uniwind/app/(drawer)/ai.tsx.hbs", `{{#if (eq backend "convex")}}
-import { Ionicons } from "@expo/vector-icons";
-import {
-  useUIMessages,
-  useSmoothText,
-} from "@convex-dev/agent/react";
-import { api } from "@{{projectName}}/backend/convex/_generated/api";
-import { useMutation } from "convex/react";
-import { Button, Separator, Spinner, Surface, Input, TextField, useThemeColor } from "heroui-native";
-import { useRef, useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-} from "react-native";
-
-import { Container } from "@/components/container";
-
-const starterPrompts = [
-  {
-    label: "Plan a feature",
-    prompt: "Help me plan the first version of a habit tracking feature.",
-  },
-  {
-    label: "Draft an API",
-    prompt: "Sketch a clean API contract for projects, tasks, and comments.",
-  },
-  {
-    label: "Debug an issue",
-    prompt: "Walk me through debugging a slow mobile screen.",
-  },
-];
-
-function MessageContent({
-  text,
-  isStreaming,
-}: {
-  text: string;
-  isStreaming: boolean;
-}) {
-  const [visibleText] = useSmoothText(text, {
-    startStreaming: isStreaming,
-  });
-
-  return (
-    <Text selectable className="text-foreground text-sm leading-relaxed">
-      {visibleText}
-    </Text>
-  );
-}
-
-export default function AIScreen() {
-  const [input, setInput] = useState("");
-  const [threadId, setThreadId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const scrollViewRef = useRef<ScrollView>(null);
-  const mutedColor = useThemeColor("muted");
-  const foregroundColor = useThemeColor("foreground");
-
-  const createThread = useMutation(api.chat.createNewThread);
-  const sendMessage = useMutation(api.chat.sendMessage);
-
-  const { results: messages } = useUIMessages(
-    api.chat.listMessages,
-    threadId ? { threadId } : "skip",
-    { initialNumItems: 50, stream: true },
-  );
-
-  const hasStreamingMessage = messages?.some(
-    (m) => m.status === "streaming",
-  );
-  const hasMessages = Boolean(messages?.length);
-  const isBusy = isLoading || Boolean(hasStreamingMessage);
-  const canSend = Boolean(input.trim()) && !isBusy;
-
-  useEffect(() => {
-    scrollViewRef.current?.scrollToEnd({ animated: true });
-  }, [messages, isLoading]);
-
-  const sendPrompt = async (prompt: string) => {
-    const value = prompt.trim();
-    if (!value || isBusy) return;
-
-    setIsLoading(true);
-    setInput("");
-
-    try {
-      let currentThreadId = threadId;
-      if (!currentThreadId) {
-        currentThreadId = await createThread();
-        setThreadId(currentThreadId);
-      }
-
-      await sendMessage({ threadId: currentThreadId, prompt: value });
-    } catch (error) {
-      console.error("Failed to send message:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const onNewChat = () => {
-    if (isBusy) return;
-    setInput("");
-    setThreadId(null);
-  };
-
-  return (
-    <Container isScrollable={false}>
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <View className="flex-1 px-4">
-          <View className="flex-row items-center justify-between py-3">
-            <View className="flex-row items-center gap-2">
-              <View
-                className={\`h-2 w-2 rounded-full \${
-                  isBusy ? "bg-primary" : "bg-border"
-                }\`}
-              />
-              <Text className="text-sm font-semibold text-foreground tabular-nums">
-                {isBusy
-                  ? "Streaming"
-                  : hasMessages
-                    ? \`\${messages?.length ?? 0} messages\`
-                    : "Ready"}
-              </Text>
-            </View>
-            <Button
-              size="sm"
-              variant="secondary"
-              onPress={onNewChat}
-              isDisabled={isBusy || (!hasMessages && !threadId)}
-            >
-              <Ionicons name="add" size={16} color={foregroundColor} />
-              <Text className="text-sm font-medium text-foreground">New</Text>
-            </Button>
-          </View>
-
-          <Separator className="mb-1" />
-
-          <ScrollView
-            ref={scrollViewRef}
-            className="flex-1"
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle=\\{{ flexGrow: 1, paddingVertical: 16 }}
-            keyboardShouldPersistTaps="handled"
-          >
-            {!hasMessages ? (
-              <View className="flex-1 justify-center gap-3">
-                <View className="items-center gap-3">
-                  <Surface
-                    variant="secondary"
-                    className="h-14 w-14 items-center justify-center rounded-full"
-                  >
-                    <Ionicons
-                      name="chatbubble-ellipses-outline"
-                      size={28}
-                      color={mutedColor}
-                    />
-                  </Surface>
-                  <Text className="text-center text-xl font-semibold text-foreground">
-                    Start a conversation
-                  </Text>
-                  <Text selectable className="text-center text-sm leading-5 text-muted">
-                    Use a starter prompt or ask your own question.
-                  </Text>
-                </View>
-                <View className="gap-2">
-                  {starterPrompts.map((item) => (
-                    <Pressable
-                      key={item.label}
-                      onPress={() => sendPrompt(item.prompt)}
-                      disabled={isBusy}
-                    >
-                      <Surface
-                        variant="secondary"
-                        className={\`gap-1 rounded-xl p-3 \${
-                          isBusy ? "opacity-50" : ""
-                        }\`}
-                      >
-                        <Text className="text-sm font-semibold text-foreground">
-                          {item.label}
-                        </Text>
-                        <Text className="text-sm leading-5 text-muted">
-                          {item.prompt}
-                        </Text>
-                      </Surface>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-            ) : (
-              <View className="gap-3">
-	                {messages?.map((message) => (
-	                  <View
-	                    key={\`\${message.order}-\${message.stepOrder}\`}
-	                    className={\`flex-row \${
-                      message.role === "user" ? "justify-end" : "justify-start"
-                    }\`}
-                  >
-                    <Surface
-                      variant={message.role === "user" ? "tertiary" : "secondary"}
-                      style=\\{{ maxWidth: "86%" }}
-                      className={\`rounded-2xl p-3 \${
-                        message.role === "user" ? "rounded-tr-md" : "rounded-tl-md"
-                      }\`}
-                    >
-                      <Text className="mb-1 text-xs font-semibold text-muted">
-                        {message.role === "user" ? "You" : "AI"}
-                      </Text>
-                      <MessageContent
-                        text={(message.parts ?? [])
-                          .map((part) => (part.type === "text" ? part.text : ""))
-                          .join("")}
-                        isStreaming={message.status === "streaming"}
-                      />
-                    </Surface>
-                  </View>
-                ))}
-                {isLoading && !hasStreamingMessage && (
-                  <View className="flex-row justify-start">
-                    <Surface
-                      variant="secondary"
-                      style=\\{{ maxWidth: "86%" }}
-                      className="rounded-2xl rounded-tl-md p-3"
-                    >
-                      <Text className="mb-1 text-xs font-semibold text-muted">AI</Text>
-                      <View className="flex-row items-center gap-2">
-                        <Spinner size="sm" />
-                        <Text className="text-sm text-muted">Thinking...</Text>
-                      </View>
-                    </Surface>
-                  </View>
-                )}
-              </View>
-            )}
-          </ScrollView>
-
-          <Separator className="mb-3" />
-
-          <View className="flex-row items-end gap-2 pb-4">
-            <View className="flex-1">
-              <TextField>
-                <Input
-                  value={input}
-                  onChangeText={setInput}
-                  placeholder="Message AI..."
-                  onSubmitEditing={() => sendPrompt(input)}
-                  editable={!isBusy}
-                  returnKeyType="send"
-                />
-              </TextField>
-            </View>
-            <Button
-              isIconOnly
-              variant={canSend ? "primary" : "secondary"}
-              onPress={() => sendPrompt(input)}
-              isDisabled={!canSend}
-              size="sm"
-            >
-              <Ionicons
-                name="arrow-up"
-                size={18}
-                color={canSend ? foregroundColor : mutedColor}
-              />
-            </Button>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Container>
-  );
-}
-{{else}}
-import { useRef, useEffect, useState } from "react";
+  ["examples/ai/native/uniwind/app/(drawer)/ai.tsx.hbs", `import { useRef, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -10696,7 +8970,6 @@ export default function AIScreen() {
     </Container>
   );
 }
-{{/if}}
 `],
   ["examples/ai/native/uniwind/polyfills.js", `import structuredClone from "@ungap/structured-clone";
 import { Platform } from "react-native";
@@ -10721,37 +8994,7 @@ if (Platform.OS !== "web") {
 
 export {};
 `],
-  ["examples/ai/web/react/next/src/app/ai/page.tsx.hbs", `{{#if (eq backend "convex")}}
-"use client";
-
-import { api } from "@{{projectName}}/backend/convex/_generated/api";
-import {
-  useSmoothText,
-  useUIMessages,
-} from "@convex-dev/agent/react";
-import { useMutation } from "convex/react";
-import {
-  ArrowUpIcon,
-  Loader2,
-  MessageCircleDashedIcon,
-  RotateCwIcon,
-} from "lucide-react";
-{{#if (eq webDeploy "cloudflare")}}
-import dynamic from "next/dynamic";
-
-const Streamdown = dynamic(
-  () => import("streamdown").then((mod) => ({ default: mod.Streamdown })),
-  {
-    loading: () => (
-      <div className="flex h-full items-center justify-center">
-        <div className="text-muted-foreground">Loading response...</div>
-      </div>
-    ),
-    ssr: false,
-  }
-);
-{{else}}
-import { Streamdown } from "streamdown";
+  ["examples/ai/web/react/next/src/app/ai/page.tsx.hbs", `import { Streamdown } from "streamdown";
 {{/if}}
 import { useState, type FormEvent, type KeyboardEvent } from "react";
 
@@ -11246,272 +9489,8 @@ export default function AIPage() {
     </MessageScrollerProvider>
   );
 }
-{{/if}}
 `],
-  ["examples/ai/web/react/react-router/src/routes/ai.tsx.hbs", `{{#if (eq backend "convex")}}
-import { api } from "@{{projectName}}/backend/convex/_generated/api";
-import {
-  useSmoothText,
-  useUIMessages,
-} from "@convex-dev/agent/react";
-import { useMutation } from "convex/react";
-import {
-  ArrowUpIcon,
-  Loader2,
-  MessageCircleDashedIcon,
-  RotateCwIcon,
-} from "lucide-react";
-import { useState, type FormEvent, type KeyboardEvent } from "react";
-import { Streamdown } from "streamdown";
-
-import { Bubble, BubbleContent } from "@{{projectName}}/ui/components/bubble";
-import { Button } from "@{{projectName}}/ui/components/button";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@{{projectName}}/ui/components/empty";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupTextarea,
-} from "@{{projectName}}/ui/components/input-group";
-import {
-  Message,
-  MessageContent as MessageBody,
-  MessageHeader,
-} from "@{{projectName}}/ui/components/message";
-import {
-  MessageScroller,
-  MessageScrollerButton,
-  MessageScrollerContent,
-  MessageScrollerItem,
-  MessageScrollerProvider,
-  MessageScrollerViewport,
-} from "@{{projectName}}/ui/components/message-scroller";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@{{projectName}}/ui/components/tooltip";
-
-function StreamingMessageText({
-  text,
-  isStreaming,
-}: {
-  text: string;
-  isStreaming: boolean;
-}) {
-  const [visibleText] = useSmoothText(text, {
-    startStreaming: isStreaming,
-  });
-
-  return <Streamdown>{visibleText}</Streamdown>;
-}
-
-export default function AI() {
-  const [input, setInput] = useState("");
-  const [threadId, setThreadId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const createThread = useMutation(api.chat.createNewThread);
-  const sendMessage = useMutation(api.chat.sendMessage);
-
-  const { results: messages } = useUIMessages(
-    api.chat.listMessages,
-    threadId ? { threadId } : "skip",
-    { initialNumItems: 50, stream: true },
-  );
-
-  const hasStreamingMessage = messages?.some(
-    (m) => m.status === "streaming",
-  );
-  const isBusy = isLoading || Boolean(hasStreamingMessage);
-
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const text = input.trim();
-    if (!text || isBusy) return;
-
-    setIsLoading(true);
-    setInput("");
-
-    try {
-      let currentThreadId = threadId;
-      if (!currentThreadId) {
-        currentThreadId = await createThread();
-        setThreadId(currentThreadId);
-      }
-
-      await sendMessage({ threadId: currentThreadId, prompt: text });
-    } catch (error) {
-      console.error("Failed to send message:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handlePromptKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      e.currentTarget.form?.requestSubmit();
-    }
-  };
-
-  const resetConversation = () => {
-    setInput("");
-    setThreadId(null);
-  };
-
-  return (
-    <MessageScrollerProvider>
-      <div className="flex h-full min-h-0 w-full flex-col">
-        <header className="shrink-0 border-b px-4 py-3">
-          <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
-            <div className="min-w-0">
-              <h1 className="text-sm font-medium">New Chat</h1>
-              <p className="text-xs/relaxed text-muted-foreground">
-                How can I help you today?
-              </p>
-            </div>
-            <div className="shrink-0">
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon-sm"
-                        aria-label="Reset conversation"
-                        onClick={resetConversation}
-                        disabled={isBusy}
-                      />
-                    }
-                  >
-                    <RotateCwIcon />
-                  </TooltipTrigger>
-                  <TooltipContent>Reset</TooltipContent>
-                </Tooltip>
-            </div>
-          </div>
-        </header>
-        <main className="min-h-0 flex-1">
-              {(!messages || messages.length === 0) && !isLoading ? (
-                <Empty className="mx-auto h-full max-w-3xl px-4">
-                  <EmptyHeader>
-                    <EmptyMedia variant="icon">
-                      <MessageCircleDashedIcon />
-                    </EmptyMedia>
-                    <EmptyTitle>Morning, {{projectName}}!</EmptyTitle>
-                    <EmptyDescription>
-                      What are we working on today?
-                    </EmptyDescription>
-                  </EmptyHeader>
-                </Empty>
-              ) : (
-                <MessageScroller>
-                  <MessageScrollerViewport>
-                    <MessageScrollerContent
-                      aria-busy={isBusy}
-                      className="mx-auto w-full max-w-3xl px-4 py-6"
-                    >
-                      {messages.map((message) => {
-                        const isUser = message.role === "user";
-
-	                        return (
-	                          <MessageScrollerItem
-	                            key={\`\${message.order}-\${message.stepOrder}\`}
-	                            scrollAnchor={isUser}
-	                          >
-                            <Message align={isUser ? "end" : "start"}>
-                              <MessageBody>
-                                <MessageHeader>
-                                  {isUser ? "You" : "AI Assistant"}
-                                </MessageHeader>
-                                <Bubble
-                                  align={isUser ? "end" : "start"}
-                                  variant={isUser ? "default" : "secondary"}
-                                >
-                                  <BubbleContent>
-                                    <StreamingMessageText
-                                      text={(message.parts ?? [])
-                                        .map((part) => (part.type === "text" ? part.text : ""))
-                                        .join("")}
-                                      isStreaming={message.status === "streaming"}
-                                    />
-                                  </BubbleContent>
-                                </Bubble>
-                              </MessageBody>
-                            </Message>
-                          </MessageScrollerItem>
-                        );
-                      })}
-                      {isLoading && !hasStreamingMessage && (
-                        <MessageScrollerItem>
-                          <Message align="start">
-                            <MessageBody>
-                              <Bubble variant="secondary">
-                                <BubbleContent className="flex items-center gap-2">
-                                  <Loader2 className="size-3.5 animate-spin" />
-                                  <span className="shimmer">Thinking...</span>
-                                </BubbleContent>
-                              </Bubble>
-                            </MessageBody>
-                          </Message>
-                        </MessageScrollerItem>
-                      )}
-                      <MessageScrollerItem scrollAnchor />
-                    </MessageScrollerContent>
-                  </MessageScrollerViewport>
-                  <MessageScrollerButton />
-                </MessageScroller>
-              )}
-        </main>
-        <footer className="shrink-0 border-t px-4 py-3">
-          <div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
-              <form onSubmit={handleSubmit} className="w-full">
-                <InputGroup>
-                  <InputGroupTextarea
-                    name="prompt"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={handlePromptKeyDown}
-                    placeholder="Type your message..."
-                    className="max-h-32 min-h-14"
-                    rows={1}
-                    autoComplete="off"
-                    autoFocus
-                    disabled={isBusy}
-                  />
-                  <InputGroupAddon align="block-end" className="pt-1">
-                    <InputGroupButton
-                      type="submit"
-                      variant="default"
-                      size="icon-sm"
-                      disabled={isBusy || !input.trim()}
-                      className="ml-auto"
-                    >
-                      {isBusy ? (
-                        <Loader2 className="animate-spin" />
-                      ) : (
-                        <ArrowUpIcon />
-                      )}
-                      <span className="sr-only">Send</span>
-                    </InputGroupButton>
-                  </InputGroupAddon>
-                </InputGroup>
-            </form>
-          </div>
-        </footer>
-      </div>
-    </MessageScrollerProvider>
-  );
-}
-{{else}}
-import { useChat } from "@ai-sdk/react";
+  ["examples/ai/web/react/react-router/src/routes/ai.tsx.hbs", `import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import {
   ArrowUpIcon,
@@ -11737,277 +9716,8 @@ export default function AI() {
     </MessageScrollerProvider>
   );
 }
-{{/if}}
 `],
-  ["examples/ai/web/react/tanstack-router/src/routes/ai.tsx.hbs", `{{#if (eq backend "convex")}}
-import { api } from "@{{projectName}}/backend/convex/_generated/api";
-import {
-  useSmoothText,
-  useUIMessages,
-} from "@convex-dev/agent/react";
-import { createFileRoute } from "@tanstack/react-router";
-import { useMutation } from "convex/react";
-import {
-  ArrowUpIcon,
-  Loader2,
-  MessageCircleDashedIcon,
-  RotateCwIcon,
-} from "lucide-react";
-import { useState, type FormEvent, type KeyboardEvent } from "react";
-import { Streamdown } from "streamdown";
-
-import { Bubble, BubbleContent } from "@{{projectName}}/ui/components/bubble";
-import { Button } from "@{{projectName}}/ui/components/button";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@{{projectName}}/ui/components/empty";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupTextarea,
-} from "@{{projectName}}/ui/components/input-group";
-import {
-  Message,
-  MessageContent as MessageBody,
-  MessageHeader,
-} from "@{{projectName}}/ui/components/message";
-import {
-  MessageScroller,
-  MessageScrollerButton,
-  MessageScrollerContent,
-  MessageScrollerItem,
-  MessageScrollerProvider,
-  MessageScrollerViewport,
-} from "@{{projectName}}/ui/components/message-scroller";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@{{projectName}}/ui/components/tooltip";
-
-export const Route = createFileRoute("/ai")({
-  component: RouteComponent,
-});
-
-function StreamingMessageText({
-  text,
-  isStreaming,
-}: {
-  text: string;
-  isStreaming: boolean;
-}) {
-  const [visibleText] = useSmoothText(text, {
-    startStreaming: isStreaming,
-  });
-
-  return <Streamdown>{visibleText}</Streamdown>;
-}
-
-function RouteComponent() {
-  const [input, setInput] = useState("");
-  const [threadId, setThreadId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const createThread = useMutation(api.chat.createNewThread);
-  const sendMessage = useMutation(api.chat.sendMessage);
-
-  const { results: messages } = useUIMessages(
-    api.chat.listMessages,
-    threadId ? { threadId } : "skip",
-    { initialNumItems: 50, stream: true },
-  );
-
-  const hasStreamingMessage = messages?.some(
-    (m) => m.status === "streaming",
-  );
-  const isBusy = isLoading || Boolean(hasStreamingMessage);
-
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const text = input.trim();
-    if (!text || isBusy) return;
-
-    setIsLoading(true);
-    setInput("");
-
-    try {
-      let currentThreadId = threadId;
-      if (!currentThreadId) {
-        currentThreadId = await createThread();
-        setThreadId(currentThreadId);
-      }
-
-      await sendMessage({ threadId: currentThreadId, prompt: text });
-    } catch (error) {
-      console.error("Failed to send message:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handlePromptKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      e.currentTarget.form?.requestSubmit();
-    }
-  };
-
-  const resetConversation = () => {
-    setInput("");
-    setThreadId(null);
-  };
-
-  return (
-    <MessageScrollerProvider>
-      <div className="flex h-full min-h-0 w-full flex-col">
-        <header className="shrink-0 border-b px-4 py-3">
-          <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
-            <div className="min-w-0">
-              <h1 className="text-sm font-medium">New Chat</h1>
-              <p className="text-xs/relaxed text-muted-foreground">
-                How can I help you today?
-              </p>
-            </div>
-            <div className="shrink-0">
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon-sm"
-                        aria-label="Reset conversation"
-                        onClick={resetConversation}
-                        disabled={isBusy}
-                      />
-                    }
-                  >
-                    <RotateCwIcon />
-                  </TooltipTrigger>
-                  <TooltipContent>Reset</TooltipContent>
-                </Tooltip>
-            </div>
-          </div>
-        </header>
-        <main className="min-h-0 flex-1">
-              {(!messages || messages.length === 0) && !isLoading ? (
-                <Empty className="mx-auto h-full max-w-3xl px-4">
-                  <EmptyHeader>
-                    <EmptyMedia variant="icon">
-                      <MessageCircleDashedIcon />
-                    </EmptyMedia>
-                    <EmptyTitle>Morning, {{projectName}}!</EmptyTitle>
-                    <EmptyDescription>
-                      What are we working on today?
-                    </EmptyDescription>
-                  </EmptyHeader>
-                </Empty>
-              ) : (
-                <MessageScroller>
-                  <MessageScrollerViewport>
-                    <MessageScrollerContent
-                      aria-busy={isBusy}
-                      className="mx-auto w-full max-w-3xl px-4 py-6"
-                    >
-                      {messages.map((message) => {
-                        const isUser = message.role === "user";
-
-	                        return (
-	                          <MessageScrollerItem
-	                            key={\`\${message.order}-\${message.stepOrder}\`}
-	                            scrollAnchor={isUser}
-	                          >
-                            <Message align={isUser ? "end" : "start"}>
-                              <MessageBody>
-                                <MessageHeader>
-                                  {isUser ? "You" : "AI Assistant"}
-                                </MessageHeader>
-                                <Bubble
-                                  align={isUser ? "end" : "start"}
-                                  variant={isUser ? "default" : "secondary"}
-                                >
-                                  <BubbleContent>
-                                    <StreamingMessageText
-                                      text={(message.parts ?? [])
-                                        .map((part) => (part.type === "text" ? part.text : ""))
-                                        .join("")}
-                                      isStreaming={message.status === "streaming"}
-                                    />
-                                  </BubbleContent>
-                                </Bubble>
-                              </MessageBody>
-                            </Message>
-                          </MessageScrollerItem>
-                        );
-                      })}
-                      {isLoading && !hasStreamingMessage && (
-                        <MessageScrollerItem>
-                          <Message align="start">
-                            <MessageBody>
-                              <Bubble variant="secondary">
-                                <BubbleContent className="flex items-center gap-2">
-                                  <Loader2 className="size-3.5 animate-spin" />
-                                  <span className="shimmer">Thinking...</span>
-                                </BubbleContent>
-                              </Bubble>
-                            </MessageBody>
-                          </Message>
-                        </MessageScrollerItem>
-                      )}
-                      <MessageScrollerItem scrollAnchor />
-                    </MessageScrollerContent>
-                  </MessageScrollerViewport>
-                  <MessageScrollerButton />
-                </MessageScroller>
-              )}
-        </main>
-        <footer className="shrink-0 border-t px-4 py-3">
-          <div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
-              <form onSubmit={handleSubmit} className="w-full">
-                <InputGroup>
-                  <InputGroupTextarea
-                    name="prompt"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={handlePromptKeyDown}
-                    placeholder="Type your message..."
-                    className="max-h-32 min-h-14"
-                    rows={1}
-                    autoComplete="off"
-                    autoFocus
-                    disabled={isBusy}
-                  />
-                  <InputGroupAddon align="block-end" className="pt-1">
-                    <InputGroupButton
-                      type="submit"
-                      variant="default"
-                      size="icon-sm"
-                      disabled={isBusy || !input.trim()}
-                      className="ml-auto"
-                    >
-                      {isBusy ? (
-                        <Loader2 className="animate-spin" />
-                      ) : (
-                        <ArrowUpIcon />
-                      )}
-                      <span className="sr-only">Send</span>
-                    </InputGroupButton>
-                  </InputGroupAddon>
-                </InputGroup>
-            </form>
-          </div>
-        </footer>
-      </div>
-    </MessageScrollerProvider>
-  );
-}
-{{else}}
-import { useChat } from "@ai-sdk/react";
+  ["examples/ai/web/react/tanstack-router/src/routes/ai.tsx.hbs", `import { useChat } from "@ai-sdk/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { DefaultChatTransport } from "ai";
 import {
@@ -12240,277 +9950,8 @@ function RouteComponent() {
     </MessageScrollerProvider>
   );
 }
-{{/if}}
 `],
-  ["examples/ai/web/react/tanstack-start/src/routes/ai.tsx.hbs", `{{#if (eq backend "convex")}}
-import { api } from "@{{projectName}}/backend/convex/_generated/api";
-import {
-  useSmoothText,
-  useUIMessages,
-} from "@convex-dev/agent/react";
-import { createFileRoute } from "@tanstack/react-router";
-import { useMutation } from "convex/react";
-import {
-  ArrowUpIcon,
-  Loader2,
-  MessageCircleDashedIcon,
-  RotateCwIcon,
-} from "lucide-react";
-import { useState, type FormEvent, type KeyboardEvent } from "react";
-import { Streamdown } from "streamdown";
-
-import { Bubble, BubbleContent } from "@{{projectName}}/ui/components/bubble";
-import { Button } from "@{{projectName}}/ui/components/button";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@{{projectName}}/ui/components/empty";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupTextarea,
-} from "@{{projectName}}/ui/components/input-group";
-import {
-  Message,
-  MessageContent as MessageBody,
-  MessageHeader,
-} from "@{{projectName}}/ui/components/message";
-import {
-  MessageScroller,
-  MessageScrollerButton,
-  MessageScrollerContent,
-  MessageScrollerItem,
-  MessageScrollerProvider,
-  MessageScrollerViewport,
-} from "@{{projectName}}/ui/components/message-scroller";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@{{projectName}}/ui/components/tooltip";
-
-export const Route = createFileRoute("/ai")({
-  component: RouteComponent,
-});
-
-function StreamingMessageText({
-  text,
-  isStreaming,
-}: {
-  text: string;
-  isStreaming: boolean;
-}) {
-  const [visibleText] = useSmoothText(text, {
-    startStreaming: isStreaming,
-  });
-
-  return <Streamdown>{visibleText}</Streamdown>;
-}
-
-function RouteComponent() {
-  const [input, setInput] = useState("");
-  const [threadId, setThreadId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const createThread = useMutation(api.chat.createNewThread);
-  const sendMessage = useMutation(api.chat.sendMessage);
-
-  const { results: messages } = useUIMessages(
-    api.chat.listMessages,
-    threadId ? { threadId } : "skip",
-    { initialNumItems: 50, stream: true },
-  );
-
-  const hasStreamingMessage = messages?.some(
-    (m) => m.status === "streaming",
-  );
-  const isBusy = isLoading || Boolean(hasStreamingMessage);
-
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const text = input.trim();
-    if (!text || isBusy) return;
-
-    setIsLoading(true);
-    setInput("");
-
-    try {
-      let currentThreadId = threadId;
-      if (!currentThreadId) {
-        currentThreadId = await createThread();
-        setThreadId(currentThreadId);
-      }
-
-      await sendMessage({ threadId: currentThreadId, prompt: text });
-    } catch (error) {
-      console.error("Failed to send message:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handlePromptKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      e.currentTarget.form?.requestSubmit();
-    }
-  };
-
-  const resetConversation = () => {
-    setInput("");
-    setThreadId(null);
-  };
-
-  return (
-    <MessageScrollerProvider>
-      <div className="flex h-full min-h-0 w-full flex-col">
-        <header className="shrink-0 border-b px-4 py-3">
-          <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
-            <div className="min-w-0">
-              <h1 className="text-sm font-medium">New Chat</h1>
-              <p className="text-xs/relaxed text-muted-foreground">
-                How can I help you today?
-              </p>
-            </div>
-            <div className="shrink-0">
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon-sm"
-                        aria-label="Reset conversation"
-                        onClick={resetConversation}
-                        disabled={isBusy}
-                      />
-                    }
-                  >
-                    <RotateCwIcon />
-                  </TooltipTrigger>
-                  <TooltipContent>Reset</TooltipContent>
-                </Tooltip>
-            </div>
-          </div>
-        </header>
-        <main className="min-h-0 flex-1">
-              {(!messages || messages.length === 0) && !isLoading ? (
-                <Empty className="mx-auto h-full max-w-3xl px-4">
-                  <EmptyHeader>
-                    <EmptyMedia variant="icon">
-                      <MessageCircleDashedIcon />
-                    </EmptyMedia>
-                    <EmptyTitle>Morning, {{projectName}}!</EmptyTitle>
-                    <EmptyDescription>
-                      What are we working on today?
-                    </EmptyDescription>
-                  </EmptyHeader>
-                </Empty>
-              ) : (
-                <MessageScroller>
-                  <MessageScrollerViewport>
-                    <MessageScrollerContent
-                      aria-busy={isBusy}
-                      className="mx-auto w-full max-w-3xl px-4 py-6"
-                    >
-                      {messages.map((message) => {
-                        const isUser = message.role === "user";
-
-	                        return (
-	                          <MessageScrollerItem
-	                            key={\`\${message.order}-\${message.stepOrder}\`}
-	                            scrollAnchor={isUser}
-	                          >
-                            <Message align={isUser ? "end" : "start"}>
-                              <MessageBody>
-                                <MessageHeader>
-                                  {isUser ? "You" : "AI Assistant"}
-                                </MessageHeader>
-                                <Bubble
-                                  align={isUser ? "end" : "start"}
-                                  variant={isUser ? "default" : "secondary"}
-                                >
-                                  <BubbleContent>
-                                    <StreamingMessageText
-                                      text={(message.parts ?? [])
-                                        .map((part) => (part.type === "text" ? part.text : ""))
-                                        .join("")}
-                                      isStreaming={message.status === "streaming"}
-                                    />
-                                  </BubbleContent>
-                                </Bubble>
-                              </MessageBody>
-                            </Message>
-                          </MessageScrollerItem>
-                        );
-                      })}
-                      {isLoading && !hasStreamingMessage && (
-                        <MessageScrollerItem>
-                          <Message align="start">
-                            <MessageBody>
-                              <Bubble variant="secondary">
-                                <BubbleContent className="flex items-center gap-2">
-                                  <Loader2 className="size-3.5 animate-spin" />
-                                  <span className="shimmer">Thinking...</span>
-                                </BubbleContent>
-                              </Bubble>
-                            </MessageBody>
-                          </Message>
-                        </MessageScrollerItem>
-                      )}
-                      <MessageScrollerItem scrollAnchor />
-                    </MessageScrollerContent>
-                  </MessageScrollerViewport>
-                  <MessageScrollerButton />
-                </MessageScroller>
-              )}
-        </main>
-        <footer className="shrink-0 border-t px-4 py-3">
-          <div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
-              <form onSubmit={handleSubmit} className="w-full">
-                <InputGroup>
-                  <InputGroupTextarea
-                    name="prompt"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={handlePromptKeyDown}
-                    placeholder="Type your message..."
-                    className="max-h-32 min-h-14"
-                    rows={1}
-                    autoComplete="off"
-                    autoFocus
-                    disabled={isBusy}
-                  />
-                  <InputGroupAddon align="block-end" className="pt-1">
-                    <InputGroupButton
-                      type="submit"
-                      variant="default"
-                      size="icon-sm"
-                      disabled={isBusy || !input.trim()}
-                      className="ml-auto"
-                    >
-                      {isBusy ? (
-                        <Loader2 className="animate-spin" />
-                      ) : (
-                        <ArrowUpIcon />
-                      )}
-                      <span className="sr-only">Send</span>
-                    </InputGroupButton>
-                  </InputGroupAddon>
-                </InputGroup>
-            </form>
-          </div>
-        </footer>
-      </div>
-    </MessageScrollerProvider>
-  );
-}
-{{else}}
-import { useChat } from "@ai-sdk/react";
+  ["examples/ai/web/react/tanstack-start/src/routes/ai.tsx.hbs", `import { useChat } from "@ai-sdk/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { DefaultChatTransport } from "ai";
 import {
@@ -12743,7 +10184,6 @@ function RouteComponent() {
     </MessageScrollerProvider>
   );
 }
-{{/if}}
 `],
   ["examples/todo/native/bare/app/(drawer)/todos.tsx.hbs", `import { useState } from "react";
 import {
@@ -12757,23 +10197,12 @@ import {
   StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-{{#if (eq backend "convex")}}
-import { useMutation, useQuery } from "convex/react";
-import { api } from "@{{projectName}}/backend/convex/_generated/api";
-import type { Doc, Id } from "@{{projectName}}/backend/convex/_generated/dataModel";
-{{else}}
 import { useMutation, useQuery } from "@tanstack/react-query";
-{{/if}}
 import { Container } from "@/components/container";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { NAV_THEME } from "@/lib/constants";
-{{#unless (eq backend "convex")}}
-  {{#if (eq api "orpc")}}
+{{#unless (eq api "none")}}
 import { orpc } from "@/utils/orpc";
-  {{/if}}
-  {{#if (eq api "trpc")}}
-import { trpc } from "@/utils/trpc";
-  {{/if}}
 {{/unless}}
 
 export default function TodosScreen() {
@@ -12781,39 +10210,7 @@ export default function TodosScreen() {
   const theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
   const [newTodoText, setNewTodoText] = useState("");
 
-  {{#if (eq backend "convex")}}
-  const todos = useQuery(api.todos.getAll);
-  const createTodoMutation = useMutation(api.todos.create);
-  const toggleTodoMutation = useMutation(api.todos.toggle);
-  const deleteTodoMutation = useMutation(api.todos.deleteTodo);
-
-  async function handleAddTodo() {
-    const text = newTodoText.trim();
-    if (!text) return;
-    await createTodoMutation({ text });
-    setNewTodoText("");
-  }
-
-  function handleToggleTodo(id: Id<"todos">, currentCompleted: boolean) {
-    toggleTodoMutation({ id, completed: !currentCompleted });
-  }
-
-  function handleDeleteTodo(id: Id<"todos">) {
-    Alert.alert("Delete Todo", "Are you sure you want to delete this todo?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => deleteTodoMutation({ id }),
-      },
-    ]);
-  }
-
-  const isLoading = !todos;
-  const completedCount = todos?.filter((t: Doc<"todos">) => t.completed).length || 0;
-  const totalCount = todos?.length || 0;
-  {{else}}
-    {{#if (eq api "orpc")}}
+  {{#unless (eq api "none")}}
   const todos = useQuery(orpc.todo.getAll.queryOptions());
   const createMutation = useMutation(
     orpc.todo.create.mutationOptions({
@@ -12837,32 +10234,6 @@ export default function TodosScreen() {
       },
     })
   );
-    {{/if}}
-    {{#if (eq api "trpc")}}
-  const todos = useQuery(trpc.todo.getAll.queryOptions());
-  const createMutation = useMutation(
-    trpc.todo.create.mutationOptions({
-      onSuccess: () => {
-        todos.refetch();
-        setNewTodoText("");
-      },
-    })
-  );
-  const toggleMutation = useMutation(
-    trpc.todo.toggle.mutationOptions({
-      onSuccess: () => {
-        todos.refetch();
-      },
-    })
-  );
-  const deleteMutation = useMutation(
-    trpc.todo.delete.mutationOptions({
-      onSuccess: () => {
-        todos.refetch();
-      },
-    })
-  );
-    {{/if}}
 
   function handleAddTodo() {
     if (newTodoText.trim()) {
@@ -12888,7 +10259,7 @@ export default function TodosScreen() {
   const isLoading = todos?.isLoading;
   const completedCount = todos?.data?.filter((t) => t.completed).length || 0;
   const totalCount = todos?.data?.length || 0;
-  {{/if}}
+  {{/unless}}
 
   return (
     <Container>
@@ -12901,6 +10272,7 @@ export default function TodosScreen() {
             <Text style={[styles.title, { color: theme.text }]}>
               Todo List
             </Text>
+            {{#unless (eq api "none")}}
             {totalCount > 0 && (
               <View style={[styles.badge, { backgroundColor: theme.primary }]}>
                 <Text style={styles.badgeText}>
@@ -12908,8 +10280,10 @@ export default function TodosScreen() {
                 </Text>
               </View>
             )}
+            {{/unless}}
           </View>
         </View>
+        {{#unless (eq api "none")}}
         <View
           style={[
             styles.inputCard,
@@ -12923,9 +10297,7 @@ export default function TodosScreen() {
                 onChangeText={setNewTodoText}
                 placeholder="Add a new task..."
                 placeholderTextColor={theme.text}
-                {{#unless (eq backend "convex")}}
                 editable={!createMutation.isPending}
-                {{/unless}}
                 onSubmitEditing={handleAddTodo}
                 returnKeyType="done"
                 style={[
@@ -12940,24 +10312,6 @@ export default function TodosScreen() {
             </View>
             <TouchableOpacity
               onPress={handleAddTodo}
-              {{#if (eq backend "convex")}}
-              disabled={!newTodoText.trim()}
-              style={[
-                styles.addButton,
-                {
-                  backgroundColor: !newTodoText.trim()
-                    ? theme.border
-                    : theme.primary,
-                  opacity: !newTodoText.trim() ? 0.5 : 1,
-                },
-              ]}
-            >
-              <Ionicons
-                name="add"
-                size={24}
-                color={newTodoText.trim() ? "#ffffff" : theme.text}
-              />
-              {{else}}
               disabled={createMutation.isPending || !newTodoText.trim()}
               style={[
                 styles.addButton,
@@ -12976,100 +10330,10 @@ export default function TodosScreen() {
               ) : (
                 <Ionicons name="add" size={24} color="#ffffff" />
               )}
-              {{/if}}
             </TouchableOpacity>
           </View>
         </View>
 
-        {{#if (eq backend "convex")}}
-        {isLoading && (
-          <View style={styles.centerContainer}>
-            <ActivityIndicator size="large" color={theme.primary} />
-            <Text
-              style={[styles.loadingText, { color: theme.text, opacity: 0.7 }]}
-            >
-              Loading todos...
-            </Text>
-          </View>
-        )}
-
-        {todos && todos.length === 0 && !isLoading && (
-          <View
-            style={[
-              styles.emptyCard,
-              { backgroundColor: theme.card, borderColor: theme.border },
-            ]}
-          >
-            <Ionicons
-              name="checkbox-outline"
-              size={64}
-              color={theme.text}
-              style=\\{{ opacity: 0.5, marginBottom: 16 }}
-            />
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>
-              No todos yet
-            </Text>
-            <Text
-              style={[styles.emptyText, { color: theme.text, opacity: 0.7 }]}
-            >
-              Add your first task to get started!
-            </Text>
-          </View>
-        )}
-
-        {todos && todos.length > 0 && (
-          <View style={styles.todosList}>
-            {todos.map((todo: Doc<"todos">) => (
-              <View
-                key={todo._id}
-                style={[
-                  styles.todoCard,
-                  { backgroundColor: theme.card, borderColor: theme.border },
-                ]}
-              >
-                <View style={styles.todoRow}>
-                  <TouchableOpacity
-                    onPress={() => handleToggleTodo(todo._id, todo.completed)}
-                    style={[styles.checkbox, { borderColor: theme.border }]}
-                  >
-                    {todo.completed && (
-                      <Ionicons
-                        name="checkmark"
-                        size={16}
-                        color={theme.primary}
-                      />
-                    )}
-                  </TouchableOpacity>
-                  <View style={styles.todoTextContainer}>
-                    <Text
-                      style={[
-                        styles.todoText,
-                        { color: theme.text },
-                        todo.completed && {
-                          textDecorationLine: "line-through",
-                          opacity: 0.5,
-                        },
-                      ]}
-                    >
-                      {todo.text}
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => handleDeleteTodo(todo._id)}
-                    style={styles.deleteButton}
-                  >
-                    <Ionicons
-                      name="trash-outline"
-                      size={24}
-                      color={theme.notification}
-                    />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-        {{else}}
         {isLoading && (
           <View style={styles.centerContainer}>
             <ActivityIndicator size="large" color={theme.primary} />
@@ -13157,7 +10421,7 @@ export default function TodosScreen() {
             ))}
           </View>
         )}
-        {{/if}}
+        {{/unless}}
       </ScrollView>
     </Container>
   );
@@ -13280,99 +10544,36 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-
-{{#if (eq backend "convex")}}
-import { useMutation, useQuery } from "convex/react";
-import { api } from "@{{projectName}}/backend/convex/_generated/api";
-import type { Doc, Id } from "@{{projectName}}/backend/convex/_generated/dataModel";
-{{else}}
 import { useMutation, useQuery } from "@tanstack/react-query";
-{{/if}}
-
 import { Container } from "@/components/container";
-{{#unless (eq backend "convex")}}
-{{#if (eq api "orpc")}}
+{{#unless (eq api "none")}}
 import { orpc } from "@/utils/orpc";
-{{/if}}
-{{#if (eq api "trpc")}}
-import { trpc } from "@/utils/trpc";
-{{/if}}
 {{/unless}}
 
 export default function TodosScreen() {
   const [newTodoText, setNewTodoText] = useState("");
   const { theme } = useUnistyles();
 
-  {{#if (eq backend "convex")}}
-  const todos = useQuery(api.todos.getAll);
-  const createTodoMutation = useMutation(api.todos.create);
-  const toggleTodoMutation = useMutation(api.todos.toggle);
-  const deleteTodoMutation = useMutation(api.todos.deleteTodo);
-
-  const handleAddTodo = async () => {
-    const text = newTodoText.trim();
-    if (!text) return;
-    await createTodoMutation({ text });
-    setNewTodoText("");
-  };
-
-  const handleToggleTodo = (id: Id<"todos">, currentCompleted: boolean) => {
-    toggleTodoMutation({ id, completed: !currentCompleted });
-  };
-
-  const handleDeleteTodo = (id: Id<"todos">) => {
-    Alert.alert("Delete Todo", "Are you sure you want to delete this todo?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => deleteTodoMutation({ id }),
+  {{#unless (eq api "none")}}
+  const todos = useQuery(orpc.todo.getAll.queryOptions());
+  const createMutation = useMutation(
+    orpc.todo.create.mutationOptions({
+      onSuccess: () => {
+        todos.refetch();
+        setNewTodoText("");
       },
-    ]);
-  };
-  {{else}}
-    {{#if (eq api "orpc")}}
-    const todos = useQuery(orpc.todo.getAll.queryOptions());
-    const createMutation = useMutation(
-      orpc.todo.create.mutationOptions({
-        onSuccess: () => {
-          todos.refetch();
-          setNewTodoText("");
-        },
-      })
-    );
-    const toggleMutation = useMutation(
-      orpc.todo.toggle.mutationOptions({
-        onSuccess: () => { todos.refetch() },
-      })
-    );
-    const deleteMutation = useMutation(
-      orpc.todo.delete.mutationOptions({
-        onSuccess: () => { todos.refetch() },
-      })
-    );
-    {{/if}}
-    {{#if (eq api "trpc")}}
-    const todos = useQuery(trpc.todo.getAll.queryOptions());
-    const createMutation = useMutation(
-      trpc.todo.create.mutationOptions({
-        onSuccess: () => {
-          todos.refetch();
-          setNewTodoText("");
-        },
-      })
-    );
-    const toggleMutation = useMutation(
-      trpc.todo.toggle.mutationOptions({
-        onSuccess: () => { todos.refetch() },
-      })
-    );
-    const deleteMutation = useMutation(
-      trpc.todo.delete.mutationOptions({
-        onSuccess: () => { todos.refetch() },
-      })
-    );
-    {{/if}}
+    })
+  );
+  const toggleMutation = useMutation(
+    orpc.todo.toggle.mutationOptions({
+      onSuccess: () => { todos.refetch() },
+    })
+  );
+  const deleteMutation = useMutation(
+    orpc.todo.delete.mutationOptions({
+      onSuccess: () => { todos.refetch() },
+    })
+  );
 
   const handleAddTodo = () => {
     if (newTodoText.trim()) {
@@ -13394,10 +10595,10 @@ export default function TodosScreen() {
       },
     ]);
   };
-  {{/if}}
+  {{/unless}}
 
-  const isLoading = {{#if (eq backend "convex")}}!todos{{else}}todos.isLoading{{/if}};
-  const isCreating = {{#if (eq backend "convex")}}false{{else}}createMutation.isPending{{/if}};
+  const isLoading = todos.isLoading;
+  const isCreating = createMutation.isPending;
   const primaryButtonTextColor = theme.colors.background;
 
   return (
@@ -13409,6 +10610,7 @@ export default function TodosScreen() {
             Manage your tasks efficiently
           </Text>
 
+          {{#unless (eq api "none")}}
           <View style={styles.inputContainer}>
             <TextInput
               value={newTodoText}
@@ -13439,8 +10641,10 @@ export default function TodosScreen() {
               )}
             </TouchableOpacity>
           </View>
+          {{/unless}}
         </View>
 
+        {{#unless (eq api "none")}}
         {isLoading && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -13448,67 +10652,36 @@ export default function TodosScreen() {
           </View>
         )}
 
-        {{#if (eq backend "convex")}}
-          {todos && todos.length === 0 && !isLoading && (
-            <Text style={styles.emptyText}>No todos yet. Add one!</Text>
-          )}
-          {todos?.map((todo: Doc<"todos">) => (
-            <View key={todo._id} style={styles.todoItem}>
-              <TouchableOpacity
-                onPress={() => handleToggleTodo(todo._id, todo.completed)}
-                style={styles.todoContent}
+        {todos.data && todos.data.length === 0 && !isLoading && (
+          <Text style={styles.emptyText}>No todos yet. Add one!</Text>
+        )}
+        {todos.data?.map((todo: { id: number; text: string; completed: boolean }) => (
+          <View key={todo.id} style={styles.todoItem}>
+            <TouchableOpacity
+              onPress={() => handleToggleTodo(todo.id, todo.completed)}
+              style={styles.todoContent}
+            >
+              <Ionicons
+                name={todo.completed ? "checkbox" : "square-outline"}
+                size={24}
+                color={todo.completed ? theme.colors.primary : theme.colors.typography}
+                style={styles.checkbox}
+              />
+              <Text
+                style={[
+                  styles.todoText,
+                  todo.completed && styles.todoTextCompleted,
+                ]}
               >
-                <Ionicons
-                  name={todo.completed ? "checkbox" : "square-outline"}
-                  size={24}
-                  color={todo.completed ? theme.colors.primary : theme.colors.typography}
-                  style={styles.checkbox}
-                />
-                <Text
-                  style={[
-                    styles.todoText,
-                    todo.completed && styles.todoTextCompleted,
-                  ]}
-                >
-                  {todo.text}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleDeleteTodo(todo._id)}>
-                <Ionicons name="trash-outline" size={24} color={theme.colors.destructive} />
-              </TouchableOpacity>
-            </View>
-          ))}
-        {{else}}
-          {todos.data && todos.data.length === 0 && !isLoading && (
-             <Text style={styles.emptyText}>No todos yet. Add one!</Text>
-          )}
-          {todos.data?.map((todo: { id: number; text: string; completed: boolean }) => (
-            <View key={todo.id} style={styles.todoItem}>
-              <TouchableOpacity
-                onPress={() => handleToggleTodo(todo.id, todo.completed)}
-                style={styles.todoContent}
-              >
-                <Ionicons
-                  name={todo.completed ? "checkbox" : "square-outline"}
-                  size={24}
-                  color={todo.completed ? theme.colors.primary : theme.colors.typography}
-                  style={styles.checkbox}
-                />
-                <Text
-                  style={[
-                    styles.todoText,
-                    todo.completed && styles.todoTextCompleted,
-                  ]}
-                >
-                  {todo.text}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleDeleteTodo(todo.id)}>
-                <Ionicons name="trash-outline" size={24} color={theme.colors.destructive} />
-              </TouchableOpacity>
-            </View>
-          ))}
-        {{/if}}
+                {todo.text}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => handleDeleteTodo(todo.id)}>
+              <Ionicons name="trash-outline" size={24} color={theme.colors.destructive} />
+            </TouchableOpacity>
+          </View>
+        ))}
+        {{/unless}}
       </ScrollView>
     </Container>
   );
@@ -13612,128 +10785,63 @@ const styles = StyleSheet.create((theme) => ({
   ["examples/todo/native/uniwind/app/(drawer)/todos.tsx.hbs", `import { useState } from "react";
 import { View, Text, ScrollView, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-{{#if (eq backend "convex")}}
-import { useMutation, useQuery } from "convex/react";
-import { api } from "@{{projectName}}/backend/convex/_generated/api";
-import type { Doc, Id } from "@{{projectName}}/backend/convex/_generated/dataModel";
-{{else}}
 import { useMutation, useQuery } from "@tanstack/react-query";
-{{/if}}
 import { Container } from "@/components/container";
-{{#unless (eq backend "convex")}}
-  {{#if (eq api "orpc")}}
-    import { orpc } from "@/utils/orpc";
-  {{/if}}
-  {{#if (eq api "trpc")}}
-    import { trpc } from "@/utils/trpc";
-  {{/if}}
+{{#unless (eq api "none")}}
+import { orpc } from "@/utils/orpc";
 {{/unless}}
 import { Button, Checkbox, Chip, Spinner, Surface, Input, TextField, useThemeColor } from "heroui-native";
 
 export default function TodosScreen() {
   const [newTodoText, setNewTodoText] = useState("");
-  {{#if (eq backend "convex")}}
-    const todos = useQuery(api.todos.getAll);
-    const createTodoMutation = useMutation(api.todos.create);
-    const toggleTodoMutation = useMutation(api.todos.toggle);
-    const deleteTodoMutation = useMutation(api.todos.deleteTodo);
-  {{else}}
-    {{#if (eq api "orpc")}}
-      const todos = useQuery(orpc.todo.getAll.queryOptions());
-      const createMutation = useMutation(orpc.todo.create.mutationOptions({
-        onSuccess: () => {
-          todos.refetch();
-          setNewTodoText("");
-        },
-      }));
-      const toggleMutation = useMutation(orpc.todo.toggle.mutationOptions({
-        onSuccess: () => {
-          todos.refetch();
-        },
-      }));
-      const deleteMutation = useMutation(orpc.todo.delete.mutationOptions({
-        onSuccess: () => {
-          todos.refetch();
-        },
-      }));
-    {{/if}}
-    {{#if (eq api "trpc")}}
-      const todos = useQuery(trpc.todo.getAll.queryOptions());
-      const createMutation = useMutation(trpc.todo.create.mutationOptions({
-        onSuccess: () => {
-          todos.refetch();
-          setNewTodoText("");
-        },
-      }));
-      const toggleMutation = useMutation(trpc.todo.toggle.mutationOptions({
-        onSuccess: () => {
-          todos.refetch();
-        },
-      }));
-      const deleteMutation = useMutation(trpc.todo.delete.mutationOptions({
-        onSuccess: () => {
-          todos.refetch();
-        },
-      }));
-    {{/if}}
-  {{/if}}
+  {{#unless (eq api "none")}}
+  const todos = useQuery(orpc.todo.getAll.queryOptions());
+  const createMutation = useMutation(orpc.todo.create.mutationOptions({
+    onSuccess: () => {
+      todos.refetch();
+      setNewTodoText("");
+    },
+  }));
+  const toggleMutation = useMutation(orpc.todo.toggle.mutationOptions({
+    onSuccess: () => {
+      todos.refetch();
+    },
+  }));
+  const deleteMutation = useMutation(orpc.todo.delete.mutationOptions({
+    onSuccess: () => {
+      todos.refetch();
+    },
+  }));
+
+  const handleAddTodo = () => {
+    if (newTodoText.trim()) {
+      createMutation.mutate({ text: newTodoText });
+    }
+  };
+
+  const handleToggleTodo = (id: number, completed: boolean) => {
+    toggleMutation.mutate({ id, completed: !completed });
+  };
+
+  const handleDeleteTodo = (id: number) => {
+    Alert.alert("Delete Todo", "Are you sure you want to delete this todo?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => deleteMutation.mutate({ id }),
+      },
+    ]);
+  };
+
+  const isLoading = todos?.isLoading;
+  const completedCount = todos?.data?.filter((t) => t.completed).length || 0;
+  const totalCount = todos?.data?.length || 0;
+  {{/unless}}
 
   const mutedColor = useThemeColor("muted");
   const dangerColor = useThemeColor("danger");
   const foregroundColor = useThemeColor("foreground");
-
-  {{#if (eq backend "convex")}}
-    const handleAddTodo = async () => {
-      const text = newTodoText.trim();
-      if (!text) return;
-      await createTodoMutation({ text });
-      setNewTodoText("");
-    };
-
-    const handleToggleTodo = (id: Id<"todos">, currentCompleted: boolean) => {
-      toggleTodoMutation({ id, completed: !currentCompleted });
-    };
-
-    const handleDeleteTodo = (id: Id<"todos">) => {
-      Alert.alert("Delete Todo", "Are you sure you want to delete this todo?", [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => deleteTodoMutation({ id }),
-        },
-      ]);
-    };
-
-    const isLoading = !todos;
-    const completedCount = todos?.filter((t: Doc<"todos">) => t.completed).length || 0;
-    const totalCount = todos?.length || 0;
-  {{else}}
-    const handleAddTodo = () => {
-      if (newTodoText.trim()) {
-        createMutation.mutate({ text: newTodoText });
-      }
-    };
-
-    const handleToggleTodo = (id: number, completed: boolean) => {
-      toggleMutation.mutate({ id, completed: !completed });
-    };
-
-    const handleDeleteTodo = (id: number) => {
-      Alert.alert("Delete Todo", "Are you sure you want to delete this todo?", [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => deleteMutation.mutate({ id }),
-        },
-      ]);
-    };
-
-    const isLoading = todos?.isLoading;
-    const completedCount = todos?.data?.filter((t) => t.completed).length || 0;
-    const totalCount = todos?.data?.length || 0;
-  {{/if}}
 
   return (
     <Container>
@@ -13741,6 +10849,7 @@ export default function TodosScreen() {
         <View className="py-4 mb-4">
           <View className="flex-row items-center justify-between">
             <Text className="text-2xl font-semibold text-foreground tracking-tight">Tasks</Text>
+            {{#unless (eq api "none")}}
             {totalCount > 0 && (
               <Chip variant="secondary" color="accent" size="sm">
                 <Chip.Label>
@@ -13748,9 +10857,11 @@ export default function TodosScreen() {
                 </Chip.Label>
               </Chip>
             )}
+            {{/unless}}
           </View>
         </View>
 
+        {{#unless (eq api "none")}}
         <Surface variant="secondary" className="mb-4 p-3 rounded-lg">
           <View className="flex-row items-center gap-2">
             <View className="flex-1">
@@ -13759,9 +10870,7 @@ export default function TodosScreen() {
                   value={newTodoText}
                   onChangeText={setNewTodoText}
                   placeholder="Add a new task..."
-                  {{#unless (eq backend "convex")}}
-                    editable={!createMutation.isPending}
-                  {{/unless}}
+                  editable={!createMutation.isPending}
                   onSubmitEditing={handleAddTodo}
                   returnKeyType="done"
                 />
@@ -13769,130 +10878,73 @@ export default function TodosScreen() {
             </View>
             <Button
               isIconOnly
-              {{#if (eq backend "convex")}}
-                variant={!newTodoText.trim() ? "secondary" : "primary"}
-                isDisabled={!newTodoText.trim()}
-              {{else}}
-                variant={createMutation.isPending || !newTodoText.trim() ? "secondary" : "primary"}
-                isDisabled={createMutation.isPending || !newTodoText.trim()}
-              {{/if}}
+              variant={createMutation.isPending || !newTodoText.trim() ? "secondary" : "primary"}
+              isDisabled={createMutation.isPending || !newTodoText.trim()}
               onPress={handleAddTodo}
               size="sm"
             >
-              {{#if (eq backend "convex")}}
+              {createMutation.isPending ? (
+                <Spinner size="sm" color="default" />
+              ) : (
                 <Ionicons
                   name="add"
                   size={20}
-                  color={newTodoText.trim() ? foregroundColor : mutedColor}
+                  color={(createMutation.isPending || !newTodoText.trim()) ? mutedColor : foregroundColor}
                 />
-              {{else}}
-                {createMutation.isPending ? (
-                  <Spinner size="sm" color="default" />
-                ) : (
-                  <Ionicons
-                    name="add"
-                    size={20}
-                    color={(createMutation.isPending || !newTodoText.trim()) ? mutedColor : foregroundColor}
-                  />
-                )}
-              {{/if}}
+              )}
             </Button>
           </View>
         </Surface>
 
-        {{#if (eq backend "convex")}}
-          {isLoading && (
-            <View className="items-center justify-center py-12">
-              <Spinner size="lg" />
-              <Text className="text-muted text-sm mt-3">Loading tasks...</Text>
-            </View>
-          )}
+        {isLoading && (
+          <View className="items-center justify-center py-12">
+            <Spinner size="lg" />
+            <Text className="text-muted text-sm mt-3">Loading tasks...</Text>
+          </View>
+        )}
 
-          {todos && todos.length === 0 && !isLoading && (
-            <Surface variant="secondary" className="items-center justify-center py-10 rounded-lg">
-              <Ionicons name="checkbox-outline" size={40} color={mutedColor} />
-              <Text className="text-foreground font-medium mt-3">No tasks yet</Text>
-              <Text className="text-muted text-xs mt-1">Add your first task to get started</Text>
-            </Surface>
-          )}
+        {todos?.data && todos.data.length === 0 && !isLoading && (
+          <Surface variant="secondary" className="items-center justify-center py-10 rounded-lg">
+            <Ionicons name="checkbox-outline" size={40} color={mutedColor} />
+            <Text className="text-foreground font-medium mt-3">No tasks yet</Text>
+            <Text className="text-muted text-xs mt-1">Add your first task to get started</Text>
+          </Surface>
+        )}
 
-          {todos && todos.length > 0 && (
-            <View className="gap-2">
-              {todos.map((todo: Doc<"todos">) => (
-                <Surface key={todo._id} variant="secondary" className="p-3 rounded-lg">
-                  <View className="flex-row items-center gap-3">
-                    <Checkbox
-                      isSelected={todo.completed}
-                      onSelectedChange={() => handleToggleTodo(todo._id, todo.completed)}
-                    />
-                    <View className="flex-1">
-                      <Text className={\`text-sm \${todo.completed ? "text-muted line-through" : "text-foreground"}\`}>
-                        {todo.text}
-                      </Text>
-                    </View>
-                    <Button
-                      isIconOnly
-                      variant="ghost"
-                      onPress={() => handleDeleteTodo(todo._id)}
-                      size="sm"
-                    >
-                      <Ionicons name="trash-outline" size={16} color={dangerColor} />
-                    </Button>
+        {todos?.data && todos.data.length > 0 && (
+          <View className="gap-2">
+            {todos.data.map((todo) => (
+              <Surface key={todo.id} variant="secondary" className="p-3 rounded-lg">
+                <View className="flex-row items-center gap-3">
+                  <Checkbox
+                    isSelected={todo.completed}
+                    onSelectedChange={() => handleToggleTodo(todo.id, todo.completed)}
+                  />
+                  <View className="flex-1">
+                    <Text className={\`text-sm \${todo.completed ? "text-muted line-through" : "text-foreground"}\`}>
+                      {todo.text}
+                    </Text>
                   </View>
-                </Surface>
-              ))}
-            </View>
-          )}
-        {{else}}
-          {isLoading && (
-            <View className="items-center justify-center py-12">
-              <Spinner size="lg" />
-              <Text className="text-muted text-sm mt-3">Loading tasks...</Text>
-            </View>
-          )}
-
-          {todos?.data && todos.data.length === 0 && !isLoading && (
-            <Surface variant="secondary" className="items-center justify-center py-10 rounded-lg">
-              <Ionicons name="checkbox-outline" size={40} color={mutedColor} />
-              <Text className="text-foreground font-medium mt-3">No tasks yet</Text>
-              <Text className="text-muted text-xs mt-1">Add your first task to get started</Text>
-            </Surface>
-          )}
-
-          {todos?.data && todos.data.length > 0 && (
-            <View className="gap-2">
-              {todos.data.map((todo) => (
-                <Surface key={todo.id} variant="secondary" className="p-3 rounded-lg">
-                  <View className="flex-row items-center gap-3">
-                    <Checkbox
-                      isSelected={todo.completed}
-                      onSelectedChange={() => handleToggleTodo(todo.id, todo.completed)}
-                    />
-                    <View className="flex-1">
-                      <Text className={\`text-sm \${todo.completed ? "text-muted line-through" : "text-foreground"}\`}>
-                        {todo.text}
-                      </Text>
-                    </View>
-                    <Button
-                      isIconOnly
-                      variant="ghost"
-                      onPress={() => handleDeleteTodo(todo.id)}
-                      size="sm"
-                    >
-                      <Ionicons name="trash-outline" size={16} color={dangerColor} />
-                    </Button>
-                  </View>
-                </Surface>
-              ))}
-            </View>
-          )}
-        {{/if}}
+                  <Button
+                    isIconOnly
+                    variant="ghost"
+                    onPress={() => handleDeleteTodo(todo.id)}
+                    size="sm"
+                  >
+                    <Ionicons name="trash-outline" size={16} color={dangerColor} />
+                  </Button>
+                </View>
+              </Surface>
+            ))}
+          </View>
+        )}
+        {{/unless}}
       </ScrollView>
     </Container>
   );
 }
 `],
-  ["examples/todo/server/drizzle/base/src/routers/todo.ts.hbs", `{{#if (eq api "orpc")}}
+  ["examples/todo/server/drizzle/base/src/routers/todo.ts.hbs", `{{#unless (eq api "none")}}
 import { eq } from "drizzle-orm";
 import z from "zod";
 {{#if (or (eq runtime "workers") (eq serverDeploy "cloudflare") (and (eq backend "self") (eq webDeploy "cloudflare")))}}
@@ -13945,60 +10997,7 @@ export const todoRouter = {
       return await db.delete(todo).where(eq(todo.id, input.id));
     }),
 };
-{{/if}}
-
-{{#if (eq api "trpc")}}
-import z from "zod";
-import { router, publicProcedure } from "../index";
-import { todo } from "@{{projectName}}/db/schema/todo";
-import { eq } from "drizzle-orm";
-{{#if (or (eq runtime "workers") (eq serverDeploy "cloudflare") (and (eq backend "self") (eq webDeploy "cloudflare")))}}
-import { createDb } from "@{{projectName}}/db";
-{{else}}
-import { db } from "@{{projectName}}/db";
-{{/if}}
-
-export const todoRouter = router({
-  getAll: publicProcedure.query(async () => {
-{{#if (or (eq runtime "workers") (eq serverDeploy "cloudflare") (and (eq backend "self") (eq webDeploy "cloudflare")))}}
-    const db = createDb();
-{{/if}}
-    return await db.select().from(todo);
-  }),
-
-  create: publicProcedure
-    .input(z.object({ text: z.string().min(1) }))
-    .mutation(async ({ input }) => {
-{{#if (or (eq runtime "workers") (eq serverDeploy "cloudflare") (and (eq backend "self") (eq webDeploy "cloudflare")))}}
-      const db = createDb();
-{{/if}}
-      return await db.insert(todo).values({
-        text: input.text,
-      });
-    }),
-
-  toggle: publicProcedure
-    .input(z.object({ id: z.number(), completed: z.boolean() }))
-    .mutation(async ({ input }) => {
-{{#if (or (eq runtime "workers") (eq serverDeploy "cloudflare") (and (eq backend "self") (eq webDeploy "cloudflare")))}}
-      const db = createDb();
-{{/if}}
-      return await db
-        .update(todo)
-        .set({ completed: input.completed })
-        .where(eq(todo.id, input.id));
-    }),
-
-  delete: publicProcedure
-    .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
-{{#if (or (eq runtime "workers") (eq serverDeploy "cloudflare") (and (eq backend "self") (eq webDeploy "cloudflare")))}}
-      const db = createDb();
-{{/if}}
-      return await db.delete(todo).where(eq(todo.id, input.id));
-    }),
-});
-{{/if}}
+{{/unless}}
 `],
   ["examples/todo/server/drizzle/mysql/src/schema/todo.ts", `import { mysqlTable, varchar, int, boolean } from "drizzle-orm/mysql-core";
 
@@ -14089,7 +11088,7 @@ const Todo = model('Todo', todoSchema);
 
 export { Todo };
 `],
-  ["examples/todo/server/prisma/base/src/routers/todo.ts.hbs", `{{#if (eq api "orpc")}}
+  ["examples/todo/server/prisma/base/src/routers/todo.ts.hbs", `{{#unless (eq api "none")}}
 import z from "zod";
 {{#if (or (eq runtime "workers") (eq serverDeploy "cloudflare") (and (eq backend "self") (eq webDeploy "cloudflare")))}}
 import { createPrismaClient } from "@{{projectName}}/db";
@@ -14154,89 +11153,7 @@ export const todoRouter = {
       });
     }),
 };
-{{/if}}
-
-{{#if (eq api "trpc")}}
-import { TRPCError } from "@trpc/server";
-import z from "zod";
-{{#if (or (eq runtime "workers") (eq serverDeploy "cloudflare") (and (eq backend "self") (eq webDeploy "cloudflare")))}}
-import { createPrismaClient } from "@{{projectName}}/db";
-{{else}}
-import prisma from "@{{projectName}}/db";
-{{/if}}
-import { publicProcedure, router } from "../index";
-
-export const todoRouter = router({
-  getAll: publicProcedure.query(async () => {
-{{#if (or (eq runtime "workers") (eq serverDeploy "cloudflare") (and (eq backend "self") (eq webDeploy "cloudflare")))}}
-    const prisma = createPrismaClient();
-{{/if}}
-    return await prisma.todo.findMany({
-      orderBy: {
-        id: "asc"
-      }
-    });
-  }),
-
-  create: publicProcedure
-    .input(z.object({ text: z.string().min(1) }))
-    .mutation(async ({ input }) => {
-{{#if (or (eq runtime "workers") (eq serverDeploy "cloudflare") (and (eq backend "self") (eq webDeploy "cloudflare")))}}
-      const prisma = createPrismaClient();
-{{/if}}
-      return await prisma.todo.create({
-        data: {
-          text: input.text,
-        },
-      });
-    }),
-
-  toggle: publicProcedure
-    {{#if (eq database "mongodb")}}
-    .input(z.object({ id: z.string(), completed: z.boolean() }))
-    {{else}}
-    .input(z.object({ id: z.number(), completed: z.boolean() }))
-    {{/if}}
-    .mutation(async ({ input }) => {
-{{#if (or (eq runtime "workers") (eq serverDeploy "cloudflare") (and (eq backend "self") (eq webDeploy "cloudflare")))}}
-      const prisma = createPrismaClient();
-{{/if}}
-      try {
-        return await prisma.todo.update({
-          where: { id: input.id },
-          data: { completed: input.completed },
-        });
-      } catch (error) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Todo not found",
-        });
-      }
-    }),
-
-  delete: publicProcedure
-    {{#if (eq database "mongodb")}}
-    .input(z.object({ id: z.string() }))
-    {{else}}
-    .input(z.object({ id: z.number() }))
-    {{/if}}
-    .mutation(async ({ input }) => {
-{{#if (or (eq runtime "workers") (eq serverDeploy "cloudflare") (and (eq backend "self") (eq webDeploy "cloudflare")))}}
-      const prisma = createPrismaClient();
-{{/if}}
-      try {
-        return await prisma.todo.delete({
-          where: { id: input.id },
-        });
-      } catch (error) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Todo not found",
-        });
-      }
-    }),
-});
-{{/if}}
+{{/unless}}
 `],
   ["examples/todo/server/prisma/mongodb/prisma/schema/todo.prisma.hbs", `model Todo {
   id        String  @id @default(auto()) @map("_id") @db.ObjectId
@@ -14285,91 +11202,36 @@ import { Input } from "@{{projectName}}/ui/components/input";
 import { Loader2, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
-{{#if (eq backend "convex")}}
-import { useMutation, useQuery } from "convex/react";
-import { api } from "@{{projectName}}/backend/convex/_generated/api";
-import type { Id } from "@{{projectName}}/backend/convex/_generated/dataModel";
-{{else}}
+{{#unless (eq api "none")}}
 import { useMutation, useQuery } from "@tanstack/react-query";
-  {{#if (eq api "orpc")}}
 import { orpc } from "@/utils/orpc";
-  {{/if}}
-  {{#if (eq api "trpc")}}
-import { trpc } from "@/utils/trpc";
-  {{/if}}
-{{/if}}
-
-{{#unless (eq backend "convex")}}
-type TodoId = {{#if (or (eq orm "mongoose") (eq database "mongodb"))}}string{{else}}number{{/if}};
 {{/unless}}
+
+type TodoId = {{#if (or (eq orm "mongoose") (eq database "mongodb"))}}string{{else}}number{{/if}};
 
 export default function TodosPage() {
   const [newTodoText, setNewTodoText] = useState("");
 
-  {{#if (eq backend "convex")}}
-  const todos = useQuery(api.todos.getAll);
-  const createTodoMutation = useMutation(api.todos.create);
-  const toggleTodoMutation = useMutation(api.todos.toggle);
-  const deleteTodoMutation = useMutation(api.todos.deleteTodo);
-
-  const handleAddTodo = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const text = newTodoText.trim();
-    if (!text) return;
-    await createTodoMutation({ text });
-    setNewTodoText("");
-  };
-
-  const handleToggleTodo = (id: Id<"todos">, currentCompleted: boolean) => {
-    toggleTodoMutation({ id, completed: !currentCompleted });
-  };
-
-  const handleDeleteTodo = (id: Id<"todos">) => {
-    deleteTodoMutation({ id });
-  };
-  {{else}}
-    {{#if (eq api "orpc")}}
-    const todos = useQuery(orpc.todo.getAll.queryOptions());
-    const createMutation = useMutation(
-      orpc.todo.create.mutationOptions({
-        onSuccess: () => {
-          todos.refetch();
-          setNewTodoText("");
-        },
-      }),
-    );
-    const toggleMutation = useMutation(
-      orpc.todo.toggle.mutationOptions({
-        onSuccess: () => { todos.refetch() },
-      }),
-    );
-    const deleteMutation = useMutation(
-      orpc.todo.delete.mutationOptions({
-        onSuccess: () => { todos.refetch() },
-      }),
-    );
-    {{/if}}
-    {{#if (eq api "trpc")}}
-    const todos = useQuery(trpc.todo.getAll.queryOptions());
-    const createMutation = useMutation(
-      trpc.todo.create.mutationOptions({
-        onSuccess: () => {
-          todos.refetch();
-          setNewTodoText("");
-        },
-      }),
-    );
-    const toggleMutation = useMutation(
-      trpc.todo.toggle.mutationOptions({
-        onSuccess: () => { todos.refetch() },
-      }),
-    );
-    const deleteMutation = useMutation(
-      trpc.todo.delete.mutationOptions({
-        onSuccess: () => { todos.refetch() },
-      }),
-    );
-    {{/if}}
+  {{#unless (eq api "none")}}
+  const todos = useQuery(orpc.todo.getAll.queryOptions());
+  const createMutation = useMutation(
+    orpc.todo.create.mutationOptions({
+      onSuccess: () => {
+        todos.refetch();
+        setNewTodoText("");
+      },
+    }),
+  );
+  const toggleMutation = useMutation(
+    orpc.todo.toggle.mutationOptions({
+      onSuccess: () => { todos.refetch() },
+    }),
+  );
+  const deleteMutation = useMutation(
+    orpc.todo.delete.mutationOptions({
+      onSuccess: () => { todos.refetch() },
+    }),
+  );
 
   const handleAddTodo = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -14385,7 +11247,7 @@ export default function TodosPage() {
   const handleDeleteTodo = (id: TodoId) => {
     deleteMutation.mutate({ id });
   };
-  {{/if}}
+  {{/unless}}
 
   return (
     <div className="mx-auto w-full max-w-md py-10">
@@ -14395,6 +11257,7 @@ export default function TodosPage() {
           <CardDescription>Manage your tasks efficiently</CardDescription>
         </CardHeader>
         <CardContent>
+          {{#unless (eq api "none")}}
           <form
             onSubmit={handleAddTodo}
             className="mb-6 flex items-center space-x-2"
@@ -14403,116 +11266,63 @@ export default function TodosPage() {
               value={newTodoText}
               onChange={(e) => setNewTodoText(e.target.value)}
               placeholder="Add a new task..."
-              {{#if (eq backend "convex")}}
-              {{else}}
               disabled={createMutation.isPending}
-              {{/if}}
             />
             <Button
               type="submit"
-              {{#if (eq backend "convex")}}
-              disabled={!newTodoText.trim()}
-              {{else}}
               disabled={createMutation.isPending || !newTodoText.trim()}
-              {{/if}}
             >
-              {{#if (eq backend "convex")}}
-                Add
-              {{else}}
-                {createMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  "Add"
-                )}
-              {{/if}}
+              {createMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Add"
+              )}
             </Button>
           </form>
 
-          {{#if (eq backend "convex")}}
-            {todos === undefined ? (
-              <div className="flex justify-center py-4">
-                <Loader2 className="h-6 w-6 animate-spin" />
-              </div>
-            ) : todos.length === 0 ? (
-              <p className="py-4 text-center">No todos yet. Add one above!</p>
-            ) : (
-              <ul className="space-y-2">
-                {todos.map((todo) => (
-                  <li
-                    key={todo._id}
-                    className="flex items-center justify-between rounded-md border p-2"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        checked={todo.completed}
-                        onCheckedChange={() =>
-                          handleToggleTodo(todo._id, todo.completed)
-                        }
-                        id={\`todo-\${todo._id}\`}
-                      />
-                      <label
-                        htmlFor={\`todo-\${todo._id}\`}
-                        className={\`\${todo.completed ? "line-through text-muted-foreground" : ""}\`}
-                      >
-                        {todo.text}
-                      </label>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDeleteTodo(todo._id)}
-                      aria-label="Delete todo"
+          {todos.isLoading ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="h-6 w-6 animate-spin" />
+            </div>
+          ) : todos.data?.length === 0 ? (
+            <p className="py-4 text-center">
+              No todos yet. Add one above!
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {todos.data?.map((todo) => (
+                <li
+                  key={todo.id}
+                  className="flex items-center justify-between rounded-md border p-2"
+                >
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      checked={todo.completed}
+                      onCheckedChange={() =>
+                        handleToggleTodo(todo.id, todo.completed)
+                      }
+                      id={\`todo-\${todo.id}\`}
+                    />
+                    <label
+                      htmlFor={\`todo-\${todo.id}\`}
+                      className={\`\${todo.completed ? "line-through text-muted-foreground" : ""}\`}
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          {{else}}
-            {todos.isLoading ? (
-              <div className="flex justify-center py-4">
-                <Loader2 className="h-6 w-6 animate-spin" />
-              </div>
-            ) : todos.data?.length === 0 ? (
-              <p className="py-4 text-center">
-                No todos yet. Add one above!
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {todos.data?.map((todo) => (
-                  <li
-                    key={todo.id}
-                    className="flex items-center justify-between rounded-md border p-2"
+                      {todo.text}
+                    </label>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDeleteTodo(todo.id)}
+                    aria-label="Delete todo"
                   >
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        checked={todo.completed}
-                        onCheckedChange={() =>
-                          handleToggleTodo(todo.id, todo.completed)
-                        }
-                        id={\`todo-\${todo.id}\`}
-                      />
-                      <label
-                        htmlFor={\`todo-\${todo.id}\`}
-                        className={\`\${todo.completed ? "line-through text-muted-foreground" : ""}\`}
-                      >
-                        {todo.text}
-                      </label>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDeleteTodo(todo.id)}
-                      aria-label="Delete todo"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          {{/if}}
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {{/unless}}
         </CardContent>
       </Card>
     </div>
@@ -14532,91 +11342,36 @@ import { Input } from "@{{projectName}}/ui/components/input";
 import { Loader2, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
-{{#if (eq backend "convex")}}
-import { useMutation, useQuery } from "convex/react";
-import { api } from "@{{projectName}}/backend/convex/_generated/api";
-import type { Id } from "@{{projectName}}/backend/convex/_generated/dataModel";
-{{else}}
-  {{#if (eq api "orpc")}}
-  import { orpc } from "@/utils/orpc";
-  {{/if}}
-  {{#if (eq api "trpc")}}
-  import { trpc } from "@/utils/trpc";
-  {{/if}}
+{{#unless (eq api "none")}}
+import { orpc } from "@/utils/orpc";
 import { useMutation, useQuery } from "@tanstack/react-query";
-{{/if}}
-
-{{#unless (eq backend "convex")}}
-type TodoId = {{#if (or (eq orm "mongoose") (eq database "mongodb"))}}string{{else}}number{{/if}};
 {{/unless}}
+
+type TodoId = {{#if (or (eq orm "mongoose") (eq database "mongodb"))}}string{{else}}number{{/if}};
 
 export default function Todos() {
   const [newTodoText, setNewTodoText] = useState("");
 
-  {{#if (eq backend "convex")}}
-  const todos = useQuery(api.todos.getAll);
-  const createTodo = useMutation(api.todos.create);
-  const toggleTodo = useMutation(api.todos.toggle);
-  const deleteTodo = useMutation(api.todos.deleteTodo);
-
-  const handleAddTodo = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const text = newTodoText.trim();
-    if (!text) return;
-    await createTodo({ text });
-    setNewTodoText("");
-  };
-
-  const handleToggleTodo = (id: Id<"todos">, currentCompleted: boolean) => {
-    toggleTodo({ id, completed: !currentCompleted });
-  };
-
-  const handleDeleteTodo = (id: Id<"todos">) => {
-    deleteTodo({ id });
-  };
-  {{else}}
-    {{#if (eq api "orpc")}}
-    const todos = useQuery(orpc.todo.getAll.queryOptions());
-    const createMutation = useMutation(
-      orpc.todo.create.mutationOptions({
-        onSuccess: () => {
-          todos.refetch();
-          setNewTodoText("");
-        },
-      })
-    );
-    const toggleMutation = useMutation(
-      orpc.todo.toggle.mutationOptions({
-        onSuccess: () => { todos.refetch() },
-      })
-    );
-    const deleteMutation = useMutation(
-      orpc.todo.delete.mutationOptions({
-        onSuccess: () => { todos.refetch() },
-      })
-    );
-    {{/if}}
-    {{#if (eq api "trpc")}}
-    const todos = useQuery(trpc.todo.getAll.queryOptions());
-    const createMutation = useMutation(
-      trpc.todo.create.mutationOptions({
-        onSuccess: () => {
-          todos.refetch();
-          setNewTodoText("");
-        },
-      })
-    );
-    const toggleMutation = useMutation(
-      trpc.todo.toggle.mutationOptions({
-        onSuccess: () => { todos.refetch() },
-      })
-    );
-    const deleteMutation = useMutation(
-      trpc.todo.delete.mutationOptions({
-        onSuccess: () => { todos.refetch() },
-      })
-    );
-    {{/if}}
+  {{#unless (eq api "none")}}
+  const todos = useQuery(orpc.todo.getAll.queryOptions());
+  const createMutation = useMutation(
+    orpc.todo.create.mutationOptions({
+      onSuccess: () => {
+        todos.refetch();
+        setNewTodoText("");
+      },
+    })
+  );
+  const toggleMutation = useMutation(
+    orpc.todo.toggle.mutationOptions({
+      onSuccess: () => { todos.refetch() },
+    })
+  );
+  const deleteMutation = useMutation(
+    orpc.todo.delete.mutationOptions({
+      onSuccess: () => { todos.refetch() },
+    })
+  );
 
   const handleAddTodo = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -14632,7 +11387,7 @@ export default function Todos() {
   const handleDeleteTodo = (id: TodoId) => {
     deleteMutation.mutate({ id });
   };
-  {{/if}}
+  {{/unless}}
 
   return (
     <div className="w-full mx-auto max-w-md py-10">
@@ -14642,6 +11397,7 @@ export default function Todos() {
           <CardDescription>Manage your tasks efficiently</CardDescription>
         </CardHeader>
         <CardContent>
+          {{#unless (eq api "none")}}
           <form
             onSubmit={handleAddTodo}
             className="mb-6 flex items-center space-x-2"
@@ -14650,116 +11406,63 @@ export default function Todos() {
               value={newTodoText}
               onChange={(e) => setNewTodoText(e.target.value)}
               placeholder="Add a new task..."
-              {{#if (eq backend "convex")}}
-              {{else}}
               disabled={createMutation.isPending}
-              {{/if}}
             />
             <Button
               type="submit"
-              {{#if (eq backend "convex")}}
-              disabled={!newTodoText.trim()}
-              {{else}}
               disabled={createMutation.isPending || !newTodoText.trim()}
-              {{/if}}
             >
-              {{#if (eq backend "convex")}}
-              Add
-              {{else}}
-                {createMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  "Add"
-                )}
-              {{/if}}
+              {createMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Add"
+              )}
             </Button>
           </form>
 
-          {{#if (eq backend "convex")}}
-            {todos === undefined ? (
-              <div className="flex justify-center py-4">
-                <Loader2 className="h-6 w-6 animate-spin" />
-              </div>
-            ) : todos.length === 0 ? (
-              <p className="py-4 text-center">No todos yet. Add one above!</p>
-            ) : (
-              <ul className="space-y-2">
-                {todos.map((todo) => (
-                  <li
-                    key={todo._id}
-                    className="flex items-center justify-between rounded-md border p-2"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        checked={todo.completed}
-                        onCheckedChange={() =>
-                          handleToggleTodo(todo._id, todo.completed)
-                        }
-                        id={\`todo-\${todo._id}\`}
-                      />
-                      <label
-                        htmlFor={\`todo-\${todo._id}\`}
-                        className={\`\${todo.completed ? "line-through text-muted-foreground" : ""}\`}
-                      >
-                        {todo.text}
-                      </label>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDeleteTodo(todo._id)}
-                      aria-label="Delete todo"
+          {todos.isLoading ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="h-6 w-6 animate-spin" />
+            </div>
+          ) : todos.data?.length === 0 ? (
+            <p className="py-4 text-center">
+              No todos yet. Add one above!
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {todos.data?.map((todo) => (
+                <li
+                  key={todo.id}
+                  className="flex items-center justify-between rounded-md border p-2"
+                >
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      checked={todo.completed}
+                      onCheckedChange={() =>
+                        handleToggleTodo(todo.id, todo.completed)
+                      }
+                      id={\`todo-\${todo.id}\`}
+                    />
+                    <label
+                      htmlFor={\`todo-\${todo.id}\`}
+                      className={\`\${todo.completed ? "line-through" : ""}\`}
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          {{else}}
-            {todos.isLoading ? (
-              <div className="flex justify-center py-4">
-                <Loader2 className="h-6 w-6 animate-spin" />
-              </div>
-            ) : todos.data?.length === 0 ? (
-              <p className="py-4 text-center">
-                No todos yet. Add one above!
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {todos.data?.map((todo) => (
-                  <li
-                    key={todo.id}
-                    className="flex items-center justify-between rounded-md border p-2"
+                      {todo.text}
+                    </label>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDeleteTodo(todo.id)}
+                    aria-label="Delete todo"
                   >
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        checked={todo.completed}
-                        onCheckedChange={() =>
-                          handleToggleTodo(todo.id, todo.completed)
-                        }
-                        id={\`todo-\${todo.id}\`}
-                      />
-                      <label
-                        htmlFor={\`todo-\${todo.id}\`}
-                        className={\`\${todo.completed ? "line-through" : ""}\`}
-                      >
-                        {todo.text}
-                      </label>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDeleteTodo(todo.id)}
-                      aria-label="Delete todo"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          {{/if}}
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {{/unless}}
         </CardContent>
       </Card>
     </div>
@@ -14780,281 +11483,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Loader2, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
-{{#if (eq backend "convex")}}
-import { useMutation, useQuery } from "convex/react";
-import { api } from "@{{projectName}}/backend/convex/_generated/api";
-import type { Id } from "@{{projectName}}/backend/convex/_generated/dataModel";
-{{else}}
-  {{#if (eq api "orpc")}}
-  import { orpc } from "@/utils/orpc";
-  {{/if}}
-  {{#if (eq api "trpc")}}
-  import { trpc } from "@/utils/trpc";
-  {{/if}}
-import { useMutation, useQuery } from "@tanstack/react-query";
-{{/if}}
-
-{{#unless (eq backend "convex")}}
-type TodoId = {{#if (or (eq orm "mongoose") (eq database "mongodb"))}}string{{else}}number{{/if}};
-{{/unless}}
-
-export const Route = createFileRoute("/todos")({
-  component: TodosRoute,
-});
-
-function TodosRoute() {
-  const [newTodoText, setNewTodoText] = useState("");
-
-  {{#if (eq backend "convex")}}
-  const todos = useQuery(api.todos.getAll);
-  const createTodo = useMutation(api.todos.create);
-  const toggleTodo = useMutation(api.todos.toggle);
-  const deleteTodo = useMutation(api.todos.deleteTodo);
-
-  const handleAddTodo = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const text = newTodoText.trim();
-    if (!text) return;
-    await createTodo({ text });
-    setNewTodoText("");
-  };
-
-  const handleToggleTodo = (id: Id<"todos">, currentCompleted: boolean) => {
-    toggleTodo({ id, completed: !currentCompleted });
-  };
-
-  const handleDeleteTodo = (id: Id<"todos">) => {
-    deleteTodo({ id });
-  };
-  {{else}}
-    {{#if (eq api "orpc")}}
-    const todos = useQuery(orpc.todo.getAll.queryOptions());
-    const createMutation = useMutation(
-      orpc.todo.create.mutationOptions({
-        onSuccess: () => {
-          todos.refetch();
-          setNewTodoText("");
-        },
-      }),
-    );
-    const toggleMutation = useMutation(
-      orpc.todo.toggle.mutationOptions({
-        onSuccess: () => { todos.refetch() },
-      }),
-    );
-    const deleteMutation = useMutation(
-      orpc.todo.delete.mutationOptions({
-        onSuccess: () => { todos.refetch() },
-      }),
-    );
-    {{/if}}
-    {{#if (eq api "trpc")}}
-    const todos = useQuery(trpc.todo.getAll.queryOptions());
-    const createMutation = useMutation(
-      trpc.todo.create.mutationOptions({
-        onSuccess: () => {
-          todos.refetch();
-          setNewTodoText("");
-        },
-      }),
-    );
-    const toggleMutation = useMutation(
-      trpc.todo.toggle.mutationOptions({
-        onSuccess: () => { todos.refetch() },
-      }),
-    );
-    const deleteMutation = useMutation(
-      trpc.todo.delete.mutationOptions({
-        onSuccess: () => { todos.refetch() },
-      }),
-    );
-    {{/if}}
-
-  const handleAddTodo = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (newTodoText.trim()) {
-      createMutation.mutate({ text: newTodoText });
-    }
-  };
-
-  const handleToggleTodo = (id: TodoId, completed: boolean) => {
-    toggleMutation.mutate({ id, completed: !completed });
-  };
-
-  const handleDeleteTodo = (id: TodoId) => {
-    deleteMutation.mutate({ id });
-  };
-  {{/if}}
-
-  return (
-    <div className="mx-auto w-full max-w-md py-10">
-      <Card>
-        <CardHeader>
-          <CardTitle>Todo List</CardTitle>
-          <CardDescription>Manage your tasks efficiently</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form
-            onSubmit={handleAddTodo}
-            className="mb-6 flex items-center space-x-2"
-          >
-            <Input
-              value={newTodoText}
-              onChange={(e) => setNewTodoText(e.target.value)}
-              placeholder="Add a new task..."
-              {{#if (eq backend "convex")}}
-              {{else}}
-              disabled={createMutation.isPending}
-              {{/if}}
-            />
-            <Button
-              type="submit"
-              {{#if (eq backend "convex")}}
-              disabled={!newTodoText.trim()}
-              {{else}}
-              disabled={createMutation.isPending || !newTodoText.trim()}
-              {{/if}}
-            >
-              {{#if (eq backend "convex")}}
-              Add
-              {{else}}
-                {createMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  "Add"
-                )}
-              {{/if}}
-            </Button>
-          </form>
-
-          {{#if (eq backend "convex")}}
-            {todos === undefined ? (
-              <div className="flex justify-center py-4">
-                <Loader2 className="h-6 w-6 animate-spin" />
-              </div>
-            ) : todos.length === 0 ? (
-              <p className="py-4 text-center">No todos yet. Add one above!</p>
-            ) : (
-              <ul className="space-y-2">
-                {todos.map((todo) => (
-                  <li
-                    key={todo._id}
-                    className="flex items-center justify-between rounded-md border p-2"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        checked={todo.completed}
-                        onCheckedChange={() =>
-                          handleToggleTodo(todo._id, todo.completed)
-                        }
-                        id={\`todo-\${todo._id}\`}
-                      />
-                      <label
-                        htmlFor={\`todo-\${todo._id}\`}
-                        className={\`\${todo.completed ? "line-through text-muted-foreground" : ""}\`}
-                      >
-                        {todo.text}
-                      </label>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDeleteTodo(todo._id)}
-                      aria-label="Delete todo"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          {{else}}
-            {todos.isLoading ? (
-              <div className="flex justify-center py-4">
-                <Loader2 className="h-6 w-6 animate-spin" />
-              </div>
-            ) : todos.data?.length === 0 ? (
-              <p className="py-4 text-center">
-                No todos yet. Add one above!
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {todos.data?.map((todo) => (
-                  <li
-                    key={todo.id}
-                    className="flex items-center justify-between rounded-md border p-2"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        checked={todo.completed}
-                        onCheckedChange={() =>
-                          handleToggleTodo(todo.id, todo.completed)
-                        }
-                        id={\`todo-\${todo.id}\`}
-                      />
-                      <label
-                        htmlFor={\`todo-\${todo.id}\`}
-                        className={\`\${todo.completed ? "line-through" : ""}\`}
-                      >
-                        {todo.text}
-                      </label>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDeleteTodo(todo.id)}
-                      aria-label="Delete todo"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          {{/if}}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-`],
-  ["examples/todo/web/react/tanstack-start/src/routes/todos.tsx.hbs", `import { Button } from "@{{projectName}}/ui/components/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@{{projectName}}/ui/components/card";
-import { Checkbox } from "@{{projectName}}/ui/components/checkbox";
-import { Input } from "@{{projectName}}/ui/components/input";
-import { createFileRoute } from "@tanstack/react-router";
-{{#if (eq backend "convex")}}
-import { Trash2 } from "lucide-react";
-{{else}}
-import { Loader2, Trash2 } from "lucide-react";
-{{/if}}
-import { useState, type FormEvent } from "react";
-
-{{#if (eq backend "convex")}}
-import { useSuspenseQuery } from "@tanstack/react-query";
-import { convexQuery } from "@convex-dev/react-query";
-import { useMutation } from "convex/react";
-import { api } from "@{{projectName}}/backend/convex/_generated/api";
-import type { Id } from "@{{projectName}}/backend/convex/_generated/dataModel";
-{{else}}
-{{#if (eq api "trpc")}}
-import { useTRPC } from "@/utils/trpc";
-{{/if}}
-{{#if (eq api "orpc")}}
+{{#unless (eq api "none")}}
 import { orpc } from "@/utils/orpc";
-{{/if}}
 import { useMutation, useQuery } from "@tanstack/react-query";
-{{/if}}
-
-{{#unless (eq backend "convex")}}
-type TodoId = {{#if (or (eq orm "mongoose") (eq database "mongodb"))}}string{{else}}number{{/if}};
 {{/unless}}
+
+type TodoId = {{#if (or (eq orm "mongoose") (eq database "mongodb"))}}string{{else}}number{{/if}};
 
 export const Route = createFileRoute("/todos")({
   component: TodosRoute,
@@ -15063,72 +11497,7 @@ export const Route = createFileRoute("/todos")({
 function TodosRoute() {
   const [newTodoText, setNewTodoText] = useState("");
 
-  {{#if (eq backend "convex")}}
-  const todosQuery = useSuspenseQuery(convexQuery(api.todos.getAll, {}));
-  const todos = todosQuery.data;
-
-  const createTodo = useMutation(api.todos.create);
-  const toggleTodo = useMutation(api.todos.toggle);
-  const removeTodo = useMutation(api.todos.deleteTodo);
-
-  const handleAddTodo = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const text = newTodoText.trim();
-    if (text) {
-      setNewTodoText("");
-      try {
-        await createTodo({ text });
-      } catch (error) {
-        console.error("Failed to add todo:", error);
-        setNewTodoText(text);
-      }
-    }
-  };
-
-  const handleToggleTodo = async (id: Id<"todos">, completed: boolean) => {
-    try {
-      await toggleTodo({ id, completed: !completed });
-    } catch (error) {
-      console.error("Failed to toggle todo:", error);
-    }
-  };
-
-  const handleDeleteTodo = async (id: Id<"todos">) => {
-    try {
-      await removeTodo({ id });
-    } catch (error) {
-      console.error("Failed to delete todo:", error);
-    }
-  };
-  {{else}}
-    {{#if (eq api "trpc")}}
-  const trpc = useTRPC();
-    {{/if}}
-    {{#if (eq api "orpc")}}
-    {{/if}}
-
-    {{#if (eq api "trpc")}}
-  const todos = useQuery(trpc.todo.getAll.queryOptions());
-  const createMutation = useMutation(
-    trpc.todo.create.mutationOptions({
-      onSuccess: () => {
-        todos.refetch();
-        setNewTodoText("");
-      },
-    }),
-  );
-  const toggleMutation = useMutation(
-    trpc.todo.toggle.mutationOptions({
-      onSuccess: () => { todos.refetch() },
-    }),
-  );
-  const deleteMutation = useMutation(
-    trpc.todo.delete.mutationOptions({
-      onSuccess: () => { todos.refetch() },
-    }),
-  );
-    {{/if}}
-    {{#if (eq api "orpc")}}
+  {{#unless (eq api "none")}}
   const todos = useQuery(orpc.todo.getAll.queryOptions());
   const createMutation = useMutation(
     orpc.todo.create.mutationOptions({
@@ -15148,7 +11517,6 @@ function TodosRoute() {
       onSuccess: () => { todos.refetch() },
     }),
   );
-    {{/if}}
 
   const handleAddTodo = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -15164,16 +11532,17 @@ function TodosRoute() {
   const handleDeleteTodo = (id: TodoId) => {
     deleteMutation.mutate({ id });
   };
-  {{/if}}
+  {{/unless}}
 
   return (
     <div className="mx-auto w-full max-w-md py-10">
       <Card>
         <CardHeader>
-          <CardTitle>Todo List{{#if (eq backend "convex")}} (Convex){{/if}}</CardTitle>
+          <CardTitle>Todo List</CardTitle>
           <CardDescription>Manage your tasks efficiently</CardDescription>
         </CardHeader>
         <CardContent>
+          {{#unless (eq api "none")}}
           <form
             onSubmit={handleAddTodo}
             className="mb-6 flex items-center space-x-2"
@@ -15182,55 +11551,46 @@ function TodosRoute() {
               value={newTodoText}
               onChange={(e) => setNewTodoText(e.target.value)}
               placeholder="Add a new task..."
-              {{#unless (eq backend "convex")}}
               disabled={createMutation.isPending}
-              {{/unless}}
             />
             <Button
               type="submit"
-              {{#unless (eq backend "convex")}}
               disabled={createMutation.isPending || !newTodoText.trim()}
-              {{else}}
-              disabled={!newTodoText.trim()}
-              {{/unless}}
             >
-              {{#unless (eq backend "convex")}}
               {createMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 "Add"
               )}
-              {{else}}
-              Add
-              {{/unless}}
             </Button>
           </form>
 
-          {{#if (eq backend "convex")}}
-          {todos?.length === 0 ? (
-            <p className="py-4 text-center">No todos yet. Add one above!</p>
+          {todos.isLoading ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="h-6 w-6 animate-spin" />
+            </div>
+          ) : todos.data?.length === 0 ? (
+            <p className="py-4 text-center">
+              No todos yet. Add one above!
+            </p>
           ) : (
             <ul className="space-y-2">
-              {todos?.map((todo) => (
+              {todos.data?.map((todo) => (
                 <li
-                  key={todo._id}
+                  key={todo.id}
                   className="flex items-center justify-between rounded-md border p-2"
                 >
                   <div className="flex items-center space-x-2">
                     <Checkbox
                       checked={todo.completed}
                       onCheckedChange={() =>
-                        handleToggleTodo(todo._id, todo.completed)
+                        handleToggleTodo(todo.id, todo.completed)
                       }
-                      id={\`todo-\${todo._id}\`}
+                      id={\`todo-\${todo.id}\`}
                     />
                     <label
-                      htmlFor={\`todo-\${todo._id}\`}
-                      className={\`\${
-                        todo.completed
-                          ? "text-muted-foreground line-through"
-                          : ""
-                      }\`}
+                      htmlFor={\`todo-\${todo.id}\`}
+                      className={\`\${todo.completed ? "line-through" : ""}\`}
                     >
                       {todo.text}
                     </label>
@@ -15238,7 +11598,7 @@ function TodosRoute() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => handleDeleteTodo(todo._id)}
+                    onClick={() => handleDeleteTodo(todo.id)}
                     aria-label="Delete todo"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -15247,7 +11607,109 @@ function TodosRoute() {
               ))}
             </ul>
           )}
-          {{else}}
+          {{/unless}}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+`],
+  ["examples/todo/web/react/tanstack-start/src/routes/todos.tsx.hbs", `import { Button } from "@{{projectName}}/ui/components/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@{{projectName}}/ui/components/card";
+import { Checkbox } from "@{{projectName}}/ui/components/checkbox";
+import { Input } from "@{{projectName}}/ui/components/input";
+import { createFileRoute } from "@tanstack/react-router";
+import { Loader2, Trash2 } from "lucide-react";
+import { useState, type FormEvent } from "react";
+
+{{#unless (eq api "none")}}
+import { orpc } from "@/utils/orpc";
+import { useMutation, useQuery } from "@tanstack/react-query";
+{{/unless}}
+
+type TodoId = {{#if (or (eq orm "mongoose") (eq database "mongodb"))}}string{{else}}number{{/if}};
+
+export const Route = createFileRoute("/todos")({
+  component: TodosRoute,
+});
+
+function TodosRoute() {
+  const [newTodoText, setNewTodoText] = useState("");
+
+  {{#unless (eq api "none")}}
+  const todos = useQuery(orpc.todo.getAll.queryOptions());
+  const createMutation = useMutation(
+    orpc.todo.create.mutationOptions({
+      onSuccess: () => {
+        todos.refetch();
+        setNewTodoText("");
+      },
+    }),
+  );
+  const toggleMutation = useMutation(
+    orpc.todo.toggle.mutationOptions({
+      onSuccess: () => { todos.refetch() },
+    }),
+  );
+  const deleteMutation = useMutation(
+    orpc.todo.delete.mutationOptions({
+      onSuccess: () => { todos.refetch() },
+    }),
+  );
+
+  const handleAddTodo = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (newTodoText.trim()) {
+      createMutation.mutate({ text: newTodoText });
+    }
+  };
+
+  const handleToggleTodo = (id: TodoId, completed: boolean) => {
+    toggleMutation.mutate({ id, completed: !completed });
+  };
+
+  const handleDeleteTodo = (id: TodoId) => {
+    deleteMutation.mutate({ id });
+  };
+  {{/unless}}
+
+  return (
+    <div className="mx-auto w-full max-w-md py-10">
+      <Card>
+        <CardHeader>
+          <CardTitle>Todo List</CardTitle>
+          <CardDescription>Manage your tasks efficiently</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {{#unless (eq api "none")}}
+          <form
+            onSubmit={handleAddTodo}
+            className="mb-6 flex items-center space-x-2"
+          >
+            <Input
+              value={newTodoText}
+              onChange={(e) => setNewTodoText(e.target.value)}
+              placeholder="Add a new task..."
+              disabled={createMutation.isPending}
+            />
+            <Button
+              type="submit"
+              disabled={createMutation.isPending || !newTodoText.trim()}
+            >
+              {createMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Add"
+              )}
+            </Button>
+          </form>
+
           {todos.isLoading ? (
             <div className="flex justify-center py-4">
               <Loader2 className="h-6 w-6 animate-spin" />
@@ -15288,7 +11750,7 @@ function TodosRoute() {
               ))}
             </ul>
           )}
-          {{/if}}
+          {{/unless}}
         </CardContent>
       </Card>
     </div>
@@ -15321,30 +11783,13 @@ declare module "cloudflare:workers" {
   ["extras/pnpm-workspace.yaml.hbs", `packages:
   - "apps/*"
   - "packages/*"
-{{#if (includes frontend "solid")}}
-
-minimumReleaseAgeExclude:
-  - "@solidjs/meta@1.0.0-next.2"
-  - "@solidjs/router@2.0.0-next.16"
-  - "@solidjs/signals@2.0.0-rc.0"
-  - "@solidjs/vite-plugin@3.0.0-next.28"
-  - "@solidjs/web@2.0.0-rc.0"
-  - "@tanstack/solid-query-devtools@6.0.0-rc.0"
-  - "@tanstack/solid-query@6.0.0-rc.0"
-  - "babel-preset-solid@2.0.0-rc.0"
-  - "solid-js@2.0.0-rc.0"
-{{/if}}
-{{#if (or (eq runtime "node") (eq webDeploy "cloudflare") (eq serverDeploy "cloudflare") (eq webDeploy "prisma") (eq serverDeploy "prisma") (eq webDeploy "docker") (eq serverDeploy "docker") (eq webDeploy "vercel") (eq serverDeploy "vercel") (eq orm "prisma") (includes addons "lefthook") (includes addons "nx") (includes addons "pwa") (includes addons "turborepo") (includes addons "vite-plus") (includes frontend "react-router") (includes frontend "next") (includes frontend "nuxt"))}}
+{{#if (or (eq runtime "node") (eq webDeploy "cloudflare") (eq serverDeploy "cloudflare") (eq webDeploy "prisma") (eq serverDeploy "prisma") (eq webDeploy "docker") (eq serverDeploy "docker") (eq webDeploy "vercel") (eq serverDeploy "vercel") (eq orm "prisma") (includes addons "lefthook") (includes addons "nx") (includes addons "pwa") (includes addons "turborepo") (includes addons "vite-plus") (includes frontend "react-router") (includes frontend "next"))}}
 
 # pnpm 11 blocks dependency lifecycle scripts unless they are approved here.
 # Entries are scoped to packages this generated stack can pull in.
 allowBuilds:
-{{#if (or (eq runtime "node") (eq webDeploy "cloudflare") (eq serverDeploy "cloudflare") (eq webDeploy "docker") (eq serverDeploy "docker") (eq webDeploy "vercel") (eq serverDeploy "vercel") (includes addons "turborepo") (includes addons "vite-plus") (includes frontend "react-router") (includes frontend "nuxt"))}}
+{{#if (or (eq runtime "node") (eq webDeploy "cloudflare") (eq serverDeploy "cloudflare") (eq webDeploy "docker") (eq serverDeploy "docker") (eq webDeploy "vercel") (eq serverDeploy "vercel") (includes addons "turborepo") (includes addons "vite-plus") (includes frontend "react-router"))}}
   esbuild: true
-{{/if}}
-{{#if (includes frontend "nuxt")}}
-  "@parcel/watcher": true
-  vue-demi: true
 {{/if}}
 {{#if (or (eq webDeploy "cloudflare") (eq serverDeploy "cloudflare") (eq webDeploy "prisma") (eq serverDeploy "prisma") (eq webDeploy "docker") (eq webDeploy "vercel") (includes addons "pwa") (includes frontend "next"))}}
   sharp: true
@@ -15460,47 +11905,16 @@ yarn-error.*
   ["frontend/native/bare/app/_layout.tsx.hbs", `{{#if (includes examples "ai")}}
 import "@/polyfills";
 {{/if}}
-{{#if (and (eq auth "clerk") (ne api "none") (ne backend "convex"))}}
-import { useEffect } from "react";
-import { setClerkAuthTokenGetter } from "@/utils/clerk-auth";
-{{/if}}
-{{#if (and (ne backend "convex") (eq auth "clerk"))}}
-import { ClerkProvider{{#unless (eq api "none")}}, useAuth{{/unless}} } from "@clerk/expo";
-import { tokenCache } from "@clerk/expo/token-cache";
-import { env } from "@{{projectName}}/env/native";
-{{/if}}
 
-{{#if (eq backend "convex")}}
-  {{#if (eq auth "better-auth")}}
-    import { ConvexReactClient } from "convex/react";
-    import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
-    import { authClient } from "@/lib/auth-client";
-    import { env } from "@{{projectName}}/env/native";
-  {{else}}
-    import { ConvexProvider, ConvexReactClient } from "convex/react";
-    import { env } from "@{{projectName}}/env/native";
-  {{/if}}
-  {{#if (eq auth "clerk")}}
-    import { ClerkProvider, useAuth } from "@clerk/expo";
-    import { ConvexProviderWithClerk } from "convex/react-clerk";
-    import { tokenCache } from "@clerk/expo/token-cache";
-  {{/if}}
-{{else}}
-  {{#unless (eq api "none")}}
-    import { QueryClientProvider } from "@tanstack/react-query";
-  {{/unless}}
-{{/if}}
+{{#unless (eq api "none")}}
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "@/utils/orpc";
+{{/unless}}
 
 import { Stack } from "expo-router";
 import { DarkTheme, DefaultTheme, ThemeProvider } from "expo-router/react-navigation";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-{{#if (eq api "trpc")}}
-import { queryClient } from "@/utils/trpc";
-{{/if}}
-{{#if (eq api "orpc")}}
-import { queryClient } from "@/utils/orpc";
-{{/if}}
 import { NAV_THEME } from "@/lib/constants";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { StyleSheet } from "react-native";
@@ -15518,136 +11932,40 @@ export const unstable_settings = {
   initialRouteName: "(drawer)",
 };
 
-{{#if (eq backend "convex")}}
-const convex = new ConvexReactClient(env.EXPO_PUBLIC_CONVEX_URL, {
-  unsavedChangesWarning: false,
-});
-{{/if}}
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
 });
 
-{{#if (and (eq auth "clerk") (ne api "none") (ne backend "convex"))}}
-function ClerkApiAuthBridge() {
-  const { getToken } = useAuth();
-
-  useEffect(() => {
-    setClerkAuthTokenGetter(getToken);
-
-    return () => {
-      setClerkAuthTokenGetter(null);
-    };
-  }, [getToken]);
-
-  return null;
-}
-{{/if}}
-
 export default function RootLayout() {
   const { isDarkColorScheme } = useColorScheme();
 
   return (
     <>
-      {{#if (eq backend "convex")}}
-        {{#if (eq auth "clerk")}}
-          <ClerkProvider tokenCache={tokenCache} publishableKey={env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY}>
-            <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-              <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
-                <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
-                <GestureHandlerRootView style={styles.container}>
-                  <Stack>
-                    <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
-                    <Stack.Screen name="(auth)" options=\\{{ headerShown: false }} />
-                    <Stack.Screen name="modal" options=\\{{ title: "Modal", presentation: "modal" }} />
-                  </Stack>
-                </GestureHandlerRootView>
-              </ThemeProvider>
-            </ConvexProviderWithClerk>
-          </ClerkProvider>
-        {{else if (eq auth "better-auth")}}
-          <ConvexBetterAuthProvider client={convex} authClient={authClient}>
-            <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
-              <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
-              <GestureHandlerRootView style={styles.container}>
-                <Stack>
-                  <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
-                  <Stack.Screen name="modal" options=\\{{ title: "Modal", presentation: "modal" }} />
-                </Stack>
-              </GestureHandlerRootView>
-            </ThemeProvider>
-          </ConvexBetterAuthProvider>
-        {{else}}
-          <ConvexProvider client={convex}>
-            <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
-              <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
-              <GestureHandlerRootView style={styles.container}>
-                <Stack>
-                  <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
-                  <Stack.Screen name="modal" options=\\{{ title: "Modal", presentation: "modal" }} />
-                </Stack>
-              </GestureHandlerRootView>
-            </ThemeProvider>
-          </ConvexProvider>
-        {{/if}}
+      {{#unless (eq api "none")}}
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
+            <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
+            <GestureHandlerRootView style={styles.container}>
+              <Stack>
+                <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
+                <Stack.Screen name="modal" options=\\{{ title: "Modal", presentation: "modal" }} />
+              </Stack>
+            </GestureHandlerRootView>
+          </ThemeProvider>
+        </QueryClientProvider>
       {{else}}
-        {{#if (eq auth "clerk")}}
-          <ClerkProvider tokenCache={tokenCache} publishableKey={env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY}>
-            {{#unless (eq api "none")}}
-              <ClerkApiAuthBridge />
-              <QueryClientProvider client={queryClient}>
-                <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
-                  <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
-                  <GestureHandlerRootView style={styles.container}>
-                    <Stack>
-                      <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
-                      <Stack.Screen name="(auth)" options=\\{{ headerShown: false }} />
-                      <Stack.Screen name="modal" options=\\{{ title: "Modal", presentation: "modal" }} />
-                    </Stack>
-                  </GestureHandlerRootView>
-                </ThemeProvider>
-              </QueryClientProvider>
-            {{else}}
-              <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
-                <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
-                <GestureHandlerRootView style={styles.container}>
-                  <Stack>
-                    <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
-                    <Stack.Screen name="(auth)" options=\\{{ headerShown: false }} />
-                    <Stack.Screen name="modal" options=\\{{ title: "Modal", presentation: "modal" }} />
-                  </Stack>
-                </GestureHandlerRootView>
-              </ThemeProvider>
-            {{/unless}}
-          </ClerkProvider>
-        {{else}}
-          {{#unless (eq api "none")}}
-            <QueryClientProvider client={queryClient}>
-              <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
-                <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
-                <GestureHandlerRootView style={styles.container}>
-                  <Stack>
-                    <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
-                    <Stack.Screen name="modal" options=\\{{ title: "Modal", presentation: "modal" }} />
-                  </Stack>
-                </GestureHandlerRootView>
-              </ThemeProvider>
-            </QueryClientProvider>
-          {{else}}
-            <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
-              <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
-              <GestureHandlerRootView style={styles.container}>
-                <Stack>
-                  <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
-                  <Stack.Screen name="modal" options=\\{{ title: "Modal", presentation: "modal" }} />
-                </Stack>
-              </GestureHandlerRootView>
-            </ThemeProvider>
-          {{/unless}}
-        {{/if}}
-      {{/if}}
+        <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
+          <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
+          <GestureHandlerRootView style={styles.container}>
+            <Stack>
+              <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
+              <Stack.Screen name="modal" options=\\{{ title: "Modal", presentation: "modal" }} />
+            </Stack>
+          </GestureHandlerRootView>
+        </ThemeProvider>
+      {{/unless}}
     </>
   );
 }
@@ -15875,119 +12193,22 @@ const styles = StyleSheet.create({
   },
 });
 `],
-  ["frontend/native/bare/app/(drawer)/index.tsx.hbs", `import { {{#if (or (eq auth "clerk") (eq auth "better-auth"))}}Button, {{/if}}Column, Host, Text as ExpoUIText } from "@expo/ui";
-import { View, ScrollView, StyleSheet{{#if (and (eq backend "convex") (eq auth "better-auth") (eq payments "polar"))}}, Alert{{/if}} } from "react-native";
-{{#if (and (eq backend "convex") (eq auth "better-auth") (eq payments "polar"))}}
-import * as Linking from "expo-linking";
-import * as WebBrowser from "expo-web-browser";
-import { env } from "@{{projectName}}/env/native";
-{{/if}}
+  ["frontend/native/bare/app/(drawer)/index.tsx.hbs", `import { Column, Host, Text as ExpoUIText } from "@expo/ui";
+import { View, ScrollView, StyleSheet } from "react-native";
 import { Container } from "@/components/container";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { NAV_THEME } from "@/lib/constants";
-{{#if (eq api "orpc")}}
+{{#unless (eq api "none")}}
 import { useQuery } from "@tanstack/react-query";
 import { orpc } from "@/utils/orpc";
-{{/if}}
-{{#if (eq api "trpc")}}
-import { useQuery } from "@tanstack/react-query";
-import { trpc } from "@/utils/trpc";
-{{/if}}
-{{#if (and (eq backend "convex") (eq auth "clerk"))}}
-import { router } from "expo-router";
-import { Authenticated, AuthLoading, Unauthenticated, useQuery } from "convex/react";
-import { api } from "@{{ projectName }}/backend/convex/_generated/api";
-import { useUser } from "@clerk/expo";
-import { SignOutButton } from "@/components/sign-out-button";
-{{else if (and (ne backend "convex") (eq auth "clerk"))}}
-import { router } from "expo-router";
-import { useAuth, useUser } from "@clerk/expo";
-import { SignOutButton } from "@/components/sign-out-button";
-{{else if (and (eq backend "convex") (eq auth "better-auth"))}}
-import { {{#if (eq payments "polar")}}useAction, {{/if}}useConvexAuth, useQuery } from "convex/react";
-import { api } from "@{{ projectName }}/backend/convex/_generated/api";
-import { authClient } from "@/lib/auth-client";
-import { SignIn } from "@/components/sign-in";
-import { SignUp } from "@/components/sign-up";
-{{else if (eq backend "convex")}}
-import { useQuery } from "convex/react";
-import { api } from "@{{ projectName }}/backend/convex/_generated/api";
-{{/if}}
+{{/unless}}
 
 export default function Home() {
 const { colorScheme } = useColorScheme();
 const theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
-{{#if (eq api "orpc")}}
+{{#unless (eq api "none")}}
 const healthCheck = useQuery(orpc.healthCheck.queryOptions());
-{{/if}}
-{{#if (eq api "trpc")}}
-const healthCheck = useQuery(trpc.healthCheck.queryOptions());
-{{/if}}
-{{#if (and (eq backend "convex") (eq auth "clerk"))}}
-const { user } = useUser();
-const healthCheck = useQuery(api.healthCheck.get);
-const privateData = useQuery(api.privateData.get);
-{{else if (and (ne backend "convex") (eq auth "clerk"))}}
-const { isLoaded, isSignedIn } = useAuth();
-const { user } = useUser();
-{{else if (and (eq backend "convex") (eq auth "better-auth"))}}
-const healthCheck = useQuery(api.healthCheck.get);
-const { isAuthenticated } = useConvexAuth();
-const user = useQuery(api.auth.getCurrentUser, isAuthenticated ? {} : "skip");
-{{#if (eq payments "polar")}}
-const products = useQuery(api.polar.listAllProducts);
-const subscription = useQuery(api.polar.getCurrentSubscription);
-const generateCheckoutLink = useAction(api.polar.generateCheckoutLink);
-const generateCustomerPortalUrl = useAction(api.polar.generateCustomerPortalUrl);
-const recurringProduct = products?.find((product: { isRecurring?: boolean }) => product.isRecurring);
-
-const openPolarLink = async (url: string, returnUrl: string) => {
-	await WebBrowser.openAuthSessionAsync(url, returnUrl);
-};
-
-const getPolarReturnUrl = (returnUrl: string) => {
-	const url = new URL("/polar/success", env.EXPO_PUBLIC_CONVEX_SITE_URL);
-	url.searchParams.set("returnUrl", returnUrl);
-	return url.toString();
-};
-
-const handlePolarCheckout = async () => {
-	try {
-		if (!recurringProduct) {
-			Alert.alert("Checkout unavailable", "No recurring Polar product is available yet.");
-			return;
-		}
-
-		const returnUrl = Linking.createURL("/");
-		const polarReturnUrl = getPolarReturnUrl(returnUrl);
-		const { url } = await generateCheckoutLink({
-			productIds: [recurringProduct.id],
-			origin: env.EXPO_PUBLIC_CONVEX_SITE_URL,
-			successUrl: polarReturnUrl,
-		});
-
-		await openPolarLink(url, returnUrl);
-	} catch {
-		Alert.alert("Checkout failed", "Unable to open Polar checkout. Please try again.");
-	}
-};
-
-const handlePolarPortal = async () => {
-	try {
-		const returnUrl = Linking.createURL("/");
-		const { url } = await generateCustomerPortalUrl({
-			returnUrl: getPolarReturnUrl(returnUrl),
-		});
-
-		await openPolarLink(url, returnUrl);
-	} catch {
-		Alert.alert("Portal unavailable", "Unable to open the customer portal. Please try again.");
-	}
-};
-{{/if}}
-{{else if (eq backend "convex")}}
-const healthCheck = useQuery(api.healthCheck.get);
-{{/if}}
+{{/unless}}
 
 return (
 <Container>
@@ -16001,35 +12222,8 @@ return (
         </ExpoUIText>
       </Host>
 
-      {{#unless (and (eq backend "convex") (eq auth "better-auth"))}}
+      {{#unless (eq api "none")}}
       <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-        {{#if (eq backend "convex")}}
-        <View style={styles.statusRow}>
-          <View style={[styles.statusIndicator, { backgroundColor: healthCheck ? "#10b981" : "#f59e0b" }]} />
-          <View style={styles.statusContent}>
-            <Host matchContents=\\{{ vertical: true }}>
-              <Column spacing={4}>
-                <ExpoUIText
-                  textStyle=\\{{ color: theme.text, fontSize: 14, fontWeight: "bold" }}
-                >
-                  Convex
-                </ExpoUIText>
-                <ExpoUIText
-                  textStyle=\\{{ color: theme.text, fontSize: 12 }}
-                  style=\\{{ opacity: 0.7 }}
-                >
-                  {healthCheck === undefined
-                  ? "Checking..."
-                  : healthCheck === "OK"
-                  ? "Connected to API"
-                  : "API Disconnected"}
-                </ExpoUIText>
-              </Column>
-            </Host>
-          </View>
-        </View>
-        {{else}}
-        {{#unless (eq api "none")}}
         <View style={styles.statusRow}>
           <View style={[styles.statusIndicator, { backgroundColor: healthCheck.data ? "#10b981" : "#f59e0b" }]} />
           <View style={styles.statusContent}>
@@ -16038,7 +12232,7 @@ return (
                 <ExpoUIText
                   textStyle=\\{{ color: theme.text, fontSize: 14, fontWeight: "bold" }}
                 >
-                  {{#if (eq api "orpc")}}ORPC{{else}}TRPC{{/if}}
+                  ORPC
                 </ExpoUIText>
                 <ExpoUIText
                   textStyle=\\{{ color: theme.text, fontSize: 12 }}
@@ -16054,167 +12248,8 @@ return (
             </Host>
           </View>
         </View>
-        {{/unless}}
-        {{/if}}
       </View>
       {{/unless}}
-
-      {{#if (and (eq backend "convex") (eq auth "clerk"))}}
-      <Authenticated>
-        <Host style={styles.authHost} matchContents=\\{{ vertical: true }}>
-          <Column spacing={6}>
-            <ExpoUIText textStyle=\\{{ color: theme.text, fontSize: 14 }}>
-              {\`Hello \${user?.emailAddresses[0].emailAddress ?? ""}\`}
-            </ExpoUIText>
-            <ExpoUIText textStyle=\\{{ color: theme.text, fontSize: 14 }}>
-              {\`Private Data: \${privateData?.message ?? ""}\`}
-            </ExpoUIText>
-          </Column>
-        </Host>
-        <SignOutButton />
-      </Authenticated>
-      <Unauthenticated>
-        <Host style={styles.authActionsHost} matchContents=\\{{ vertical: true }}>
-          <Column spacing={8}>
-            <Button
-              label="Sign in"
-              variant="outlined"
-              onPress={() => router.push("/(auth)/sign-in")}
-            />
-            <Button
-              label="Sign up"
-              onPress={() => router.push("/(auth)/sign-up")}
-            />
-          </Column>
-        </Host>
-      </Unauthenticated>
-      <AuthLoading>
-        <Host matchContents=\\{{ vertical: true }}>
-          <ExpoUIText textStyle=\\{{ color: theme.text, fontSize: 14 }}>
-            Loading...
-          </ExpoUIText>
-        </Host>
-      </AuthLoading>
-      {{/if}}
-
-      {{#if (and (ne backend "convex") (eq auth "clerk"))}}
-      {!isLoaded ? (
-      <Host matchContents=\\{{ vertical: true }}>
-        <ExpoUIText textStyle=\\{{ color: theme.text, fontSize: 14 }}>
-          Loading...
-        </ExpoUIText>
-      </Host>
-      ) : isSignedIn ? (
-      <View style={[styles.userCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-        <Host style={styles.userHeader} matchContents=\\{{ vertical: true }}>
-          <Column spacing={8}>
-            <ExpoUIText textStyle=\\{{ color: theme.text, fontSize: 16 }}>
-              {\`Welcome, \${user?.fullName ?? user?.firstName ?? "there"}\`}
-            </ExpoUIText>
-            <ExpoUIText
-              textStyle=\\{{ color: theme.text, fontSize: 14 }}
-              style=\\{{ opacity: 0.7 }}
-            >
-              {user?.emailAddresses[0]?.emailAddress ?? ""}
-            </ExpoUIText>
-          </Column>
-        </Host>
-        <SignOutButton />
-      </View>
-      ) : (
-      <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-        <Host style={styles.authActionsHost} matchContents=\\{{ vertical: true }}>
-          <Column spacing={8}>
-            <Button
-              label="Sign in"
-              variant="outlined"
-              onPress={() => router.push("/(auth)/sign-in")}
-            />
-            <Button
-              label="Sign up"
-              onPress={() => router.push("/(auth)/sign-up")}
-            />
-          </Column>
-        </Host>
-      </View>
-      )}
-      {{/if}}
-
-      {{#if (and (eq backend "convex") (eq auth "better-auth"))}}
-      <View style={[styles.statusCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-        <Host style={styles.statusCardTitleHost} matchContents=\\{{ vertical: true }}>
-          <ExpoUIText
-            textStyle=\\{{ color: theme.text, fontSize: 16, fontWeight: "bold" }}
-          >
-            API Status
-          </ExpoUIText>
-        </Host>
-        <View style={styles.statusRow}>
-          <View style={[styles.statusIndicator, { backgroundColor: healthCheck ? "#10b981" : "#f59e0b" }]} />
-          <View style={styles.statusContent}>
-            <Host matchContents=\\{{ vertical: true }}>
-              <ExpoUIText
-                textStyle=\\{{ color: theme.text, fontSize: 12 }}
-                style=\\{{ opacity: 0.7 }}
-              >
-                {healthCheck === undefined
-                ? "Checking..."
-                : healthCheck === "OK"
-                ? "Connected to API"
-                : "API Disconnected"}
-              </ExpoUIText>
-            </Host>
-          </View>
-        </View>
-      </View>
-
-      {user ? (
-      <View style={[styles.userCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-        <Host style={styles.userHeader} matchContents>
-          <Column spacing={6}>
-            <ExpoUIText textStyle=\\{{ color: theme.text, fontSize: 16, fontWeight: "bold" }}>
-              {\`Welcome, \${user.name}\`}
-            </ExpoUIText>
-            <ExpoUIText
-              textStyle=\\{{ color: theme.text, fontSize: 14 }}
-              style=\\{{ opacity: 0.7 }}
-            >
-              {user.email}
-            </ExpoUIText>
-          </Column>
-        </Host>
-        <Host matchContents=\\{{ vertical: true }}>
-          <Button
-            label="Sign Out"
-            variant="outlined"
-            onPress={() => {
-              authClient.signOut();
-            }}
-          />
-        </Host>
-        {{#if (eq payments "polar")}}
-        <Host style={styles.paymentActions} matchContents=\\{{ vertical: true }}>
-          <Column spacing={8}>
-            {subscription ? (
-            <Button
-              label="Manage Subscription"
-              variant="outlined"
-              onPress={handlePolarPortal}
-            />
-            ) : (
-            <Button label="Upgrade to Pro" onPress={handlePolarCheckout} />
-            )}
-          </Column>
-        </Host>
-        {{/if}}
-      </View>
-      ) : (
-      <>
-        <SignIn />
-        <SignUp />
-      </>
-      )}
-      {{/if}}
     </View>
   </ScrollView>
 </Container>
@@ -16252,33 +12287,6 @@ borderRadius: 999,
 },
 statusContent: {
 flex: 1,
-},
-userCard: {
-marginBottom: 16,
-padding: 16,
-borderWidth: 1,
-borderRadius: 16,
-},
-userHeader: {
-marginBottom: 8,
-},
-paymentActions: {
-marginTop: 12,
-},
-authHost: {
-marginBottom: 12,
-},
-authActionsHost: {
-marginTop: 4,
-},
-statusCard: {
-marginBottom: 16,
-padding: 16,
-borderWidth: 1,
-borderRadius: 16,
-},
-statusCardTitleHost: {
-marginBottom: 8,
 },
 });
 `],
@@ -16699,41 +12707,12 @@ yarn-error.*
 {{#if (includes examples "ai")}}
 import "@/polyfills";
 {{/if}}
-{{#if (and (eq auth "clerk") (ne api "none") (ne backend "convex"))}}
-import { useEffect } from "react";
-import { setClerkAuthTokenGetter } from "@/utils/clerk-auth";
-{{/if}}
-{{#if (and (ne backend "convex") (eq auth "clerk"))}}
-import { ClerkProvider{{#unless (eq api "none")}}, useAuth{{/unless}} } from "@clerk/expo";
-import { tokenCache } from "@clerk/expo/token-cache";
-import { env } from "@{{projectName}}/env/native";
-{{/if}}
-{{#if (eq api "trpc")}}
-import { queryClient } from "@/utils/trpc";
-{{/if}}
-{{#if (eq api "orpc")}}
-import { queryClient } from "@/utils/orpc";
-{{/if}}
-{{#if (eq backend "convex")}}
-{{#if (eq auth "better-auth")}}
-import { ConvexReactClient } from "convex/react";
-import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
-import { authClient } from "@/lib/auth-client";
-import { env } from "@{{projectName}}/env/native";
-{{else}}
-import { ConvexProvider, ConvexReactClient } from "convex/react";
-import { env } from "@{{projectName}}/env/native";
-{{/if}}
-{{#if (eq auth "clerk")}}
-import { ClerkProvider, useAuth } from "@clerk/expo";
-import { ConvexProviderWithClerk } from "convex/react-clerk";
-import { tokenCache } from "@clerk/expo/token-cache";
-{{/if}}
-{{else}}
-  {{#unless (eq api "none")}}
+
+{{#unless (eq api "none")}}
 import { QueryClientProvider } from "@tanstack/react-query";
-  {{/unless}}
-{{/if}}
+import { queryClient } from "@/utils/orpc";
+{{/unless}}
+
 import { Stack } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useUnistyles } from "react-native-unistyles";
@@ -16743,63 +12722,12 @@ export const unstable_settings = {
   initialRouteName: "(drawer)",
 };
 
-{{#if (eq backend "convex")}}
-const convex = new ConvexReactClient(env.EXPO_PUBLIC_CONVEX_URL, {
-  unsavedChangesWarning: false,
-});
-{{/if}}
-
-{{#if (and (eq auth "clerk") (ne api "none") (ne backend "convex"))}}
-function ClerkApiAuthBridge() {
-  const { getToken } = useAuth();
-
-  useEffect(() => {
-    setClerkAuthTokenGetter(getToken);
-
-    return () => {
-      setClerkAuthTokenGetter(null);
-    };
-  }, [getToken]);
-
-  return null;
-}
-{{/if}}
-
 export default function RootLayout() {
   const { theme } = useUnistyles();
 
   return (
-    {{#if (eq backend "convex")}}
-    {{#if (eq auth "clerk")}}
-    <ClerkProvider
-      tokenCache={tokenCache}
-      publishableKey={env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY}
-    >
-      <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-        <GestureHandlerRootView style=\\{{ flex: 1 }}>
-          <Stack
-            screenOptions=\\{{
-              headerStyle: {
-                backgroundColor: theme.colors.background,
-              },
-              headerTitleStyle: {
-                color: theme.colors.foreground,
-              },
-              headerTintColor: theme.colors.foreground,
-            }}
-          >
-            <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
-            <Stack.Screen name="(auth)" options=\\{{ headerShown: false }} />
-            <Stack.Screen
-              name="modal"
-              options=\\{{ title: "Modal", presentation: "modal" }}
-            />
-          </Stack>
-        </GestureHandlerRootView>
-      </ConvexProviderWithClerk>
-    </ClerkProvider>
-    {{else if (eq auth "better-auth")}}
-    <ConvexBetterAuthProvider client={convex} authClient={authClient}>
+    {{#unless (eq api "none")}}
+    <QueryClientProvider client={queryClient}>
       <GestureHandlerRootView style=\\{{ flex: 1 }}>
         <Stack
           screenOptions=\\{{
@@ -16819,129 +12747,28 @@ export default function RootLayout() {
           />
         </Stack>
       </GestureHandlerRootView>
-    </ConvexBetterAuthProvider>
+    </QueryClientProvider>
     {{else}}
-    <ConvexProvider client={convex}>
-      <GestureHandlerRootView style=\\{{ flex: 1 }}>
-        <Stack
-          screenOptions=\\{{
-            headerStyle: {
-              backgroundColor: theme.colors.background,
-            },
-            headerTitleStyle: {
-              color: theme.colors.foreground,
-            },
-            headerTintColor: theme.colors.foreground,
-          }}
-        >
-          <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
-          <Stack.Screen
-            name="modal"
-            options=\\{{ title: "Modal", presentation: "modal" }}
-          />
-        </Stack>
-      </GestureHandlerRootView>
-    </ConvexProvider>
-    {{/if}}
-    {{else}}
-      {{#if (eq auth "clerk")}}
-      <ClerkProvider
-        tokenCache={tokenCache}
-        publishableKey={env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY}
+    <GestureHandlerRootView style=\\{{ flex: 1 }}>
+      <Stack
+        screenOptions=\\{{
+          headerStyle: {
+            backgroundColor: theme.colors.background,
+          },
+          headerTitleStyle: {
+            color: theme.colors.foreground,
+          },
+          headerTintColor: theme.colors.foreground,
+        }}
       >
-        {{#unless (eq api "none")}}
-        <ClerkApiAuthBridge />
-        <QueryClientProvider client={queryClient}>
-          <GestureHandlerRootView style=\\{{ flex: 1 }}>
-            <Stack
-              screenOptions=\\{{
-                headerStyle: {
-                  backgroundColor: theme.colors.background,
-                },
-                headerTitleStyle: {
-                  color: theme.colors.foreground,
-                },
-                headerTintColor: theme.colors.foreground,
-              }}
-            >
-              <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
-              <Stack.Screen name="(auth)" options=\\{{ headerShown: false }} />
-              <Stack.Screen
-                name="modal"
-                options=\\{{ title: "Modal", presentation: "modal" }}
-              />
-            </Stack>
-          </GestureHandlerRootView>
-        </QueryClientProvider>
-        {{else}}
-        <GestureHandlerRootView style=\\{{ flex: 1 }}>
-          <Stack
-            screenOptions=\\{{
-              headerStyle: {
-                backgroundColor: theme.colors.background,
-              },
-              headerTitleStyle: {
-                color: theme.colors.foreground,
-              },
-              headerTintColor: theme.colors.foreground,
-            }}
-          >
-            <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
-            <Stack.Screen name="(auth)" options=\\{{ headerShown: false }} />
-            <Stack.Screen
-              name="modal"
-              options=\\{{ title: "Modal", presentation: "modal" }}
-            />
-          </Stack>
-        </GestureHandlerRootView>
-        {{/unless}}
-      </ClerkProvider>
-      {{else}}
-        {{#unless (eq api "none")}}
-      <QueryClientProvider client={queryClient}>
-        <GestureHandlerRootView style=\\{{ flex: 1 }}>
-          <Stack
-            screenOptions=\\{{
-              headerStyle: {
-                backgroundColor: theme.colors.background,
-              },
-              headerTitleStyle: {
-                color: theme.colors.foreground,
-              },
-              headerTintColor: theme.colors.foreground,
-            }}
-          >
-            <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
-            <Stack.Screen
-              name="modal"
-              options=\\{{ title: "Modal", presentation: "modal" }}
-            />
-          </Stack>
-        </GestureHandlerRootView>
-      </QueryClientProvider>
-        {{else}}
-        <GestureHandlerRootView style=\\{{ flex: 1 }}>
-          <Stack
-            screenOptions=\\{{
-              headerStyle: {
-                backgroundColor: theme.colors.background,
-              },
-              headerTitleStyle: {
-                color: theme.colors.foreground,
-              },
-              headerTintColor: theme.colors.foreground,
-            }}
-          >
-            <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
-            <Stack.Screen
-              name="modal"
-              options=\\{{ title: "Modal", presentation: "modal" }}
-            />
-          </Stack>
-        </GestureHandlerRootView>
-        {{/unless}}
-      {{/if}}
-    {{/if}}
+        <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
+        <Stack.Screen
+          name="modal"
+          options=\\{{ title: "Modal", presentation: "modal" }}
+        />
+      </Stack>
+    </GestureHandlerRootView>
+    {{/unless}}
   );
 }
 `],
@@ -17159,116 +12986,19 @@ const styles = StyleSheet.create((theme) => ({
 `],
   ["frontend/native/unistyles/app/(drawer)/index.tsx.hbs", `import "@/unistyles";
 
-import { ScrollView, Text, View, TouchableOpacity{{#if (and (eq backend "convex") (eq auth "better-auth") (eq payments "polar"))}}, Alert{{/if}} } from "react-native";
-{{#if (and (eq backend "convex") (eq auth "better-auth") (eq payments "polar"))}}
-import * as Linking from "expo-linking";
-import * as WebBrowser from "expo-web-browser";
-import { env } from "@{{projectName}}/env/native";
-{{/if}}
+import { ScrollView, Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { Container } from "@/components/container";
 
-{{#if (eq api "orpc")}}
+{{#unless (eq api "none")}}
 import { useQuery } from "@tanstack/react-query";
 import { orpc } from "@/utils/orpc";
-{{/if}}
-{{#if (eq api "trpc")}}
-import { useQuery } from "@tanstack/react-query";
-import { trpc } from "@/utils/trpc";
-{{/if}}
-{{#if (and (eq backend "convex") (eq auth "clerk"))}}
-import { Link } from "expo-router";
-import { Authenticated, AuthLoading, Unauthenticated, useQuery } from "convex/react";
-import { api } from "@{{ projectName }}/backend/convex/_generated/api";
-import { useUser } from "@clerk/expo";
-import { SignOutButton } from "@/components/sign-out-button";
-{{else if (and (ne backend "convex") (eq auth "clerk"))}}
-import { Link } from "expo-router";
-import { useAuth, useUser } from "@clerk/expo";
-import { SignOutButton } from "@/components/sign-out-button";
-{{else if (and (eq backend "convex") (eq auth "better-auth"))}}
-import { {{#if (eq payments "polar")}}useAction, {{/if}}useConvexAuth, useQuery } from "convex/react";
-import { api } from "@{{ projectName }}/backend/convex/_generated/api";
-import { authClient } from "@/lib/auth-client";
-import { SignIn } from "@/components/sign-in";
-import { SignUp } from "@/components/sign-up";
-{{else if (eq backend "convex")}}
-import { useQuery } from "convex/react";
-import { api } from "@{{ projectName }}/backend/convex/_generated/api";
-{{/if}}
+{{/unless}}
 
 export default function Home() {
-  {{#if (eq api "orpc")}}
+  {{#unless (eq api "none")}}
   const healthCheck = useQuery(orpc.healthCheck.queryOptions());
-  {{/if}}
-  {{#if (eq api "trpc")}}
-  const healthCheck = useQuery(trpc.healthCheck.queryOptions());
-  {{/if}}
-  {{#if (and (eq backend "convex") (eq auth "clerk"))}}
-  const { user } = useUser();
-  const healthCheck = useQuery(api.healthCheck.get);
-  const privateData = useQuery(api.privateData.get);
-  {{else if (and (ne backend "convex") (eq auth "clerk"))}}
-  const { isLoaded, isSignedIn } = useAuth();
-  const { user } = useUser();
-  {{else if (and (eq backend "convex") (eq auth "better-auth"))}}
-  const healthCheck = useQuery(api.healthCheck.get);
-  const { isAuthenticated } = useConvexAuth();
-  const user = useQuery(api.auth.getCurrentUser, isAuthenticated ? {} : "skip");
-  {{#if (eq payments "polar")}}
-  const products = useQuery(api.polar.listAllProducts);
-  const subscription = useQuery(api.polar.getCurrentSubscription);
-  const generateCheckoutLink = useAction(api.polar.generateCheckoutLink);
-  const generateCustomerPortalUrl = useAction(api.polar.generateCustomerPortalUrl);
-  const recurringProduct = products?.find((product: { isRecurring?: boolean }) => product.isRecurring);
-
-  const openPolarLink = async (url: string, returnUrl: string) => {
-    await WebBrowser.openAuthSessionAsync(url, returnUrl);
-  };
-
-  const getPolarReturnUrl = (returnUrl: string) => {
-    const url = new URL("/polar/success", env.EXPO_PUBLIC_CONVEX_SITE_URL);
-    url.searchParams.set("returnUrl", returnUrl);
-    return url.toString();
-  };
-
-  const handlePolarCheckout = async () => {
-    try {
-      if (!recurringProduct) {
-        Alert.alert("Checkout unavailable", "No recurring Polar product is available yet.");
-        return;
-      }
-
-      const returnUrl = Linking.createURL("/");
-      const polarReturnUrl = getPolarReturnUrl(returnUrl);
-      const { url } = await generateCheckoutLink({
-        productIds: [recurringProduct.id],
-        origin: env.EXPO_PUBLIC_CONVEX_SITE_URL,
-        successUrl: polarReturnUrl,
-      });
-
-      await openPolarLink(url, returnUrl);
-    } catch {
-      Alert.alert("Checkout failed", "Unable to open Polar checkout. Please try again.");
-    }
-  };
-
-  const handlePolarPortal = async () => {
-    try {
-      const returnUrl = Linking.createURL("/");
-      const { url } = await generateCustomerPortalUrl({
-        returnUrl: getPolarReturnUrl(returnUrl),
-      });
-
-      await openPolarLink(url, returnUrl);
-    } catch {
-      Alert.alert("Portal unavailable", "Unable to open the customer portal. Please try again.");
-    }
-  };
-  {{/if}}
-  {{else if (eq backend "convex")}}
-  const healthCheck = useQuery(api.healthCheck.get);
-  {{/if}}
+  {{/unless}}
 
   return (
     <Container>
@@ -17280,7 +13010,6 @@ export default function Home() {
           BETTER T STACK
         </Text>
 
-        {{#unless (and (eq backend "convex") (eq auth "better-auth"))}}
         <View style={styles.statusCard}>
           <View style={styles.statusHeader}>
             <Text style={styles.statusTitle}>System Status</Text>
@@ -17288,174 +13017,29 @@ export default function Home() {
               <Text style={styles.statusBadgeText}>LIVE</Text>
             </View>
           </View>
-          {{#if (eq backend "convex")}}
-            {{#unless (eq auth "better-auth")}}
-            <View style={styles.statusRow}>
-              <View
-                style={[
-                  styles.statusDot,
-                  healthCheck === "OK"
-                    ? styles.statusDotSuccess
-                    : styles.statusDotWarning,
-                ]}
-              />
-              <View style={styles.statusContent}>
-                <Text style={styles.statusLabel}>Convex</Text>
-                <Text style={styles.statusDescription}>
-                  {healthCheck === undefined
-                    ? "Checking connection..."
-                    : healthCheck === "OK"
-                    ? "Connected to API"
-                    : "API Disconnected"}
-                </Text>
-              </View>
-            </View>
-            {{/unless}}
-          {{else}}
-            {{#unless (eq api "none")}}
-            <View style={styles.statusRow}>
-              <View
-                style={[
-                  styles.statusDot,
-                  healthCheck.data
-                    ? styles.statusDotSuccess
-                    : styles.statusDotWarning,
-                ]}
-              />
-              <View style={styles.statusContent}>
-                <Text style={styles.statusLabel}>
-                  {{#if (eq api "orpc")}}ORPC{{/if}}
-                  {{#if (eq api "trpc")}}TRPC{{/if}}
-                </Text>
-                <Text style={styles.statusDescription}>
-                  {healthCheck.isLoading
-                    ? "Checking connection..."
-                    : healthCheck.data
-                    ? "Connected to API"
-                    : "API Disconnected"}
-                </Text>
-              </View>
-            </View>
-            {{/unless}}
-          {{/if}}
-        </View>
-        {{/unless}}
-
-        {{#if (and (eq backend "convex") (eq auth "clerk"))}}
-        <Authenticated>
-          <Text>
-            Hello {user?.emailAddresses[0].emailAddress}
-          </Text>
-          <Text>
-            Private Data: {privateData?.message}
-          </Text>
-          <SignOutButton />
-        </Authenticated>
-        <Unauthenticated>
-          <Link href="/(auth)/sign-in">
-            <Text>Sign in</Text>
-          </Link>
-          <Link href="/(auth)/sign-up">
-            <Text>Sign up</Text>
-          </Link>
-        </Unauthenticated>
-        <AuthLoading>
-          <Text>Loading...</Text>
-        </AuthLoading>
-        {{/if}}
-
-        {{#if (and (ne backend "convex") (eq auth "clerk"))}}
-        {!isLoaded ? (
-          <Text style={styles.apiStatusText}>Loading...</Text>
-        ) : isSignedIn ? (
-          <View style={styles.userCard}>
-            <View style={styles.userHeader}>
-              <Text style={styles.userWelcome}>
-                Welcome,{" "}
-                <Text style={styles.userName}>{user?.fullName ?? user?.firstName ?? "there"}</Text>
-              </Text>
-            </View>
-            <Text style={styles.userEmail}>{user?.emailAddresses[0]?.emailAddress}</Text>
-            <SignOutButton />
-          </View>
-        ) : (
-          <>
-            <Link href="/(auth)/sign-in">
-              <Text style={styles.apiStatusText}>Sign in</Text>
-            </Link>
-            <Link href="/(auth)/sign-up">
-              <Text style={styles.apiStatusText}>Sign up</Text>
-            </Link>
-          </>
-        )}
-        {{/if}}
-
-        {{#if (and (eq backend "convex") (eq auth "better-auth"))}}
-        {user ? (
-          <View style={styles.userCard}>
-            <View style={styles.userHeader}>
-              <Text style={styles.userWelcome}>
-                Welcome,{" "}
-                <Text style={styles.userName}>{user.name}</Text>
-              </Text>
-            </View>
-            <Text style={styles.userEmail}>{user.email}</Text>
-            <TouchableOpacity
-              style={styles.signOutButton}
-              onPress={() => {
-                authClient.signOut();
-              }}
-            >
-              <Text style={styles.signOutText}>Sign Out</Text>
-            </TouchableOpacity>
-            {{#if (eq payments "polar")}}
-            <View style={styles.paymentActions}>
-              {subscription ? (
-                <TouchableOpacity
-                  style={styles.polarSecondaryButton}
-                  onPress={handlePolarPortal}
-                >
-                  <Text style={styles.polarSecondaryButtonText}>Manage Subscription</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  style={styles.polarPrimaryButton}
-                  onPress={handlePolarCheckout}
-                >
-                  <Text style={styles.polarPrimaryButtonText}>Upgrade to Pro</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-            {{/if}}
-          </View>
-        ) : null}
-        <View style={styles.apiStatusCard}>
-          <Text style={styles.apiStatusTitle}>API Status</Text>
-          <View style={styles.apiStatusRow}>
+          {{#unless (eq api "none")}}
+          <View style={styles.statusRow}>
             <View
               style={[
                 styles.statusDot,
-                healthCheck === "OK"
+                healthCheck.data
                   ? styles.statusDotSuccess
                   : styles.statusDotWarning,
               ]}
             />
-            <Text style={styles.apiStatusText}>
-              {healthCheck === undefined
-                ? "Checking..."
-                : healthCheck === "OK"
-                ? "Connected to API"
-                : "API Disconnected"}
-            </Text>
+            <View style={styles.statusContent}>
+              <Text style={styles.statusLabel}>ORPC</Text>
+              <Text style={styles.statusDescription}>
+                {healthCheck.isLoading
+                  ? "Checking connection..."
+                  : healthCheck.data
+                  ? "Connected to API"
+                  : "API Disconnected"}
+              </Text>
+            </View>
           </View>
+          {{/unless}}
         </View>
-        {!user && (
-          <>
-            <SignIn />
-            <SignUp />
-          </>
-        )}
-        {{/if}}
       </ScrollView>
     </Container>
   );
@@ -17465,19 +13049,11 @@ const styles = StyleSheet.create((theme) => ({
   container: {
     paddingHorizontal: theme.spacing.md,
   },
-  heroSection: {
-    paddingVertical: theme.spacing.xl,
-  },
   heroTitle: {
     fontSize: theme.fontSize["4xl"],
     fontWeight: "bold",
     color: theme.colors.foreground,
     marginBottom: theme.spacing.sm,
-  },
-  heroSubtitle: {
-    fontSize: theme.fontSize.lg,
-    color: theme.colors.mutedForeground,
-    lineHeight: 28,
   },
   statusCard: {
     backgroundColor: theme.colors.card,
@@ -17540,88 +13116,6 @@ const styles = StyleSheet.create((theme) => ({
   },
   statusDescription: {
     fontSize: theme.fontSize.xs,
-    color: theme.colors.mutedForeground,
-  },
-  userCard: {
-    backgroundColor: theme.colors.card,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.md,
-  },
-  userHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: theme.spacing.xs,
-  },
-  userWelcome: {
-    fontSize: theme.fontSize.base,
-    color: theme.colors.foreground,
-  },
-  userName: {
-    fontWeight: "500",
-  },
-  userEmail: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.mutedForeground,
-    marginBottom: theme.spacing.md,
-  },
-  signOutButton: {
-    backgroundColor: theme.colors.destructive,
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
-    alignSelf: "flex-start",
-  },
-  signOutText: {
-    color: theme.colors.destructiveForeground,
-    fontWeight: "500",
-  },
-  paymentActions: {
-    marginTop: theme.spacing.sm,
-    alignItems: "flex-start",
-  },
-  polarPrimaryButton: {
-    backgroundColor: theme.colors.primary,
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
-  },
-  polarPrimaryButtonText: {
-    color: theme.colors.primaryForeground,
-    fontWeight: "500",
-  },
-  polarSecondaryButton: {
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
-  },
-  polarSecondaryButtonText: {
-    color: theme.colors.foreground,
-    fontWeight: "500",
-  },
-  apiStatusCard: {
-    marginBottom: theme.spacing.md,
-    borderRadius: theme.borderRadius.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: theme.spacing.md,
-  },
-  apiStatusTitle: {
-    marginBottom: theme.spacing.sm,
-    fontWeight: "500",
-    color: theme.colors.foreground,
-  },
-  apiStatusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.xs,
-  },
-  apiStatusText: {
     color: theme.colors.mutedForeground,
   },
 }));
@@ -18167,39 +13661,13 @@ uniwind-types.d.ts
   ["frontend/native/uniwind/app/_layout.tsx.hbs", `{{#if (includes examples "ai")}}
 import "@/polyfills";
 {{/if}}
-{{#if (and (eq auth "clerk") (ne api "none") (ne backend "convex"))}}
-import { useEffect } from "react";
-import { setClerkAuthTokenGetter } from "@/utils/clerk-auth";
-{{/if}}
 
 import "@/global.css";
-{{#if (and (ne backend "convex") (eq auth "clerk"))}}
-import { ClerkProvider{{#unless (eq api "none")}}, useAuth{{/unless}} } from "@clerk/expo";
-import { tokenCache } from "@clerk/expo/token-cache";
-import { env } from "@{{projectName}}/env/native";
-{{/if}}
 
-{{#if (eq backend "convex")}}
-  {{#if (eq auth "better-auth")}}
-    import { ConvexReactClient } from "convex/react";
-    import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
-    import { authClient } from "@/lib/auth-client";
-    import { env } from "@{{projectName}}/env/native";
-  {{else}}
-    import { ConvexProvider, ConvexReactClient } from "convex/react";
-    import { env } from "@{{projectName}}/env/native";
-  {{/if}}
-
-  {{#if (eq auth "clerk")}}
-    import { ClerkProvider, useAuth } from "@clerk/expo";
-    import { ConvexProviderWithClerk } from "convex/react-clerk";
-    import { tokenCache } from "@clerk/expo/token-cache";
-  {{/if}}
-{{else}}
-  {{#unless (eq api "none")}}
-    import { QueryClientProvider } from "@tanstack/react-query";
-  {{/unless}}
-{{/if}}
+{{#unless (eq api "none")}}
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "@/utils/orpc";
+{{/unless}}
 
 import { Stack } from "expo-router";
 import { HeroUINativeProvider } from "heroui-native";
@@ -18207,46 +13675,14 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { AppThemeProvider } from "@/contexts/app-theme-context";
 
-{{#if (eq api "trpc")}}
-  import { queryClient } from "@/utils/trpc";
-{{/if}}
-{{#if (eq api "orpc")}}
-  import { queryClient } from "@/utils/orpc";
-{{/if}}
-
 export const unstable_settings = {
   initialRouteName: "(drawer)",
 };
-
-{{#if (eq backend "convex")}}
-  const convex = new ConvexReactClient(env.EXPO_PUBLIC_CONVEX_URL, {
-    unsavedChangesWarning: false,
-  });
-{{/if}}
-
-{{#if (and (eq auth "clerk") (ne api "none") (ne backend "convex"))}}
-function ClerkApiAuthBridge() {
-  const { getToken } = useAuth();
-
-  useEffect(() => {
-    setClerkAuthTokenGetter(getToken);
-
-    return () => {
-      setClerkAuthTokenGetter(null);
-    };
-  }, [getToken]);
-
-  return null;
-}
-{{/if}}
 
 function StackLayout() {
   return (
     <Stack screenOptions=\\{{}}>
       <Stack.Screen name="(drawer)" options=\\{{ headerShown: false }} />
-      {{#if (eq auth "clerk")}}
-        <Stack.Screen name="(auth)" options=\\{{ headerShown: false }} />
-      {{/if}}
       <Stack.Screen name="modal" options=\\{{ title: "Modal", presentation: "modal" }} />
     </Stack>
   );
@@ -18254,100 +13690,29 @@ function StackLayout() {
 
 export default function Layout() {
   return (
-    {{#if (eq backend "convex")}}
-      {{#if (eq auth "clerk")}}
-        <ClerkProvider tokenCache={tokenCache} publishableKey={env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY}>
-          <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-            <GestureHandlerRootView style=\\{{ flex: 1 }}>
-              <KeyboardProvider>
-                <AppThemeProvider>
-                  <HeroUINativeProvider>
-                    <StackLayout />
-                  </HeroUINativeProvider>
-                </AppThemeProvider>
-              </KeyboardProvider>
-            </GestureHandlerRootView>
-          </ConvexProviderWithClerk>
-        </ClerkProvider>
-      {{else if (eq auth "better-auth")}}
-        <ConvexBetterAuthProvider client={convex} authClient={authClient}>
-          <GestureHandlerRootView style=\\{{ flex: 1 }}>
-            <KeyboardProvider>
-              <AppThemeProvider>
-                <HeroUINativeProvider>
-                  <StackLayout />
-                </HeroUINativeProvider>
-              </AppThemeProvider>
-            </KeyboardProvider>
-          </GestureHandlerRootView>
-        </ConvexBetterAuthProvider>
-      {{else}}
-        <ConvexProvider client={convex}>
-          <GestureHandlerRootView style=\\{{ flex: 1 }}>
-            <KeyboardProvider>
-              <AppThemeProvider>
-                <HeroUINativeProvider>
-                  <StackLayout />
-                </HeroUINativeProvider>
-              </AppThemeProvider>
-            </KeyboardProvider>
-          </GestureHandlerRootView>
-        </ConvexProvider>
-      {{/if}}
+    {{#unless (eq api "none")}}
+      <QueryClientProvider client={queryClient}>
+        <GestureHandlerRootView style=\\{{ flex: 1 }}>
+          <KeyboardProvider>
+            <AppThemeProvider>
+              <HeroUINativeProvider>
+                <StackLayout />
+              </HeroUINativeProvider>
+            </AppThemeProvider>
+          </KeyboardProvider>
+        </GestureHandlerRootView>
+      </QueryClientProvider>
     {{else}}
-      {{#if (eq auth "clerk")}}
-        <ClerkProvider tokenCache={tokenCache} publishableKey={env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY}>
-          {{#unless (eq api "none")}}
-            <ClerkApiAuthBridge />
-            <QueryClientProvider client={queryClient}>
-              <GestureHandlerRootView style=\\{{ flex: 1 }}>
-                <KeyboardProvider>
-                  <AppThemeProvider>
-                    <HeroUINativeProvider>
-                      <StackLayout />
-                    </HeroUINativeProvider>
-                  </AppThemeProvider>
-                </KeyboardProvider>
-              </GestureHandlerRootView>
-            </QueryClientProvider>
-          {{else}}
-            <GestureHandlerRootView style=\\{{ flex: 1 }}>
-              <KeyboardProvider>
-                <AppThemeProvider>
-                  <HeroUINativeProvider>
-                    <StackLayout />
-                  </HeroUINativeProvider>
-                </AppThemeProvider>
-              </KeyboardProvider>
-            </GestureHandlerRootView>
-          {{/unless}}
-        </ClerkProvider>
-      {{else}}
-        {{#unless (eq api "none")}}
-          <QueryClientProvider client={queryClient}>
-            <GestureHandlerRootView style=\\{{ flex: 1 }}>
-              <KeyboardProvider>
-                <AppThemeProvider>
-                  <HeroUINativeProvider>
-                    <StackLayout />
-                  </HeroUINativeProvider>
-                </AppThemeProvider>
-              </KeyboardProvider>
-            </GestureHandlerRootView>
-          </QueryClientProvider>
-        {{else}}
-          <GestureHandlerRootView style=\\{{ flex: 1 }}>
-            <KeyboardProvider>
-              <AppThemeProvider>
-                <HeroUINativeProvider>
-                  <StackLayout />
-                </HeroUINativeProvider>
-              </AppThemeProvider>
-            </KeyboardProvider>
-          </GestureHandlerRootView>
-        {{/unless}}
-      {{/if}}
-    {{/if}}
+      <GestureHandlerRootView style=\\{{ flex: 1 }}>
+        <KeyboardProvider>
+          <AppThemeProvider>
+            <HeroUINativeProvider>
+              <StackLayout />
+            </HeroUINativeProvider>
+          </AppThemeProvider>
+        </KeyboardProvider>
+      </GestureHandlerRootView>
+    {{/unless}}
   );
 }
 `],
@@ -18521,131 +13886,28 @@ export default function TabTwo() {
 	);
 }
 `],
-  ["frontend/native/uniwind/app/(drawer)/index.tsx.hbs", `import { Text, View{{#if (and (eq backend "convex") (eq auth "better-auth") (eq payments "polar"))}}, Alert{{/if}} } from "react-native";
-{{#if (and (eq backend "convex") (eq auth "better-auth") (eq payments "polar"))}}
-import * as Linking from "expo-linking";
-import * as WebBrowser from "expo-web-browser";
-import { env } from "@{{projectName}}/env/native";
-{{/if}}
+  ["frontend/native/uniwind/app/(drawer)/index.tsx.hbs", `import { Text, View } from "react-native";
 import { Container } from "@/components/container";
-{{#if (eq api "orpc")}}
+{{#unless (eq api "none")}}
 import { useQuery } from "@tanstack/react-query";
 import { orpc } from "@/utils/orpc";
-{{/if}}
-{{#if (eq api "trpc")}}
-import { useQuery } from "@tanstack/react-query";
-import { trpc } from "@/utils/trpc";
-{{/if}}
-{{#if (and (eq backend "convex") (eq auth "clerk"))}}
-import { Link } from "expo-router";
-import { Authenticated, AuthLoading, Unauthenticated, useQuery } from "convex/react";
-import { api } from "@{{projectName}}/backend/convex/_generated/api";
-import { useUser } from "@clerk/expo";
-import { SignOutButton } from "@/components/sign-out-button";
-{{else if (and (ne backend "convex") (eq auth "clerk"))}}
-import { Link } from "expo-router";
-import { useAuth, useUser } from "@clerk/expo";
-import { SignOutButton } from "@/components/sign-out-button";
-{{else if (and (eq backend "convex") (eq auth "better-auth"))}}
-import { {{#if (eq payments "polar")}}useAction, {{/if}}useConvexAuth, useQuery } from "convex/react";
-import { api } from "@{{projectName}}/backend/convex/_generated/api";
-import { authClient } from "@/lib/auth-client";
-import { SignIn } from "@/components/sign-in";
-import { SignUp } from "@/components/sign-up";
-{{else if (eq backend "convex")}}
-import { useQuery } from "convex/react";
-import { api } from "@{{projectName}}/backend/convex/_generated/api";
-{{/if}}
-{{#unless (or (eq backend "none") (and (eq backend "convex") (eq auth "better-auth")))}}
+{{/unless}}
+{{#unless (eq backend "none")}}
 import { Ionicons } from "@expo/vector-icons";
 {{/unless}}
 import { Button, Chip, Separator, Spinner, Surface, useThemeColor } from "heroui-native";
 
 export default function Home() {
-{{#if (eq api "orpc")}}
+{{#unless (eq api "none")}}
 const healthCheck = useQuery(orpc.healthCheck.queryOptions());
-{{/if}}
-{{#if (eq api "trpc")}}
-const healthCheck = useQuery(trpc.healthCheck.queryOptions());
-{{/if}}
-{{#if (and (eq backend "convex") (eq auth "clerk"))}}
-const { user } = useUser();
-const healthCheck = useQuery(api.healthCheck.get);
-const privateData = useQuery(api.privateData.get);
-{{else if (and (ne backend "convex") (eq auth "clerk"))}}
-const { isLoaded, isSignedIn } = useAuth();
-const { user } = useUser();
-{{else if (and (eq backend "convex") (eq auth "better-auth"))}}
-const healthCheck = useQuery(api.healthCheck.get);
-const { isAuthenticated } = useConvexAuth();
-const user = useQuery(api.auth.getCurrentUser, isAuthenticated ? {} : "skip");
-{{#if (eq payments "polar")}}
-const products = useQuery(api.polar.listAllProducts);
-const subscription = useQuery(api.polar.getCurrentSubscription);
-const generateCheckoutLink = useAction(api.polar.generateCheckoutLink);
-const generateCustomerPortalUrl = useAction(api.polar.generateCustomerPortalUrl);
-const recurringProduct = products?.find((product: { isRecurring?: boolean }) => product.isRecurring);
-
-const openPolarLink = async (url: string, returnUrl: string) => {
-  await WebBrowser.openAuthSessionAsync(url, returnUrl);
-};
-
-const getPolarReturnUrl = (returnUrl: string) => {
-  const url = new URL("/polar/success", env.EXPO_PUBLIC_CONVEX_SITE_URL);
-  url.searchParams.set("returnUrl", returnUrl);
-  return url.toString();
-};
-
-const handlePolarCheckout = async () => {
-  try {
-    if (!recurringProduct) {
-      Alert.alert("Checkout unavailable", "No recurring Polar product is available yet.");
-      return;
-    }
-
-    const returnUrl = Linking.createURL("/");
-    const polarReturnUrl = getPolarReturnUrl(returnUrl);
-    const { url } = await generateCheckoutLink({
-      productIds: [recurringProduct.id],
-      origin: env.EXPO_PUBLIC_CONVEX_SITE_URL,
-      successUrl: polarReturnUrl,
-    });
-
-    await openPolarLink(url, returnUrl);
-  } catch {
-    Alert.alert("Checkout failed", "Unable to open Polar checkout. Please try again.");
-  }
-};
-
-const handlePolarPortal = async () => {
-  try {
-    const returnUrl = Linking.createURL("/");
-    const { url } = await generateCustomerPortalUrl({
-      returnUrl: getPolarReturnUrl(returnUrl),
-    });
-
-    await openPolarLink(url, returnUrl);
-  } catch {
-    Alert.alert("Portal unavailable", "Unable to open the customer portal. Please try again.");
-  }
-};
-{{/if}}
-{{else if (eq backend "convex")}}
-const healthCheck = useQuery(api.healthCheck.get);
-{{/if}}
+{{/unless}}
 {{#unless (eq backend "none")}}
 const successColor = useThemeColor("success");
 const dangerColor = useThemeColor("danger");
-
-{{#if (eq backend "convex")}}
-const isConnected = healthCheck === "OK";
-const isLoading = healthCheck === undefined;
-{{else}}
 {{#unless (eq api "none")}}
 const isConnected = healthCheck?.data === "OK";
 const isLoading = healthCheck?.isLoading;
 {{/unless}}
-{{/if}}
 {{/unless}}
 
 return (
@@ -18657,7 +13919,7 @@ return (
     <Text className="text-muted text-sm mt-1">Full-stack TypeScript starter</Text>
   </View>
 
-  {{#unless (or (eq backend "none") (and (eq backend "convex") (eq auth "better-auth")))}}
+  {{#unless (eq backend "none")}}
   <Surface variant="secondary" className="p-4 rounded-xl">
     <View className="flex-row items-center justify-between mb-3">
       <Text className="text-foreground font-medium">System Status</Text>
@@ -18675,13 +13937,9 @@ return (
         <View className={\`w-2 h-2 rounded-full mr-3 \${ isConnected ? "bg-success" : "bg-muted" }\`} />
         <View className="flex-1">
           <Text className="text-foreground text-sm font-medium">
-            {{#if (eq backend "convex")}}
-            Convex Backend
-            {{else}}
             {{#unless (eq api "none")}}
-            {{#if (eq api "orpc")}}ORPC{{else}}TRPC{{/if}} Backend
+            oRPC Backend
             {{/unless}}
-            {{/if}}
           </Text>
           <Text className="text-muted text-xs mt-0.5">
             {isLoading
@@ -18702,120 +13960,6 @@ return (
     </Surface>
   </Surface>
   {{/unless}}
-
-  {{#if (and (eq backend "convex") (eq auth "clerk"))}}
-  <Authenticated>
-    <Surface variant="secondary" className="mt-5 p-4 rounded-xl">
-      <View className="flex-row items-center justify-between">
-        <View className="flex-1">
-          <Text className="text-foreground font-medium">{user?.emailAddresses[0].emailAddress}</Text>
-          <Text className="text-muted text-xs mt-0.5">Private: {privateData?.message}</Text>
-        </View>
-        <SignOutButton />
-      </View>
-    </Surface>
-  </Authenticated>
-  <Unauthenticated>
-    <View className="mt-4 gap-3">
-      <Link href="/(auth)/sign-in" asChild>
-        <Button variant="secondary"><Button.Label>Sign In</Button.Label></Button>
-      </Link>
-      <Link href="/(auth)/sign-up" asChild>
-        <Button variant="ghost"><Button.Label>Sign Up</Button.Label></Button>
-      </Link>
-    </View>
-  </Unauthenticated>
-  <AuthLoading>
-    <View className="mt-4 items-center">
-      <Spinner size="sm" />
-    </View>
-  </AuthLoading>
-  {{/if}}
-
-  {{#if (and (ne backend "convex") (eq auth "clerk"))}}
-  {!isLoaded ? (
-  <View className="mt-4 items-center">
-    <Spinner size="sm" />
-  </View>
-  ) : isSignedIn ? (
-  <Surface variant="secondary" className="mt-5 p-4 rounded-xl">
-    <View className="flex-row items-center justify-between">
-      <View className="flex-1">
-        <Text className="text-foreground font-medium">
-          {user?.fullName ?? user?.firstName ?? "Welcome"}
-        </Text>
-        <Text className="text-muted text-xs mt-0.5">
-          {user?.emailAddresses[0]?.emailAddress}
-        </Text>
-      </View>
-      <SignOutButton />
-    </View>
-  </Surface>
-  ) : (
-  <View className="mt-4 gap-3">
-    <Link href="/(auth)/sign-in" asChild>
-      <Button variant="secondary"><Button.Label>Sign In</Button.Label></Button>
-    </Link>
-    <Link href="/(auth)/sign-up" asChild>
-      <Button variant="ghost"><Button.Label>Sign Up</Button.Label></Button>
-    </Link>
-  </View>
-  )}
-  {{/if}}
-
-  {{#if (and (eq backend "convex") (eq auth "better-auth"))}}
-  {user ? (
-  <Surface variant="secondary" className="mb-4 p-4 rounded-xl">
-    <View className="flex-row items-center justify-between">
-      <View className="flex-1">
-        <Text className="text-foreground font-medium">{user.name}</Text>
-        <Text className="text-muted text-xs mt-0.5">{user.email}</Text>
-      </View>
-      <Button
-        variant="danger"
-        size="sm"
-        onPress={() => {
-          authClient.signOut();
-        }}
-      >
-        Sign Out
-      </Button>
-    </View>
-    {{#if (eq payments "polar")}}
-    <View className="mt-4 gap-3">
-      {subscription ? (
-      <Button variant="secondary" onPress={handlePolarPortal}>
-        Manage Subscription
-      </Button>
-      ) : (
-      <Button onPress={handlePolarCheckout}>
-        Upgrade to Pro
-      </Button>
-      )}
-    </View>
-    {{/if}}
-  </Surface>
-  ) : null}
-  <Surface variant="secondary" className="p-4 rounded-xl">
-    <Text className="text-foreground font-medium mb-2">API Status</Text>
-    <View className="flex-row items-center gap-2">
-      <View className={\`w-2 h-2 rounded-full \${healthCheck==="OK" ? "bg-success" : "bg-danger" }\`} />
-      <Text className="text-muted text-xs">
-        {healthCheck === undefined
-        ? "Checking..."
-        : healthCheck === "OK"
-        ? "Connected to API"
-        : "API Disconnected"}
-      </Text>
-    </View>
-  </Surface>
-  {!user && (
-  <View className="mt-5 gap-4">
-    <SignIn />
-    <SignUp />
-  </View>
-  )}
-  {{/if}}
 </Container>
 );
 }
@@ -19162,16 +14306,13 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
 	typedRoutes: true,
 	reactCompiler: true,
-	{{#if (or (includes addons "tauri") (and (includes addons "electrobun") (or (ne backend "convex") (ne auth "better-auth"))))}}
+	{{#if (or (includes addons "tauri") (includes addons "electrobun"))}}
 	output: "export",
 	{{else if (or (eq webDeploy "docker") (eq webDeploy "prisma"))}}
 	output: "standalone",
 	{{/if}}
 	{{#if (includes examples "ai")}}
 	transpilePackages: ["shiki"],
-	{{/if}}
-	{{#if (and (eq backend "self") (eq dbSetup "turso"))}}
-	serverExternalPackages: ["libsql", "@libsql/client"],
 	{{/if}}
 };
 
@@ -19544,60 +14685,12 @@ import "./index.css";
 import Header from "./components/header";
 import { ThemeProvider } from "./components/theme-provider";
 import { Toaster } from "@{{projectName}}/ui/components/sonner";
-{{#if (eq auth "clerk")}}
-import { ClerkProvider{{#if (or (eq backend "convex") (ne api "none"))}}, useAuth{{/if}} } from "@clerk/react-router";
-import { clerkMiddleware, rootAuthLoader } from "@clerk/react-router/server";
-{{/if}}
-{{#if (and (eq auth "clerk") (ne backend "convex") (ne api "none"))}}
-import { useEffect } from "react";
-import { setClerkAuthTokenGetter } from "@/utils/clerk-auth";
-{{/if}}
 
-{{#if (eq backend "convex")}}
-import { ConvexReactClient } from "convex/react";
-import { env } from "@{{projectName}}/env/web";
-  {{#if (eq auth "clerk")}}
-import { ConvexProviderWithClerk } from "convex/react-clerk";
-  {{else if (eq auth "better-auth")}}
-import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
-import { authClient } from "@/lib/auth-client";
-  {{else}}
-import { ConvexProvider } from "convex/react";
-  {{/if}}
-{{else}}
-  {{#unless (eq api "none")}}
+{{#unless (eq api "none")}}
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-    {{#if (eq api "orpc")}}
 import { queryClient } from "./utils/orpc";
-    {{/if}}
-    {{#if (eq api "trpc")}}
-import { queryClient } from "./utils/trpc";
-    {{/if}}
-  {{/unless}}
-{{/if}}
-
-{{#if (eq auth "clerk")}}
-export const middleware: Route.MiddlewareFunction[] = [clerkMiddleware()];
-
-export const loader = (args: Route.LoaderArgs) => rootAuthLoader(args);
-{{/if}}
-
-{{#if (and (eq auth "clerk") (ne backend "convex") (ne api "none"))}}
-function ClerkApiAuthBridge() {
-  const { getToken } = useAuth();
-
-  useEffect(() => {
-    setClerkAuthTokenGetter(getToken);
-
-    return () => {
-      setClerkAuthTokenGetter(null);
-    };
-  }, [getToken]);
-
-  return null;
-}
-{{/if}}
+{{/unless}}
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -19627,147 +14720,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
-{{#if (eq backend "convex")}}
-{{#if (eq auth "clerk")}}
-export default function App({ loaderData }: Route.ComponentProps) {
-{{else if (eq auth "better-auth")}}
-export default function App() {
-{{else}}
-export default function App() {
-{{/if}}
-  const convex = new ConvexReactClient(env.VITE_CONVEX_URL);
-  {{#if (eq auth "clerk")}}
-  return (
-    <ClerkProvider loaderData={loaderData}>
-      <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          disableTransitionOnChange
-          storageKey="vite-ui-theme"
-        >
-          <div className="grid grid-rows-[auto_1fr] h-svh">
-            <Header />
-            <Outlet />
-          </div>
-          <Toaster richColors />
-        </ThemeProvider>
-      </ConvexProviderWithClerk>
-    </ClerkProvider>
-  );
-  {{else if (eq auth "better-auth")}}
-  return (
-    <ConvexBetterAuthProvider client={convex} authClient={authClient}>
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="dark"
-        disableTransitionOnChange
-        storageKey="vite-ui-theme"
-      >
-        <div className="grid grid-rows-[auto_1fr] h-svh">
-          <Header />
-          <Outlet />
-        </div>
-        <Toaster richColors />
-      </ThemeProvider>
-    </ConvexBetterAuthProvider>
-  );
-  {{else}}
-  return (
-    <ConvexProvider client={convex}>
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="dark"
-        disableTransitionOnChange
-        storageKey="vite-ui-theme"
-      >
-        <div className="grid grid-rows-[auto_1fr] h-svh">
-          <Header />
-          <Outlet />
-        </div>
-        <Toaster richColors />
-      </ThemeProvider>
-    </ConvexProvider>
-  );
-  {{/if}}
-}
-{{else if (eq auth "clerk")}}
-export default function App({ loaderData }: Route.ComponentProps) {
-  return (
-    <ClerkProvider loaderData={loaderData}>
-      {{#unless (eq api "none")}}
-      <ClerkApiAuthBridge />
-      {{/unless}}
-      {{#if (eq api "orpc")}}
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          disableTransitionOnChange
-          storageKey="vite-ui-theme"
-        >
-          <div className="grid grid-rows-[auto_1fr] h-svh">
-            <Header />
-            <Outlet />
-          </div>
-          <Toaster richColors />
-        </ThemeProvider>
-        <ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
-      </QueryClientProvider>
-      {{else if (eq api "trpc")}}
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          disableTransitionOnChange
-          storageKey="vite-ui-theme"
-        >
-          <div className="grid grid-rows-[auto_1fr] h-svh">
-            <Header />
-            <Outlet />
-          </div>
-          <Toaster richColors />
-        </ThemeProvider>
-        <ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
-      </QueryClientProvider>
-      {{else}}
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="dark"
-        disableTransitionOnChange
-        storageKey="vite-ui-theme"
-      >
-        <div className="grid grid-rows-[auto_1fr] h-svh">
-          <Header />
-          <Outlet />
-        </div>
-        <Toaster richColors />
-      </ThemeProvider>
-      {{/if}}
-    </ClerkProvider>
-  );
-}
-{{else if (eq api "orpc")}}
-export default function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="dark"
-        disableTransitionOnChange
-        storageKey="vite-ui-theme"
-      >
-        <div className="grid grid-rows-[auto_1fr] h-svh">
-          <Header />
-          <Outlet />
-        </div>
-        <Toaster richColors />
-      </ThemeProvider>
-      <ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
-    </QueryClientProvider>
-  );
-}
-{{else if (eq api "trpc")}}
+{{#if (ne api "none")}}
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -20331,163 +15284,41 @@ export default defineConfig({
 User-agent: *
 Disallow:
 `],
-  ["frontend/react/tanstack-start/src/router.tsx.hbs", `{{#if (eq backend "convex")}}
-import { createRouter as createTanStackRouter } from "@tanstack/react-router";
-import { QueryClient } from "@tanstack/react-query";
-import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
-import { ConvexQueryClient } from "@convex-dev/react-query";
-import { routeTree } from "./routeTree.gen";
-import Loader from "./components/loader";
-import { env } from "@{{projectName}}/env/web";
-{{else}}
-import { createRouter as createTanStackRouter } from "@tanstack/react-router";
+  ["frontend/react/tanstack-start/src/router.tsx.hbs", `import { createRouter as createTanStackRouter } from "@tanstack/react-router";
 import Loader from "./components/loader";
 import { routeTree } from "./routeTree.gen";
-{{#if (eq api "trpc")}}
-import { QueryCache, QueryClient } from "@tanstack/react-query";
-import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
-import { createTRPCClient, httpBatchLink } from "@trpc/client";
-import { createTRPCOptionsProxy } from "@trpc/tanstack-react-query";
-import { toast } from "sonner";
-import type { AppRouter } from "@{{projectName}}/api/routers/index";
-import { TRPCProvider } from "./utils/trpc";
-{{#unless (eq backend "self")}}
-import { env } from "@{{projectName}}/env/web";
-{{/unless}}
-{{#if (eq auth "clerk")}}
-import { getClerkAuthToken } from "@/utils/clerk-auth";
-{{/if}}
-{{else if (eq api "orpc")}}
+{{#unless (eq api "none")}}
 import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
 import { createQueryClient, orpc } from "./utils/orpc";
-{{/if}}
-{{/if}}
-
-{{#if (eq backend "convex")}}
-export function getRouter() {
-	const convexUrl = env.VITE_CONVEX_URL;
-	if (!convexUrl) {
-		throw new Error("VITE_CONVEX_URL is not set");
-	}
-
-	const convexQueryClient = new ConvexQueryClient(convexUrl);
-
-	const queryClient: QueryClient = new QueryClient({
-		defaultOptions: {
-			queries: {
-				queryKeyHashFn: convexQueryClient.hashFn(),
-				queryFn: convexQueryClient.queryFn(),
-			},
-		},
-	});
-	convexQueryClient.connect(queryClient);
-
-	const router = createTanStackRouter({
-		routeTree,
-		defaultPreload: "intent",
-		defaultPendingComponent: () => <Loader />,
-		defaultNotFoundComponent: () => <div>Not Found</div>,
-		context: { queryClient, convexQueryClient },
-	});
-
-	setupRouterSsrQueryIntegration({
-		router,
-		queryClient,
-	});
-
-	return router;
-}
-{{else}}
-{{#if (eq api "trpc")}}
-{{#unless (eq backend "self")}}
-{{> getServerUrl}}
-
 {{/unless}}
-function createQueryClient() {
-	return new QueryClient({
-		queryCache: new QueryCache({
-			onError: (error, query) => {
-				toast.error(error.message, {
-					action: {
-						label: "retry",
-						onClick: () => {
-							query.invalidate();
-						},
-					},
-				});
-			},
-		}),
-		defaultOptions: { queries: { staleTime: 60 * 1000 } },
-	});
-}
-
-const trpcClient = createTRPCClient<AppRouter>({
-	links: [
-		httpBatchLink({
-			url: {{#if (eq backend "self")}}"/api/trpc"{{else}}\`\${getServerUrl(env.VITE_SERVER_URL)}/trpc\`{{/if}},
-{{#if (eq auth "clerk")}}
-			headers: async () => {
-				const token = await getClerkAuthToken();
-				return token ? { Authorization: \`Bearer \${token}\` } : {};
-			},
-{{/if}}
-{{#if (eq auth "better-auth")}}
-			fetch(url, options) {
-				return fetch(url, {
-					...options,
-					credentials: "include",
-				});
-			},
-{{/if}}
-		}),
-	],
-});
-{{else if (eq api "orpc")}}
-{{/if}}
 
 export const getRouter = () => {
-{{#if (eq api "trpc")}}
+{{#unless (eq api "none")}}
 	const queryClient = createQueryClient();
-	const trpc = createTRPCOptionsProxy({
-		client: trpcClient,
-		queryClient,
-	});
-{{else if (eq api "orpc")}}
-	const queryClient = createQueryClient();
-{{/if}}
+{{/unless}}
 
 	const router = createTanStackRouter({
 		routeTree,
 		scrollRestoration: true,
 		defaultPreloadStaleTime: 0,
-{{#if (eq api "trpc")}}
-		context: { trpc, queryClient },
-{{else if (eq api "orpc")}}
+{{#unless (eq api "none")}}
 		context: { orpc, queryClient },
 {{else}}
 		context: {},
-{{/if}}
+{{/unless}}
 		defaultPendingComponent: () => <Loader />,
 		defaultNotFoundComponent: () => <div>Not Found</div>,
-{{#if (eq api "trpc")}}
-		Wrap: ({ children }) => (
-			<TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
-				{children}
-			</TRPCProvider>
-		),
-{{/if}}
 	});
-{{#if (or (eq api "trpc") (eq api "orpc"))}}
+{{#unless (eq api "none")}}
 
 	setupRouterSsrQueryIntegration({
 		router,
 		queryClient,
 	});
-{{/if}}
+{{/unless}}
 
 	return router;
 };
-{{/if}}
 
 declare module "@tanstack/react-router" {
 	interface Register {
@@ -20496,100 +15327,32 @@ declare module "@tanstack/react-router" {
 }
 `],
   ["frontend/react/tanstack-start/src/routes/__root.tsx.hbs", `import { Toaster } from "@{{projectName}}/ui/components/sonner";
-{{#unless (eq backend "convex")}} {{#unless (eq api "none")}}
+{{#unless (eq api "none")}}
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-{{/unless}} {{/unless}}
+{{/unless}}
 import {
   HeadContent,
   Outlet,
   Scripts,
   createRootRouteWithContext,
-{{#if (and (eq backend "convex") (or (eq auth "clerk") (eq auth "better-auth")))}}
-  useRouteContext,
-{{/if}}
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import Header from "../components/header";
 import appCss from "../index.css?url";
-{{#if (eq backend "convex")}}
+{{#unless (eq api "none")}}
 import type { QueryClient } from "@tanstack/react-query";
-import type { ConvexQueryClient } from "@convex-dev/react-query";
-{{else}}
-{{#if (or (eq api "trpc") (eq api "orpc"))}}
-import type { QueryClient } from "@tanstack/react-query";
-{{/if}}
-{{/if}}
-
-{{#if (eq auth "clerk")}}
-import { ClerkProvider{{#if (or (eq backend "convex") (ne api "none"))}}, useAuth{{/if}} } from "@clerk/tanstack-react-start";
-{{/if}}
-{{#if (and (eq auth "clerk") (ne backend "convex") (ne api "none"))}}
-import { useEffect } from "react";
-import { setClerkAuthTokenGetter } from "@/utils/clerk-auth";
-{{/if}}
-{{#if (and (eq backend "convex") (eq auth "clerk"))}}
-import { auth } from "@clerk/tanstack-react-start/server";
-import { createServerFn } from "@tanstack/react-start";
-import { ConvexProviderWithClerk } from "convex/react-clerk";
-
-const fetchClerkAuth = createServerFn({ method: "GET" }).handler(async () => {
-  const { userId, getToken } = await auth();
-  const token = await getToken();
-  return { userId, token };
-});
-{{else if (and (eq backend "convex") (eq auth "better-auth"))}}
-import { createServerFn } from "@tanstack/react-start";
-import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
-import { authClient } from "@/lib/auth-client";
-import { getToken } from "@/lib/auth-server";
-
-const getAuth = createServerFn({ method: "GET" }).handler(async () => {
-  return await getToken();
-});
-{{else if (eq backend "convex")}}
-import { ConvexProvider } from "convex/react";
-{{/if}}
-
-{{#if (and (eq auth "clerk") (ne backend "convex") (ne api "none"))}}
-function ClerkApiAuthBridge() {
-  const { getToken } = useAuth();
-
-  useEffect(() => {
-    setClerkAuthTokenGetter(getToken);
-
-    return () => {
-      setClerkAuthTokenGetter(null);
-    };
-  }, [getToken]);
-
-  return null;
-}
-{{/if}}
-
-{{#if (eq backend "convex")}}
-export interface RouterAppContext {
-  queryClient: QueryClient;
-  convexQueryClient: ConvexQueryClient;
-}
-{{else}}
-  {{#if (eq api "trpc")}}
-import type { TRPCOptionsProxy } from "@trpc/tanstack-react-query";
-import type { AppRouter } from "@{{projectName}}/api/routers/index";
-export interface RouterAppContext {
-  trpc: TRPCOptionsProxy<AppRouter>;
-  queryClient: QueryClient;
-}
-  {{else if (eq api "orpc")}}
 import type { orpc } from "@/utils/orpc";
+{{/unless}}
+
+{{#unless (eq api "none")}}
 export interface RouterAppContext {
   orpc: typeof orpc;
   queryClient: QueryClient;
 }
-  {{else}}
+{{else}}
 export interface RouterAppContext {
 }
-  {{/if}}
-{{/if}}
+{{/unless}}
 
 export const Route = createRootRouteWithContext<RouterAppContext>()({
   head: () => ({
@@ -20614,121 +15377,9 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
   }),
 
   component: RootDocument,
-  {{#if (and (eq backend "convex") (eq auth "clerk"))}}
-  beforeLoad: async (ctx) => {
-    const { userId, token } = await fetchClerkAuth();
-    if (token) {
-      ctx.context.convexQueryClient.serverHttpClient?.setAuth(token);
-    }
-    return { userId, token };
-  },
-  {{else if (and (eq backend "convex") (eq auth "better-auth"))}}
-  beforeLoad: async (ctx) => {
-    const token = await getAuth();
-    if (token) {
-      ctx.context.convexQueryClient.serverHttpClient?.setAuth(token);
-    }
-    return {
-      isAuthenticated: !!token,
-      token,
-    };
-  },
-  {{/if}}
 });
 
 function RootDocument() {
-  {{#if (and (eq backend "convex") (eq auth "clerk"))}}
-  const context = useRouteContext({ from: Route.id });
-  return (
-    <ClerkProvider>
-      <ConvexProviderWithClerk client={context.convexQueryClient.convexClient} useAuth={useAuth}>
-        <html lang="en" className="dark">
-          <head>
-            <HeadContent />
-          </head>
-          <body>
-            <div className="grid h-svh grid-rows-[auto_1fr]">
-              <Header />
-              <Outlet />
-            </div>
-            <Toaster richColors />
-            <TanStackRouterDevtools position="bottom-left" />
-            <Scripts />
-          </body>
-        </html>
-      </ConvexProviderWithClerk>
-    </ClerkProvider>
-  );
-  {{else if (and (eq backend "convex") (eq auth "better-auth"))}}
-  const context = useRouteContext({ from: Route.id });
-  return (
-    <ConvexBetterAuthProvider
-      client={context.convexQueryClient.convexClient}
-      authClient={authClient}
-      initialToken={context.token}
-    >
-      <html lang="en" className="dark">
-        <head>
-          <HeadContent />
-        </head>
-        <body>
-          <div className="grid h-svh grid-rows-[auto_1fr]">
-            <Header />
-            <Outlet />
-          </div>
-          <Toaster richColors />
-          <TanStackRouterDevtools position="bottom-left" />
-          <Scripts />
-        </body>
-      </html>
-    </ConvexBetterAuthProvider>
-  );
-  {{else if (eq auth "clerk")}}
-  return (
-    <ClerkProvider>
-      {{#unless (eq api "none")}}
-      <ClerkApiAuthBridge />
-      {{/unless}}
-      <html lang="en" className="dark">
-        <head>
-          <HeadContent />
-        </head>
-        <body>
-          <div className="grid h-svh grid-rows-[auto_1fr]">
-            <Header />
-            <Outlet />
-          </div>
-          <Toaster richColors />
-          <TanStackRouterDevtools position="bottom-left" />
-          {{#unless (eq api "none")}}
-          <ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
-          {{/unless}}
-          <Scripts />
-        </body>
-      </html>
-    </ClerkProvider>
-  );
-  {{else if (eq backend "convex")}}
-  const { convexQueryClient } = Route.useRouteContext();
-  return (
-    <ConvexProvider client={convexQueryClient.convexClient}>
-      <html lang="en" className="dark">
-        <head>
-          <HeadContent />
-        </head>
-        <body>
-          <div className="grid h-svh grid-rows-[auto_1fr]">
-            <Header />
-            <Outlet />
-          </div>
-          <Toaster richColors />
-          <TanStackRouterDevtools position="bottom-left" />
-          <Scripts />
-        </body>
-      </html>
-    </ConvexProvider>
-  );
-  {{else}}
   return (
     <html lang="en" className="dark">
       <head>
@@ -20748,7 +15399,6 @@ function RootDocument() {
       </body>
     </html>
   );
-  {{/if}}
 }
 `],
   ["frontend/react/tanstack-start/src/routes/index.tsx.hbs", `import { createFileRoute } from "@tanstack/react-router";
@@ -20872,7 +15522,7 @@ export default defineConfig({
     prismaWasm,
 {{/if}}
     tailwindcss(),
-    tanstackStart({{#if (or (includes addons "tauri") (and (includes addons "electrobun") (or (ne backend "convex") (ne auth "better-auth"))))}}
+    tanstackStart({{#if (or (includes addons "tauri") (includes addons "electrobun"))}}
       {
         prerender: {
           enabled: true,
@@ -20888,10 +15538,6 @@ export default defineConfig({
   // Bundle all SSR deps: Vercel functions have no node_modules at runtime
   ssr: {
     noExternal: true,
-  },
-{{else if (and (eq backend "convex") (eq auth "better-auth"))}}
-  ssr: {
-    noExternal: ["@convex-dev/better-auth"],
   },
 {{/if}}
 });
@@ -21124,17 +15770,7 @@ export const env = createEnv({
 
 	},
 	runtimeEnv: {
-{{#if (eq backend "convex")}}
-		EXPO_PUBLIC_CONVEX_URL: process.env.EXPO_PUBLIC_CONVEX_URL,
-{{#if (eq auth "better-auth")}}
-		EXPO_PUBLIC_CONVEX_SITE_URL: process.env.EXPO_PUBLIC_CONVEX_SITE_URL,
-{{/if}}
-{{else}}
 		EXPO_PUBLIC_SERVER_URL: process.env.EXPO_PUBLIC_SERVER_URL,
-{{/if}}
-{{#if (eq auth "clerk")}}
-		EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY,
-{{/if}}
 	},
 	emptyStringAsUndefined: true,
 });
@@ -21275,30 +15911,11 @@ const runtimeEnv = {
 export const env = createEnv({
 	server: {
 {{#if (ne database "none")}}
-{{#if (and (eq database "mysql") (eq orm "drizzle") (eq dbSetup "planetscale"))}}
-		DATABASE_HOST: z.string().min(1),
-		DATABASE_USERNAME: z.string().min(1),
-		DATABASE_PASSWORD: z.string().min(1),
-{{else}}
 		DATABASE_URL: z.string().min(1),
-{{#if (eq dbSetup "turso")}}
-		DATABASE_AUTH_TOKEN: z.string().min(1),
-{{/if}}
-{{/if}}
 {{/if}}
 {{#if (eq auth "better-auth")}}
 		BETTER_AUTH_SECRET: z.string().min(32),
 		BETTER_AUTH_URL: z.url(),
-{{/if}}
-{{#if (eq auth "clerk")}}
-		CLERK_SECRET_KEY: z.string().min(1),
-{{#if (or (eq backend "express") (eq backend "fastify") (and (ne api "none") (or (eq backend "self") (eq backend "hono") (eq backend "elysia"))))}}
-		CLERK_PUBLISHABLE_KEY: z.string().min(1),
-{{/if}}
-{{/if}}
-{{#if (eq payments "polar")}}
-		POLAR_ACCESS_TOKEN: z.string().min(1),
-		POLAR_SUCCESS_URL: z.url(),
 {{/if}}
 {{#if (ne backend "self")}}
 		CORS_ORIGIN: z.url(),
@@ -21313,101 +15930,28 @@ export const env = createEnv({
 `],
   ["packages/env/src/web.ts.hbs", `{{#if (includes frontend "next")}}
 import { createEnv } from "@t3-oss/env-nextjs";
-{{else if (includes frontend "nuxt")}}
-import { createEnv } from "@t3-oss/env-nuxt";
-{{else if (or (includes frontend "svelte") (includes frontend "astro"))}}
-import { createEnv } from "@t3-oss/env-core";
 {{else}}
 import { createEnv } from "@t3-oss/env-core";
 {{/if}}
 import { z } from "zod";
 
-{{#if (and (eq webDeploy "vercel") (eq serverDeploy "vercel") (ne backend "self") (ne backend "none") (ne backend "convex"))}}
+{{#if (and (eq webDeploy "vercel") (eq serverDeploy "vercel") (ne backend "self") (ne backend "none"))}}
 const serverUrlSchema = z.union([
 	z.url(),
 	z.string().regex(/^\\/(?!\\/)/, "Use an absolute URL or a same-origin path like /api"),
 ]);
 
 {{/if}}
-{{#if (eq backend "convex")}}
-const convexUrlSchema = (exampleHost: string) =>
-	z.url().refine((url) => new URL(url).hostname !== exampleHost, {
-		message: \`Replace the \${exampleHost} placeholder before running the app\`,
-	});
-
-{{/if}}
-{{#if (includes frontend "nuxt")}}
-/**
- * Nuxt env validation - validates at build time when imported in nuxt.config.ts
- * For runtime access in components/plugins, use useRuntimeConfig() instead:
- *   const config = useRuntimeConfig()
- *   config.public.serverUrl (NUXT_PUBLIC_SERVER_URL maps to serverUrl)
- */
-{{/if}}
 export const env = createEnv({
-{{#if (eq backend "convex")}}
+{{#if (eq backend "self")}}
 {{#if (includes frontend "next")}}
 	client: {
-		NEXT_PUBLIC_CONVEX_URL: convexUrlSchema("example.convex.cloud"),
-{{#if (eq auth "better-auth")}}
-		NEXT_PUBLIC_CONVEX_SITE_URL: convexUrlSchema("example.convex.site"),
-{{/if}}
-{{#if (eq auth "clerk")}}
-		NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1),
-{{/if}}
 	},
 	runtimeEnv: {
-		NEXT_PUBLIC_CONVEX_URL: process.env.NEXT_PUBLIC_CONVEX_URL,
-{{#if (eq auth "better-auth")}}
-		NEXT_PUBLIC_CONVEX_SITE_URL: process.env.NEXT_PUBLIC_CONVEX_SITE_URL,
-{{/if}}
-{{#if (eq auth "clerk")}}
-		NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
-{{/if}}
 	},
-{{else if (includes frontend "nuxt")}}
-	client: {
-		NUXT_PUBLIC_CONVEX_URL: convexUrlSchema("example.convex.cloud"),
-	},
-{{else if (or (includes frontend "svelte") (includes frontend "astro"))}}
-	clientPrefix: "PUBLIC_",
-	client: {
-		PUBLIC_CONVEX_URL: convexUrlSchema("example.convex.cloud"),
-	},
-	runtimeEnv: (import.meta as any).env,
 {{else}}
 	clientPrefix: "VITE_",
 	client: {
-		VITE_CONVEX_URL: convexUrlSchema("example.convex.cloud"),
-{{#if (eq auth "better-auth")}}
-		VITE_CONVEX_SITE_URL: convexUrlSchema("example.convex.site"),
-{{/if}}
-{{#if (eq auth "clerk")}}
-		VITE_CLERK_PUBLISHABLE_KEY: z.string().min(1),
-{{/if}}
-	},
-	runtimeEnv: (import.meta as any).env,
-{{/if}}
-{{else if (eq backend "self")}}
-{{#if (includes frontend "next")}}
-	client: {
-{{#if (eq auth "clerk")}}
-		NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1),
-{{/if}}
-	},
-	runtimeEnv: {
-{{#if (eq auth "clerk")}}
-		NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
-{{/if}}
-	},
-{{else if (includes frontend "nuxt")}}
-	client: {},
-{{else}}
-	clientPrefix: "VITE_",
-	client: {
-{{#if (eq auth "clerk")}}
-		VITE_CLERK_PUBLISHABLE_KEY: z.string().min(1),
-{{/if}}
 	},
 	runtimeEnv: (import.meta as any).env,
 {{/if}}
@@ -21415,33 +15959,14 @@ export const env = createEnv({
 {{#if (includes frontend "next")}}
 	client: {
 		NEXT_PUBLIC_SERVER_URL: {{#if (and (eq webDeploy "vercel") (eq serverDeploy "vercel"))}}serverUrlSchema{{else}}z.url(){{/if}},
-{{#if (eq auth "clerk")}}
-		NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1),
-{{/if}}
 	},
 	runtimeEnv: {
 		NEXT_PUBLIC_SERVER_URL: process.env.NEXT_PUBLIC_SERVER_URL,
-{{#if (eq auth "clerk")}}
-		NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
-{{/if}}
 	},
-{{else if (includes frontend "nuxt")}}
-	client: {
-		NUXT_PUBLIC_SERVER_URL: {{#if (and (eq webDeploy "vercel") (eq serverDeploy "vercel"))}}serverUrlSchema{{else}}z.url(){{/if}},
-	},
-{{else if (or (includes frontend "svelte") (includes frontend "astro"))}}
-	clientPrefix: "PUBLIC_",
-	client: {
-		PUBLIC_SERVER_URL: {{#if (and (eq webDeploy "vercel") (eq serverDeploy "vercel"))}}serverUrlSchema{{else}}z.url(){{/if}},
-	},
-	runtimeEnv: (import.meta as any).env,
 {{else}}
 	clientPrefix: "VITE_",
 	client: {
 		VITE_SERVER_URL: {{#if (and (eq webDeploy "vercel") (eq serverDeploy "vercel"))}}serverUrlSchema{{else}}z.url(){{/if}},
-{{#if (eq auth "clerk")}}
-		VITE_CLERK_PUBLISHABLE_KEY: z.string().min(1),
-{{/if}}
 	},
 	runtimeEnv: (import.meta as any).env,
 {{/if}}
@@ -23404,4 +17929,4 @@ export function cn(...inputs: ClassValue[]) {
 `]
 ]);
 
-export const TEMPLATE_COUNT = 310;
+export const TEMPLATE_COUNT = 319;

@@ -95,10 +95,7 @@ Handlebars.registerHelper(
 Handlebars.registerHelper(
   "usesRequestScopedCloudflareEnv",
   (backend, webDeploy, frontend) =>
-    backend === "self" &&
-    webDeploy === "cloudflare" &&
-    Array.isArray(frontend) &&
-    (frontend.includes("nuxt") || frontend.includes("svelte")),
+    backend === "self" && webDeploy === "cloudflare" && Array.isArray(frontend) && false,
 );
 
 // Shared across every web client template (oRPC/tRPC/better-auth) so the

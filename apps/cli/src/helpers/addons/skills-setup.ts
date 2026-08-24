@@ -41,11 +41,14 @@ const SKILL_SOURCES = {
   "yusukebe/hono-skill": {
     label: "Hono Backend",
   },
+  "anasx7/skills": {
+    label: "NestJS Better Auth",
+  },
+  "0x00x000/skills": {
+    label: "NestJS Modular Monolith",
+  },
   "vercel-labs/next-skills": {
     label: "Next.js Best Practices",
-  },
-  "nuxt/ui": {
-    label: "Nuxt UI",
   },
   "heroui-inc/heroui": {
     label: "HeroUI Native",
@@ -56,29 +59,17 @@ const SKILL_SOURCES = {
   "better-auth/skills": {
     label: "Better Auth",
   },
-  "clerk/skills": {
-    label: "Clerk",
-  },
   "neondatabase/agent-skills": {
     label: "Neon Database",
   },
   "supabase/agent-skills": {
     label: "Supabase",
   },
-  "planetscale/database-skills": {
-    label: "PlanetScale",
-  },
   "expo/skills": {
     label: "Expo",
   },
   "prisma/skills": {
     label: "Prisma",
-  },
-  "elysiajs/skills": {
-    label: "ElysiaJS",
-  },
-  "waynesutton/convexskills": {
-    label: "Convex",
   },
   "msmps/opentui-skill": {
     label: "OpenTUI Platform",
@@ -239,7 +230,7 @@ function hasNativeFrontend(frontend: ProjectConfig["frontend"]): boolean {
   );
 }
 
-function getRecommendedSourceKeys(config: ProjectConfig): SourceKey[] {
+export function getRecommendedSourceKeys(config: ProjectConfig): SourceKey[] {
   const sources: SourceKey[] = [];
   const { frontend, backend, dbSetup, auth, examples, addons, orm, webDeploy, serverDeploy } =
     config;
@@ -260,10 +251,6 @@ function getRecommendedSourceKeys(config: ProjectConfig): SourceKey[] {
     sources.push("vercel-labs/next-skills");
   }
 
-  if (frontend.includes("nuxt")) {
-    sources.push("nuxt/ui");
-  }
-
   if (frontend.includes("native-uniwind")) {
     sources.push("heroui-inc/heroui");
   }
@@ -276,20 +263,12 @@ function getRecommendedSourceKeys(config: ProjectConfig): SourceKey[] {
     sources.push("better-auth/skills");
   }
 
-  if (auth === "clerk") {
-    sources.push("clerk/skills");
-  }
-
   if (dbSetup === "neon") {
     sources.push("neondatabase/agent-skills");
   }
 
   if (dbSetup === "supabase") {
     sources.push("supabase/agent-skills");
-  }
-
-  if (dbSetup === "planetscale") {
-    sources.push("planetscale/database-skills");
   }
 
   if (orm === "prisma" || dbSetup === "prisma-postgres") {
@@ -308,12 +287,9 @@ function getRecommendedSourceKeys(config: ProjectConfig): SourceKey[] {
     sources.push("yusukebe/hono-skill");
   }
 
-  if (backend === "elysia") {
-    sources.push("elysiajs/skills");
-  }
-
-  if (backend === "convex") {
-    sources.push("waynesutton/convexskills");
+  if (backend === "nest") {
+    sources.push("anasx7/skills");
+    sources.push("0x00x000/skills");
   }
 
   if (addons.includes("opentui")) {
@@ -352,44 +328,14 @@ const CURATED_SKILLS_BY_SOURCE = {
   "vercel/ai": () => ["ai-sdk"],
   "vercel/turborepo": () => ["turborepo"],
   "yusukebe/hono-skill": () => ["hono"],
+  "anasx7/skills": () => ["nestjs-better-auth"],
+  "0x00x000/skills": () => ["nestjs-modular-monolith"],
   "vercel-labs/next-skills": () => ["next-best-practices", "next-cache-components"],
-  "nuxt/ui": () => ["nuxt-ui"],
   "heroui-inc/heroui": () => ["heroui-native"],
   "shadcn/ui": () => ["shadcn"],
   "better-auth/skills": () => ["better-auth-best-practices"],
-  "clerk/skills": (config) => {
-    const skills = [
-      "clerk",
-      "clerk-setup",
-      "clerk-custom-ui",
-      "clerk-webhooks",
-      "clerk-testing",
-      "clerk-orgs",
-    ];
-
-    if (config.frontend.includes("next")) {
-      skills.push("clerk-nextjs-patterns");
-    }
-
-    return skills;
-  },
   "neondatabase/agent-skills": () => ["neon-postgres"],
   "supabase/agent-skills": () => ["supabase-postgres-best-practices"],
-  "planetscale/database-skills": (config) => {
-    if (config.dbSetup !== "planetscale") {
-      return [];
-    }
-
-    if (config.database === "postgres") {
-      return ["postgres", "neki"];
-    }
-
-    if (config.database === "mysql") {
-      return ["mysql", "vitess"];
-    }
-
-    return [];
-  },
   "expo/skills": (config) => {
     const skills = [
       "expo-dev-client",
@@ -416,18 +362,6 @@ const CURATED_SKILLS_BY_SOURCE = {
 
     return skills;
   },
-  "elysiajs/skills": () => ["elysiajs"],
-  "waynesutton/convexskills": () => [
-    "convex-best-practices",
-    "convex-functions",
-    "convex-schema-validator",
-    "convex-realtime",
-    "convex-http-actions",
-    "convex-cron-jobs",
-    "convex-file-storage",
-    "convex-migrations",
-    "convex-security-check",
-  ],
   "msmps/opentui-skill": () => ["opentui"],
   "haydenbleasel/ultracite": () => ["ultracite"],
   "https://www.evlog.dev": (config) => [
@@ -443,6 +377,73 @@ function getCuratedSkillNamesForSourceKey(sourceKey: SourceKey, config: ProjectC
 
 function uniqueValues<T>(values: T[]): T[] {
   return Array.from(new Set(values));
+}
+
+export const NEST_REQUIRED_SOURCE_KEYS = [
+  "anasx7/skills",
+  "0x00x000/skills",
+] as const satisfies readonly SourceKey[];
+
+/**
+ * Nest always installs nestjs-better-auth + nestjs-modular-monolith, even without
+ * `--addons skills`. Skip when the skills addon already ran (it includes these
+ * via getRecommendedSourceKeys) or when external commands are disabled.
+ */
+export async function setupRequiredNestSkills(
+  config: ProjectConfig,
+): Promise<Result<void, AddonSetupError>> {
+  if (config.backend !== "nest") {
+    return Result.ok(undefined);
+  }
+
+  if (config.addons.includes("skills")) {
+    return Result.ok(undefined);
+  }
+
+  if (shouldSkipExternalCommands()) {
+    return Result.ok(undefined);
+  }
+
+  const { packageManager, projectDir } = config;
+  const runner = getPackageRunnerPrefix(packageManager);
+  const agentTargets = expandSkillsAgentTargets(["universal"]);
+
+  const installSpinner = createSpinner();
+  installSpinner.start("Installing NestJS skills...");
+
+  for (const source of NEST_REQUIRED_SOURCE_KEYS) {
+    const skills = getCuratedSkillNamesForSourceKey(source, config);
+    const installResult = await Result.tryPromise({
+      try: async () => {
+        const args = [
+          ...runner,
+          "skills@latest",
+          "add",
+          source,
+          "--skill",
+          ...skills,
+          "--agent",
+          ...agentTargets,
+          "-y",
+        ];
+        await $({ cwd: projectDir, env: { CI: "true" } })`${args}`;
+      },
+      catch: (e) =>
+        new AddonSetupError({
+          addon: "skills",
+          message: `Failed to install skills from ${source}: ${e instanceof Error ? e.message : String(e)}`,
+          cause: e,
+        }),
+    });
+
+    if (installResult.isErr()) {
+      cliLog.warn(pc.yellow(`Warning: Could not install skills from ${source}`));
+    }
+  }
+
+  installSpinner.stop("NestJS skills installed");
+
+  return Result.ok(undefined);
 }
 
 export async function setupSkills(

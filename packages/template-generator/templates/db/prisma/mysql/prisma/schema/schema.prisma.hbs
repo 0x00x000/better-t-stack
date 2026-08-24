@@ -15,7 +15,4 @@ generator client {
 
 datasource db {
   provider = "mysql"
-  {{#if (eq dbSetup "planetscale")}}
-  relationMode = "prisma"
-  {{/if}}
 }
