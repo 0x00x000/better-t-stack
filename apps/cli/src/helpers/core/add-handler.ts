@@ -26,6 +26,7 @@ import { formatConfigValue } from "../../utils/display-config";
 import { CLIError, UserCancelledError, displayError } from "../../utils/errors";
 import { validateAgentSafePathInput } from "../../utils/input-hardening";
 import { renderTitle } from "../../utils/render-title";
+import { checkLocalRequirements } from "../../utils/requirements";
 import { setupAddons } from "../addons/addons-setup";
 import { detectProjectConfig } from "./detect-project-config";
 import { installDependencies } from "./install-dependencies";
@@ -75,29 +76,22 @@ function mergeAddonOptions(
     return undefined;
   }
 
-  const mergedAddonOptions: Partial<AddonOptions> = { ...existingAddonOptions };
+  const mergeOption = <T extends object>(existing: T | undefined, next: T | undefined) => {
+    if (!existing) return next;
+    if (!next) return existing;
+    return { ...existing, ...next };
+  };
 
-  if (nextAddonOptions) {
-    for (const addonKey of Object.keys(nextAddonOptions) as (keyof AddonOptions)[]) {
-      const existingOptionsForAddon = existingAddonOptions?.[addonKey];
-      const nextOptionsForAddon = nextAddonOptions[addonKey];
-      const mergedOptionsForAddon =
-        existingOptionsForAddon && nextOptionsForAddon
-          ? { ...existingOptionsForAddon, ...nextOptionsForAddon }
-          : nextOptionsForAddon;
+  const mergedAddonOptions: AddonOptions = {
+    wxt: mergeOption(existingAddonOptions?.wxt, nextAddonOptions?.wxt),
+    fumadocs: mergeOption(existingAddonOptions?.fumadocs, nextAddonOptions?.fumadocs),
+    opentui: mergeOption(existingAddonOptions?.opentui, nextAddonOptions?.opentui),
+    mcp: mergeOption(existingAddonOptions?.mcp, nextAddonOptions?.mcp),
+    skills: mergeOption(existingAddonOptions?.skills, nextAddonOptions?.skills),
+    ultracite: mergeOption(existingAddonOptions?.ultracite, nextAddonOptions?.ultracite),
+  };
 
-      (
-        mergedAddonOptions as Record<
-          keyof AddonOptions,
-          AddonOptions[keyof AddonOptions] | undefined
-        >
-      )[addonKey] = mergedOptionsForAddon as AddonOptions[keyof AddonOptions];
-    }
-  }
-
-  return Object.keys(mergedAddonOptions).length > 0
-    ? (mergedAddonOptions as AddonOptions)
-    : undefined;
+  return Object.values(mergedAddonOptions).some(Boolean) ? mergedAddonOptions : undefined;
 }
 
 function getSetupAddons(addonsToAdd: Addons[], updatedAddons: Addons[]): Addons[] {
@@ -258,11 +252,11 @@ async function addHandlerInternal(
     // Interactive mode - prompt user to select addons
     const promptResult = await Result.tryPromise({
       try: () => getAddonsToAdd(existingConfig),
-      catch: (e: unknown) => {
-        if (UserCancelledError.is(e)) return e;
+      catch: (cause: unknown) => {
+        if (UserCancelledError.is(cause)) return cause;
         return new CLIError({
-          message: e instanceof Error ? e.message : String(e),
-          cause: e,
+          message: cause instanceof Error ? cause.message : String(cause),
+          cause: cause,
         });
       },
     });
@@ -325,6 +319,16 @@ async function addHandlerInternal(
     ...config,
     addons: updatedAddons,
   };
+
+  const requirementsResult = await checkLocalRequirements(updatedConfig);
+  if (requirementsResult.isErr()) {
+    return Result.err(requirementsResult.error);
+  }
+  if (!isSilent()) {
+    for (const warning of requirementsResult.value.warnings) {
+      log.warn(pc.yellow(warning));
+    }
+  }
 
   // Create VFS and process addon templates using template-generator's logic
   if (!isSilent()) {
@@ -429,11 +433,11 @@ async function addHandlerInternal(
         ...config,
         addons: getSetupAddons(addonsToAdd, updatedAddons),
       }),
-    catch: (e: unknown) => {
-      if (UserCancelledError.is(e)) return e;
+    catch: (cause: unknown) => {
+      if (UserCancelledError.is(cause)) return cause;
       return new CLIError({
-        message: e instanceof Error ? e.message : String(e),
-        cause: e,
+        message: cause instanceof Error ? cause.message : String(cause),
+        cause: cause,
       });
     },
   });

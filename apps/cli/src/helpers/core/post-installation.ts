@@ -8,11 +8,17 @@ import type {
   Frontend,
   ORM,
   ProjectConfig,
+  DbSetupOptions,
   Runtime,
   ServerDeploy,
   WebDeploy,
 } from "../../types";
-import { desktopWebFrontends } from "../../types";
+import {
+  getLocalD1Owner,
+  isAlchemyDeployTarget,
+  usesAlchemyManagedDatabase,
+  webFrontends,
+} from "../../types";
 import { getDockerStatus } from "../../utils/docker-utils";
 import { cliLog } from "../../utils/terminal-output";
 
@@ -54,6 +60,7 @@ export async function displayPostInstallInstructions(
     dbSetup,
     webDeploy,
     serverDeploy,
+    dbSetupOptions,
   } = config;
 
   const isConvex = backend === "convex";
@@ -83,6 +90,7 @@ export async function displayPostInstallInstructions(
           webDeploy,
           serverDeploy,
           backend,
+          dbSetupOptions,
         )
       : "";
 
@@ -115,9 +123,11 @@ export async function displayPostInstallInstructions(
     webDeploy,
     serverDeploy,
     backend,
+    config.auth,
+    frontend || [],
   );
 
-  const hasWeb = frontend?.some((f) => (desktopWebFrontends as readonly string[]).includes(f));
+  const hasWeb = frontend?.some((f) => (webFrontends as readonly string[]).includes(f));
   const hasNative =
     frontend?.includes("native-bare") ||
     frontend?.includes("native-uniwind") ||
@@ -155,6 +165,21 @@ export async function displayPostInstallInstructions(
     )}\n`;
   }
 
+  const hasAlchemyD1 =
+    dbSetup === "d1" &&
+    (serverDeploy === "cloudflare" || (isBackendSelf && webDeploy === "cloudflare"));
+  const hasWranglerLocalD1 = getLocalD1Owner(config) === "wrangler";
+
+  if (hasAlchemyD1 && orm !== "none") {
+    output += `${pc.cyan(`${stepCounter++}.`)} ${runCmd} db:generate\n`;
+    if (orm === "prisma") {
+      output += `${pc.cyan(`${stepCounter++}.`)} ${runCmd} db:migrate\n`;
+    }
+    if (hasWranglerLocalD1) {
+      output += `${pc.cyan(`${stepCounter++}.`)} ${runCmd} db:migrate:local\n`;
+    }
+  }
+
   if (isConvex) {
     output += `${pc.cyan(`${stepCounter++}.`)} ${runCmd} dev:setup\n${pc.dim(
       "   (this will guide you through Convex project setup)",
@@ -172,11 +197,6 @@ export async function displayPostInstallInstructions(
     }
 
     if (runtime === "workers") {
-      if (dbSetup === "d1") {
-        output += `${pc.yellow(
-          "IMPORTANT:",
-        )} Complete D1 database setup first\n   (see Database commands below)\n`;
-      }
       output += `${pc.cyan(`${stepCounter++}.`)} ${runCmd} dev\n`;
     }
   }
@@ -347,12 +367,20 @@ async function getDatabaseInstructions(
   webDeploy: WebDeploy,
   serverDeploy: ServerDeploy,
   backend: Backend,
+  dbSetupOptions: DbSetupOptions | undefined,
 ) {
   const notes: string[] = [];
   const commands: Array<{ label: string; command: string }> = [];
   const isD1Alchemy =
     dbSetup === "d1" &&
     (serverDeploy === "cloudflare" || (backend === "self" && webDeploy === "cloudflare"));
+  const isAlchemyManagedDatabase = usesAlchemyManagedDatabase({
+    backend,
+    dbSetup,
+    webDeploy,
+    serverDeploy,
+    dbSetupOptions,
+  });
 
   if (dbSetup === "docker") {
     const dockerStatus = await getDockerStatus(database);
@@ -362,16 +390,24 @@ async function getDatabaseInstructions(
     }
   }
 
-  if (isD1Alchemy) {
-    if (orm === "drizzle") {
-      commands.push({ label: "Generate migrations", command: `${runCmd} db:generate` });
-    } else if (orm === "prisma") {
-      commands.push({ label: "Generate client", command: `${runCmd} db:generate` });
-      commands.push({ label: "Apply migrations", command: `${runCmd} db:migrate` });
+  if (isAlchemyManagedDatabase) {
+    const provider =
+      dbSetup === "prisma-postgres"
+        ? "Prisma Postgres"
+        : dbSetup === "planetscale"
+          ? "PlanetScale"
+          : "Neon";
+    notes.push(
+      `${pc.cyan("INFO:")} Alchemy provisions ${provider}, injects its connection credentials, and applies checked-in migrations during deploy.`,
+    );
+    if (dbSetup === "planetscale") {
+      notes.push(
+        `${pc.yellow("NOTE:")} The generated PlanetScale database uses the PS_DEV size, which may incur usage charges.`,
+      );
     }
   }
 
-  if (dbSetup === "planetscale") {
+  if (dbSetup === "planetscale" && !isAlchemyManagedDatabase) {
     if (database === "mysql" && orm === "drizzle") {
       notes.push(
         `${pc.yellow("NOTE:")} Enable foreign key constraints in PlanetScale database settings`,
@@ -403,21 +439,25 @@ async function getDatabaseInstructions(
     if (dbSetup === "docker") {
       commands.push({ label: "Start database", command: `${runCmd} db:start` });
     }
-    if (!isD1Alchemy) {
+    if (isAlchemyManagedDatabase) {
+      commands.push({ label: "Generate client", command: `${runCmd} db:generate` });
+    } else if (!isD1Alchemy) {
       commands.push({ label: "Generate client", command: `${runCmd} db:generate` });
       commands.push({ label: "Apply schema", command: `${runCmd} db:push` });
     }
-    if (!isD1Alchemy) {
+    if (!isD1Alchemy && !isAlchemyManagedDatabase) {
       commands.push({ label: "Open studio", command: `${runCmd} db:studio` });
     }
   } else if (orm === "drizzle") {
     if (dbSetup === "docker") {
       commands.push({ label: "Start database", command: `${runCmd} db:start` });
     }
-    if (!isD1Alchemy) {
+    if (isAlchemyManagedDatabase) {
+      commands.push({ label: "Generate migrations", command: `${runCmd} db:generate` });
+    } else if (!isD1Alchemy) {
       commands.push({ label: "Apply schema", command: `${runCmd} db:push` });
     }
-    if (!isD1Alchemy) {
+    if (!isD1Alchemy && !isAlchemyManagedDatabase) {
       commands.push({ label: "Open studio", command: `${runCmd} db:studio` });
     }
   } else if (orm === "mongoose") {
@@ -646,23 +686,49 @@ function getAlchemyDeployInstructions(
   webDeploy: WebDeploy,
   serverDeploy: ServerDeploy,
   backend: Backend,
+  auth: ProjectConfig["auth"],
+  frontend: Frontend[],
 ) {
   const instructions: string[] = [];
   const isBackendSelf = backend === "self";
+  const hasAlchemyWeb = isAlchemyDeployTarget(webDeploy);
+  const hasAlchemyServer = isAlchemyDeployTarget(serverDeploy);
+  const alchemyExec = runCmd === "npm run" ? "npx" : runCmd === "pnpm run" ? "pnpm exec" : "bunx";
 
-  if (webDeploy === "cloudflare" && serverDeploy !== "cloudflare" && !isBackendSelf) {
-    const cfDeploy = serverDeploy === "vercel" ? "deploy:web" : "deploy";
+  if (hasAlchemyWeb || hasAlchemyServer) {
+    const targetParts = [
+      ...(hasAlchemyWeb ? [`web on ${webDeploy === "cloudflare" ? "Cloudflare" : "Prisma"}`] : []),
+      ...(hasAlchemyServer && !isBackendSelf
+        ? [`server on ${serverDeploy === "cloudflare" ? "Cloudflare" : "Prisma"}`]
+        : []),
+    ];
+    const deployScript =
+      webDeploy === "vercel"
+        ? "deploy:server"
+        : serverDeploy === "vercel"
+          ? "deploy:web"
+          : "deploy";
+    const originSteps: string[] = [];
+    const hasWeb = frontend.some((value) => (webFrontends as readonly string[]).includes(value));
+
+    if (!isBackendSelf && hasAlchemyServer && hasWeb) {
+      originSteps.push(
+        `${pc.cyan("•")} Required after the first deploy: set CORS_ORIGIN in apps/server/.env to the deployed web origin, then deploy again`,
+      );
+    }
+
+    if (auth === "better-auth" && isBackendSelf && webDeploy === "prisma") {
+      originSteps.push(
+        `${pc.cyan("•")} After the first deploy, set BETTER_AUTH_URL in apps/web/.env to the returned web URL, then deploy again`,
+      );
+    } else if (auth === "better-auth" && !isBackendSelf && serverDeploy === "prisma") {
+      originSteps.push(
+        `${pc.cyan("•")} After the first deploy, set BETTER_AUTH_URL in apps/server/.env to the returned server URL, then deploy again`,
+      );
+    }
+
     instructions.push(
-      `${pc.bold("Deploy web with Cloudflare (Alchemy):")}\n${pc.cyan("•")} Dev: ${`${runCmd} dev`}\n${pc.cyan("•")} Deploy: ${`${runCmd} ${cfDeploy}`}\n${pc.cyan("•")} Destroy: ${`${runCmd} destroy`}`,
-    );
-  } else if (serverDeploy === "cloudflare" && webDeploy !== "cloudflare" && !isBackendSelf) {
-    const cfDeploy = webDeploy === "vercel" ? "deploy:server" : "deploy";
-    instructions.push(
-      `${pc.bold("Deploy server with Cloudflare (Alchemy):")}\n${pc.cyan("•")} Dev: ${`${runCmd} dev`}\n${pc.cyan("•")} Deploy: ${`${runCmd} ${cfDeploy}`}\n${pc.cyan("•")} Destroy: ${`${runCmd} destroy`}`,
-    );
-  } else if (webDeploy === "cloudflare" && (serverDeploy === "cloudflare" || isBackendSelf)) {
-    instructions.push(
-      `${pc.bold("Deploy with Cloudflare (Alchemy):")}\n${pc.cyan("•")} Dev: ${`${runCmd} dev`}\n${pc.cyan("•")} Deploy: ${`${runCmd} deploy`}\n${pc.cyan("•")} Destroy: ${`${runCmd} destroy`}`,
+      `${pc.bold(`Deploy with Alchemy (${targetParts.join(" + ")}):`)}\n${pc.cyan("•")} Configure provider login: ${`cd packages/infra && ${alchemyExec} alchemy login --configure`}\n${pc.cyan("•")} Dev: ${`${runCmd} dev`}\n${pc.cyan("•")} Deploy: ${`${runCmd} ${deployScript}`}\n${originSteps.join("\n")}${originSteps.length > 0 ? "\n" : ""}${pc.cyan("•")} Destroy: ${`${runCmd} destroy`}`,
     );
   }
 
@@ -679,7 +745,7 @@ function getAlchemyDeployInstructions(
   }
 
   if (webDeploy === "vercel" || serverDeploy === "vercel") {
-    const mixedWithCloudflare = webDeploy === "cloudflare" || serverDeploy === "cloudflare";
+    const mixedWithCloudflare = hasAlchemyWeb || hasAlchemyServer;
     const vercelSetupScript = "deploy:setup";
     const vercelEnvScript = "env:production";
     const vercelDeployScript = mixedWithCloudflare

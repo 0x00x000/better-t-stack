@@ -8,7 +8,20 @@ export function processInfraDeps(vfs: VirtualFileSystem, config: ProjectConfig):
   if (!vfs.exists(infraPath)) return;
 
   const { serverDeploy, webDeploy } = config;
-  if (serverDeploy === "cloudflare" || webDeploy === "cloudflare") {
-    addPackageDependency({ vfs, packagePath: infraPath, devDependencies: ["alchemy"] });
+  if (
+    ["cloudflare", "prisma"].includes(serverDeploy) ||
+    ["cloudflare", "prisma"].includes(webDeploy)
+  ) {
+    addPackageDependency({
+      vfs,
+      packagePath: infraPath,
+      devDependencies: [
+        "alchemy",
+        "effect",
+        "@effect/platform-node",
+        "@effect/platform-bun",
+        "dotenv",
+      ],
+    });
   }
 }

@@ -1,5 +1,13 @@
 import type { ProjectConfig } from "@better-t-stack/types";
 
+const NATIVE_GENERATED_PATTERNS = [
+  "apps/native/.expo/**",
+  "apps/native/dist/**",
+  "apps/native/web-build/**",
+  "apps/native/ios/**",
+  "apps/native/android/**",
+] as const;
+
 const FRONTEND_GENERATED_PATTERNS = {
   "tanstack-router": ["apps/web/dist/**", "apps/web/.tanstack/**", "apps/web/src/routeTree.gen.ts"],
   "react-router": ["apps/web/build/**", "apps/web/.react-router/**"],
@@ -10,19 +18,17 @@ const FRONTEND_GENERATED_PATTERNS = {
     "apps/web/src/routeTree.gen.ts",
   ],
   next: ["apps/web/.next/**", "apps/web/out/**"],
-  "native-bare": ["apps/native/.expo/**", "apps/native/dist/**", "apps/native/web-build/**"],
-  "native-uniwind": ["apps/native/.expo/**", "apps/native/dist/**", "apps/native/web-build/**"],
-  "native-unistyles": [
-    "apps/native/.expo/**",
-    "apps/native/dist/**",
-    "apps/native/web-build/**",
-    "apps/native/ios/**",
-    "apps/native/android/**",
-  ],
+  nuxt: ["apps/web/.nuxt/**", "apps/web/.output/**", "apps/web/.data/**", "apps/web/.nitro/**"],
+  svelte: ["apps/web/.svelte-kit/**", "apps/web/build/**", "apps/web/.output/**"],
+  solid: ["apps/web/dist/**", "apps/web/.output/**"],
+  astro: ["apps/web/dist/**", "apps/web/.astro/**"],
+  "native-bare": NATIVE_GENERATED_PATTERNS,
+  "native-uniwind": NATIVE_GENERATED_PATTERNS,
+  "native-unistyles": NATIVE_GENERATED_PATTERNS,
   none: [],
 } as const satisfies Partial<Record<ProjectConfig["frontend"][number], readonly string[]>>;
 
-const SERVER_BUILD_BACKENDS = ["hono"] as const;
+const SERVER_BUILD_BACKENDS = ["hono", "express", "fastify", "elysia"] as const;
 
 export function getStackGeneratedIgnorePatterns(config: ProjectConfig): string[] {
   const patterns = new Set<string>();
@@ -43,12 +49,24 @@ export function getStackGeneratedIgnorePatterns(config: ProjectConfig): string[]
     patterns.add("packages/db/dist/**");
   }
 
-  if (config.database === "sqlite" && config.dbSetup !== "d1" && config.orm !== "none") {
+  if (
+    config.database === "sqlite" &&
+    config.orm !== "none" &&
+    (config.dbSetup !== "d1" || config.orm === "prisma")
+  ) {
     patterns.add("packages/db/local.db*");
   }
 
   if (config.orm === "prisma") {
     patterns.add("packages/db/prisma/generated/**");
+
+    if (config.database === "sqlite" && config.dbSetup === "turso") {
+      patterns.add("packages/db/prisma/**/*.db*");
+    }
+  }
+
+  if (config.backend === "convex") {
+    patterns.add("packages/backend/convex/_generated/**");
   }
 
   const hasCloudflare =

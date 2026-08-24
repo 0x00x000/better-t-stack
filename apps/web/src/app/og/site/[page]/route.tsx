@@ -5,10 +5,7 @@ import { OG_SIZE, OgShell, ogColors, ogFonts } from "@/lib/og";
 
 export const revalidate = false;
 
-const PAGES: Record<
-  string,
-  { path: string; section: string; title: string; description: string; command?: string }
-> = {
+const PAGES = {
   home: {
     path: "~",
     section: "home",
@@ -23,7 +20,10 @@ const PAGES: Record<
     description: "Pick your stack, get a ready-to-run command",
     command: "bun create better-t-stack@latest my-app --yes",
   },
-};
+} satisfies Record<
+  string,
+  { path: string; section: string; title: string; description: string; command?: string }
+>;
 
 export async function GET(_req: Request, { params }: RouteContext<"/og/site/[page]">) {
   const { page: pageParam } = await params;

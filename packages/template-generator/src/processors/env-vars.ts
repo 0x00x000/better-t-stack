@@ -1,6 +1,7 @@
 import type { ProjectConfig } from "@better-t-stack/types";
 
 import type { VirtualFileSystem } from "../core/virtual-fs";
+import { isDatabaseConsumedByDocker } from "../utils/docker-database";
 
 export interface EnvVariable {
   key: string;
@@ -15,26 +16,15 @@ type AddEnvVariablesOptions = {
 
 function generateRandomString(length: number, charset: string) {
   let result = "";
-  if (
-    typeof globalThis.crypto !== "undefined" &&
-    typeof globalThis.crypto.getRandomValues === "function"
-  ) {
-    const values = new Uint8Array(length);
-    globalThis.crypto.getRandomValues(values);
-    for (let i = 0; i < length; i++) {
-      const value = values[i];
-      if (value !== undefined) {
-        result += charset[value % charset.length];
-      }
+  const values = new Uint8Array(length);
+  globalThis.crypto.getRandomValues(values);
+  for (let i = 0; i < length; i++) {
+    const value = values[i];
+    if (value !== undefined) {
+      result += charset[value % charset.length];
     }
-    return result;
-  } else {
-    // Fallback for environments without crypto
-    for (let i = 0; i < length; i++) {
-      result += charset[Math.floor(Math.random() * charset.length)];
-    }
-    return result;
   }
+  return result;
 }
 
 function generateAuthSecret() {
@@ -181,7 +171,16 @@ function buildServerVars(
         databaseUrl = "mongodb://localhost:27017/mydatabase";
         break;
       case "sqlite":
-        if (runtime === "workers" || webDeploy === "cloudflare" || serverDeploy === "cloudflare") {
+        if (
+          isDatabaseConsumedByDocker({ backend, serverDeploy, webDeploy }) &&
+          dbSetup === "none"
+        ) {
+          databaseUrl = "file:../../.data/local.db";
+        } else if (
+          runtime === "workers" ||
+          webDeploy === "cloudflare" ||
+          serverDeploy === "cloudflare"
+        ) {
           databaseUrl = "http://127.0.0.1:8080";
         } else {
           databaseUrl = "file:../../local.db";
@@ -206,7 +205,7 @@ function buildServerVars(
     {
       key: "CORS_ORIGIN",
       value: corsOrigin,
-      condition: true,
+      condition: backend !== "self",
     },
     {
       key: "GOOGLE_GENERATIVE_AI_API_KEY",
@@ -292,24 +291,5 @@ export function processEnvVariables(vfs: VirtualFileSystem, config: ProjectConfi
   } else if (vfs.directoryExists("apps/server")) {
     const envPath = "apps/server/.env";
     writeEnvFile(vfs, envPath, serverVars);
-  }
-
-  // --- Alchemy Infra .env ---
-  const isUnifiedAlchemy = webDeploy === "cloudflare" && serverDeploy === "cloudflare";
-  const isIndividualAlchemy = webDeploy === "cloudflare" || serverDeploy === "cloudflare";
-
-  if (isUnifiedAlchemy || isIndividualAlchemy) {
-    const infraDir = "packages/infra";
-    if (vfs.directoryExists(infraDir)) {
-      const envPath = `${infraDir}/.env`;
-      const infraAlchemyVars: EnvVariable[] = [
-        {
-          key: "ALCHEMY_PASSWORD",
-          value: "please-change-this",
-          condition: true,
-        },
-      ];
-      writeEnvFile(vfs, envPath, infraAlchemyVars);
-    }
   }
 }

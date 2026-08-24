@@ -30,8 +30,15 @@ import {
   validateSafeProjectDirectoryPath,
 } from "../../utils/project-directory";
 import { addToHistory } from "../../utils/project-history";
+import {
+  type AvailableProjectLauncher,
+  type ProjectLauncher,
+  getProjectLauncherChoice,
+  launchProject,
+} from "../../utils/project-launcher";
 import { validateProjectName } from "../../utils/project-name-validation";
 import { renderTitle } from "../../utils/render-title";
+import { checkLocalRequirements } from "../../utils/requirements";
 import { getTemplateConfig, getTemplateDescription } from "../../utils/templates";
 import {
   getProvidedFlags,
@@ -41,11 +48,16 @@ import {
   validateResolvedConfigCompatibility,
 } from "../../validation";
 import { createProject } from "./create-project";
-import { mergeResolvedDbSetupOptions } from "./db-setup-options";
+import { resolveProjectDbSetupOptions } from "./db-setup-options";
 
 export interface CreateHandlerOptions {
   silent?: boolean;
 }
+
+type CreateCommandInput = CreateInput & {
+  projectName?: string;
+  open?: ProjectLauncher;
+};
 
 /**
  * Result type for project creation
@@ -115,7 +127,7 @@ interface CreateHandlerExecution {
 }
 
 async function executeCreateProjectHandler(
-  input: CreateInput & { projectName?: string },
+  input: CreateCommandInput,
   options: CreateHandlerOptions,
 ): Promise<CreateHandlerExecution> {
   const { silent = false } = options;
@@ -130,7 +142,7 @@ async function executeCreateProjectHandler(
 }
 
 export async function createProjectHandlerResult(
-  input: CreateInput & { projectName?: string },
+  input: CreateCommandInput,
   options: CreateHandlerOptions = {},
 ): Promise<Result<CreateProjectResult, CreateHandlerError>> {
   const execution = await executeCreateProjectHandler(input, options);
@@ -138,7 +150,7 @@ export async function createProjectHandlerResult(
 }
 
 export async function createProjectHandler(
-  input: CreateInput & { projectName?: string },
+  input: CreateCommandInput,
   options: CreateHandlerOptions = {},
 ): Promise<CreateProjectResult | undefined> {
   const { silent = false } = options;
@@ -173,7 +185,7 @@ export async function createProjectHandler(
 }
 
 async function createProjectHandlerInternal(
-  input: CreateInput & { projectName?: string },
+  input: CreateCommandInput,
   startTime: number,
   timeScaffolded: string,
 ): Promise<Result<CreateProjectResult, CreateHandlerError>> {
@@ -205,11 +217,11 @@ async function createProjectHandlerInternal(
       const projectNameResult = yield* Result.await(
         Result.tryPromise({
           try: async () => getProjectName(input.projectName),
-          catch: (e: unknown) => {
-            if (e instanceof UserCancelledError) return e;
+          catch: (cause: unknown) => {
+            if (cause instanceof UserCancelledError) return cause;
             return new CLIError({
-              message: e instanceof Error ? e.message : String(e),
-              cause: e,
+              message: cause instanceof Error ? cause.message : String(cause),
+              cause: cause,
             });
           },
         }),
@@ -253,12 +265,9 @@ async function createProjectHandlerInternal(
             `${pc.dim("Template")} ${pc.bold(pc.cyan(templateName))}\n${pc.dim(templateDescription)}`,
           );
         }
-        const userOverrides: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(originalInput)) {
-          if (value !== undefined) {
-            userOverrides[key] = value;
-          }
-        }
+        const userOverrides = Object.fromEntries(
+          Object.entries(originalInput).filter(([, value]) => value !== undefined),
+        );
         cliInput = {
           ...templateConfig,
           ...userOverrides,
@@ -319,12 +328,15 @@ async function createProjectHandlerInternal(
       const gatherResult = yield* Result.await(
         Result.tryPromise({
           try: async () =>
-            gatherConfig(flagConfig, finalBaseName, finalResolvedPath, finalPathInput, {}),
-          catch: (e: unknown) => {
-            if (e instanceof UserCancelledError) return e;
+            gatherConfig(flagConfig, finalBaseName, finalResolvedPath, finalPathInput, {
+              skipCompatibilityChecks: cliInput.yolo,
+              manualDb: cliInput.manualDb ?? input.manualDb,
+            }),
+          catch: (cause: unknown) => {
+            if (cause instanceof UserCancelledError) return cause;
             return new CLIError({
-              message: e instanceof Error ? e.message : String(e),
-              cause: e,
+              message: cause instanceof Error ? cause.message : String(cause),
+              cause: cause,
             });
           },
         }),
@@ -332,14 +344,10 @@ async function createProjectHandlerInternal(
       config = gatherResult;
     }
 
-    const effectiveDbSetupOptions = mergeResolvedDbSetupOptions(
-      config.dbSetup,
-      config.dbSetupOptions,
-      {
-        manualDb: cliInput.manualDb ?? input.manualDb,
-        dbSetupOptions: cliInput.dbSetupOptions ?? input.dbSetupOptions,
-      },
-    );
+    const effectiveDbSetupOptions = resolveProjectDbSetupOptions(config, {
+      manualDb: cliInput.manualDb ?? input.manualDb,
+      dbSetupOptions: cliInput.dbSetupOptions ?? input.dbSetupOptions,
+    });
 
     if (effectiveDbSetupOptions) {
       config = {
@@ -356,15 +364,22 @@ async function createProjectHandlerInternal(
       });
     }
 
+    const localRequirements = yield* Result.await(checkLocalRequirements(config));
+    if (!isSilent()) {
+      for (const warning of localRequirements.warnings) {
+        log.warn(pc.yellow(warning));
+      }
+    }
+
     if (!input.dryRun) {
       yield* Result.await(
         Result.tryPromise({
           try: async () => setupProjectDirectory(finalPathInput, shouldClearDirectory),
-          catch: (e: unknown) => {
-            if (e instanceof UserCancelledError) return e;
+          catch: (cause: unknown) => {
+            if (cause instanceof UserCancelledError) return cause;
             return new CLIError({
-              message: e instanceof Error ? e.message : String(e),
-              cause: e,
+              message: cause instanceof Error ? cause.message : String(cause),
+              cause: cause,
             });
           },
         }),
@@ -411,6 +426,7 @@ async function createProjectHandlerInternal(
       createProject(config, {
         manualDb: cliInput.manualDb ?? input.manualDb,
         dbSetupOptions: effectiveDbSetupOptions,
+        packageManagerVersion: localRequirements.packageManagerVersion,
       }),
     );
 
@@ -424,10 +440,34 @@ async function createProjectHandlerInternal(
       log.message(`${pc.dim("Setup saved to history")}\n${pc.cyan(historyCommand)}`);
     }
 
+    let projectLauncher: AvailableProjectLauncher | undefined;
+    if (!isSilent()) {
+      const launcherResult = await getProjectLauncherChoice(input.open, config.projectDir, {
+        prompt:
+          !input.yes &&
+          process.env.CI === undefined &&
+          process.stdin.isTTY === true &&
+          process.stdout.isTTY === true,
+      });
+
+      if (launcherResult.isErr()) {
+        log.warn(pc.yellow(launcherResult.error.message));
+      } else {
+        projectLauncher = launcherResult.value;
+      }
+    }
+
     const elapsedTimeMs = Date.now() - startTime;
     if (!isSilent()) {
       const elapsedTimeInSeconds = (elapsedTimeMs / 1000).toFixed(1);
       outro(pc.magenta(`Project ready in ${pc.bold(`${elapsedTimeInSeconds}s`)}`));
+
+      if (projectLauncher) {
+        const launchResult = await launchProject(projectLauncher);
+        if (launchResult.isErr()) {
+          log.warn(pc.yellow(launchResult.error.message));
+        }
+      }
     }
 
     return Result.ok({
@@ -512,12 +552,12 @@ async function handleDirectoryConflictResult(
   // Use interactive handler
   return Result.tryPromise({
     try: async () => handleDirectoryConflict(currentPathInput),
-    catch: (e: unknown) => {
-      if (e instanceof UserCancelledError) return e;
-      if (e instanceof CLIError) return e;
+    catch: (cause: unknown) => {
+      if (cause instanceof UserCancelledError) return cause;
+      if (cause instanceof CLIError) return cause;
       return new CLIError({
-        message: e instanceof Error ? e.message : String(e),
-        cause: e,
+        message: cause instanceof Error ? cause.message : String(cause),
+        cause: cause,
       });
     },
   });

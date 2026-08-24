@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  ADDONS_VALUES,
+  SERVER_DEPLOY_VALUES,
+  WEB_DEPLOY_VALUES,
+} from "../../../packages/types/src/schemas";
+import {
   applyStackUpdate,
   getSelectedTechRemovalUpdate,
   getTechSelectionUpdate,
@@ -10,7 +15,7 @@ import {
   analyzeStackCompatibility,
   getDisabledReason,
 } from "../src/app/(home)/new/_components/utils";
-import { DEFAULT_STACK, type StackState } from "../src/lib/constant";
+import { DEFAULT_STACK, type StackState, TECH_OPTIONS } from "../src/lib/constant";
 import { sanitizeAddons } from "../src/lib/sanitize-stack-addons";
 import { formatStackCommandForDisplay, generateStackCommand } from "../src/lib/stack-utils";
 
@@ -26,6 +31,29 @@ function createStack(overrides: Partial<StackState> = {}): StackState {
 }
 
 describe("stack builder D1 compatibility", () => {
+  test("supports Solid 2 as a self-hosted fullstack backend", () => {
+    const stack = createStack({
+      webFrontend: ["solid"],
+      backend: "self-solid",
+      runtime: "none",
+      api: "orpc",
+      serverDeploy: "none",
+    });
+
+    expect(getDisabledReason(stack, "backend", "self-solid")).toBeNull();
+    expect(getDisabledReason(stack, "api", "trpc")).toBe(
+      "tRPC is not compatible with Solid (use oRPC)",
+    );
+    expect(getDisabledReason(stack, "addons", "evlog")).toBe(
+      "evlog requires Hono, Express, Fastify, Elysia, or a fullstack backend",
+    );
+    expect(analyzeStackCompatibility(stack).adjustedStack).toBeNull();
+
+    const command = generateStackCommand(stack);
+    expect(command).toContain("--frontend solid");
+    expect(command).toContain("--backend self");
+  });
+
   test("keeps self fullstack backends on the D1 + Cloudflare path", () => {
     const stack = createStack({
       backend: "self-next",
@@ -123,6 +151,18 @@ describe("stack builder D1 compatibility", () => {
     expect(command).toContain("my-better-t-app --frontend");
     expect(displayCommand).toContain(`my-better-t-app ${"\\"}\n  --frontend`);
     expect(displayCommand).toContain(`tanstack-router ${"\\"}\n  --backend`);
+  });
+
+  test("quotes project names as a single shell argument", () => {
+    expect(generateStackCommand(createStack({ projectName: "name; echo INJECTED" }))).toContain(
+      "'name; echo INJECTED' --yes",
+    );
+    expect(generateStackCommand(createStack({ projectName: "name$(echo INJECTED)" }))).toContain(
+      "'name$(echo INJECTED)' --yes",
+    );
+    expect(generateStackCommand(createStack({ projectName: "project's app\nnext" }))).toContain(
+      "'project'\\''s app\nnext' --yes",
+    );
   });
 
   test("reapplies the same D1 adjustment after leaving and returning to it", () => {
@@ -411,5 +451,135 @@ describe("stack builder Vercel deployment compatibility", () => {
     expect(result.adjustedStack).toMatchObject({
       serverDeploy: "none",
     });
+  });
+});
+
+describe("stack builder option parity", () => {
+  test("exposes every CLI addon and deployment option", () => {
+    expect(TECH_OPTIONS.addons.map((option) => option.id).sort()).toEqual(
+      ADDONS_VALUES.filter((value) => value !== "none").sort(),
+    );
+    expect(TECH_OPTIONS.webDeploy.map((option) => option.id).sort()).toEqual(
+      [...WEB_DEPLOY_VALUES].sort(),
+    );
+    expect(TECH_OPTIONS.serverDeploy.map((option) => option.id).sort()).toEqual(
+      [...SERVER_DEPLOY_VALUES].sort(),
+    );
+  });
+
+  test("marks only Vercel deployment as experimental", () => {
+    for (const category of [TECH_OPTIONS.webDeploy, TECH_OPTIONS.serverDeploy]) {
+      expect(category.find((option) => option.id === "vercel")).toMatchObject({
+        experimental: true,
+      });
+      for (const option of category) {
+        const isExperimental = "experimental" in option && option.experimental === true;
+        expect(isExperimental).toBe(option.id === "vercel");
+      }
+    }
+  });
+});
+
+describe("stack builder Prisma deployment compatibility", () => {
+  test("allows Prisma web deployment only for supported SSR frontends", () => {
+    for (const frontend of [
+      "next",
+      "nuxt",
+      "astro",
+      "react-router",
+      "tanstack-start",
+      "svelte",
+      "solid",
+    ]) {
+      expect(
+        getDisabledReason(createStack({ webFrontend: [frontend] }), "webDeploy", "prisma"),
+      ).toBeNull();
+    }
+
+    for (const frontend of ["tanstack-router"]) {
+      expect(
+        getDisabledReason(createStack({ webFrontend: [frontend] }), "webDeploy", "prisma"),
+      ).toBe(
+        "Prisma requires Next.js, Nuxt, Astro, React Router, TanStack Start, SvelteKit, or Solid",
+      );
+    }
+  });
+
+  test("blocks Prisma web deploy when desktop addons replace its server artifact", () => {
+    const stack = createStack({
+      webFrontend: ["react-router"],
+      addons: ["tauri"],
+      webDeploy: "none",
+    });
+
+    expect(getDisabledReason(stack, "webDeploy", "prisma")).toBe(
+      "Prisma cannot deploy the static output required by tauri on react-router",
+    );
+    expect(resolveStackCompatibility({ ...stack, webDeploy: "prisma" }).stack.webDeploy).toBe(
+      "none",
+    );
+  });
+
+  test("generates Prisma web and server deployment flags", () => {
+    const command = generateStackCommand(
+      createStack({
+        webFrontend: ["next"],
+        backend: "hono",
+        runtime: "bun",
+        webDeploy: "prisma",
+        serverDeploy: "prisma",
+      }),
+    );
+
+    expect(command).toContain("--web-deploy prisma");
+    expect(command).toContain("--server-deploy prisma");
+  });
+
+  test("requires Bun or Node for Prisma server deployment", () => {
+    expect(
+      getDisabledReason(createStack({ backend: "hono", runtime: "bun" }), "serverDeploy", "prisma"),
+    ).toBeNull();
+    expect(
+      getDisabledReason(
+        createStack({ backend: "hono", runtime: "workers" }),
+        "serverDeploy",
+        "prisma",
+      ),
+    ).toBe("Prisma server deployment requires the Bun or Node runtime");
+  });
+
+  test("repairs invalid Prisma deployment state", () => {
+    expect(
+      resolveStackCompatibility(
+        createStack({ webFrontend: ["tanstack-router"], webDeploy: "prisma" }),
+      ).stack.webDeploy,
+    ).toBe("none");
+    expect(
+      resolveStackCompatibility(
+        createStack({
+          backend: "hono",
+          runtime: "workers",
+          serverDeploy: "prisma",
+          database: "sqlite",
+          orm: "drizzle",
+          dbSetup: "d1",
+        }),
+      ).stack.serverDeploy,
+    ).toBe("cloudflare");
+  });
+
+  test("blocks the known Next.js Cloudflare PostgreSQL conflict", () => {
+    const postgresStack = createStack({
+      webFrontend: ["next"],
+      backend: "self-next",
+      runtime: "none",
+      database: "postgres",
+      orm: "prisma",
+      dbSetup: "none",
+    });
+
+    expect(getDisabledReason(postgresStack, "webDeploy", "cloudflare")).toBe(
+      "This Prisma PostgreSQL setup with Next.js is temporarily unavailable on Cloudflare",
+    );
   });
 });

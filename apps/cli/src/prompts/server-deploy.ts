@@ -11,10 +11,12 @@ type DeploymentOption = {
   hint: string;
 };
 
-function getDeploymentDisplay(deployment: ServerDeploy): {
+interface DeploymentDisplay {
   label: string;
   hint: string;
-} {
+}
+
+function getDeploymentDisplay(deployment: ServerDeploy): DeploymentDisplay {
   if (deployment === "cloudflare") {
     return {
       label: "Cloudflare",
@@ -27,10 +29,16 @@ function getDeploymentDisplay(deployment: ServerDeploy): {
       hint: "Self-host with a Dockerfile and docker-compose.yml",
     };
   }
+  if (deployment === "prisma") {
+    return {
+      label: "Prisma",
+      hint: "Deploy with Prisma using Alchemy",
+    };
+  }
   if (deployment === "vercel") {
     return {
-      label: "Vercel",
-      hint: "Deploy to Vercel with Services",
+      label: "Vercel (experimental)",
+      hint: "Deploy to Vercel with Services; not fully tested",
     };
   }
   return {
@@ -61,13 +69,15 @@ export async function getServerDeploymentChoice(
     return "none";
   }
 
-  const options: DeploymentOption[] = (["docker", "vercel", "none"] as const).map((deploy) => {
-    const { label, hint } =
-      deploy === "none"
-        ? { label: "None", hint: "Skip deployment setup" }
-        : getDeploymentDisplay(deploy);
-    return { value: deploy, label, hint };
-  });
+  const options: DeploymentOption[] = (["prisma", "docker", "vercel", "none"] as const).map(
+    (deploy) => {
+      const { label, hint } =
+        deploy === "none"
+          ? { label: "None", hint: "Skip deployment setup" }
+          : getDeploymentDisplay(deploy);
+      return { value: deploy, label, hint };
+    },
+  );
 
   const response = await navigableSelect<ServerDeploy>({
     message: "Choose server deployment",
@@ -106,7 +116,7 @@ export async function getServerDeploymentToAdd(
   }
 
   if (runtime === "bun" || runtime === "node") {
-    for (const deploy of ["docker", "vercel"] as const) {
+    for (const deploy of ["prisma", "docker", "vercel"] as const) {
       const { label, hint } = getDeploymentDisplay(deploy);
       options.push({
         value: deploy,

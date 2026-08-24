@@ -2,18 +2,7 @@ import type { TechCategory } from "./types";
 
 export const ICON_BASE_URL = "https://r2.better-t-stack.dev/icons";
 
-export const TECH_OPTIONS: Record<
-  TechCategory,
-  {
-    id: string;
-    name: string;
-    description: string;
-    icon: string;
-    color: string;
-    default?: boolean;
-    className?: string;
-  }[]
-> = {
+export const TECH_OPTIONS = {
   api: [
     {
       id: "orpc",
@@ -588,7 +577,18 @@ export const TECH_OPTIONS: Record<
       color: "from-yellow-400 to-yellow-600",
     },
   ],
-};
+} satisfies Record<
+  TechCategory,
+  {
+    id: string;
+    name: string;
+    description: string;
+    icon: string;
+    color: string;
+    default?: boolean;
+    className?: string;
+  }[]
+>;
 
 export type StackState = {
   projectName: string | null;

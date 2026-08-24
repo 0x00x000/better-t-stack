@@ -3,8 +3,6 @@ import type { ProjectConfig } from "@better-t-stack/types";
 import type { VirtualFileSystem } from "../core/virtual-fs";
 import { type TemplateData, processTemplatesFromPrefix } from "./utils";
 
-const REACT_WEB_FRONTENDS = ["tanstack-router", "react-router", "tanstack-start", "next"] as const;
-
 export async function processAuthTemplates(
   vfs: VirtualFileSystem,
   templates: TemplateData,
@@ -12,16 +10,131 @@ export async function processAuthTemplates(
 ): Promise<void> {
   if (!config.auth || config.auth === "none") return;
 
-  const authProvider = config.auth;
   const hasReactWeb = config.frontend.some((f) =>
-    REACT_WEB_FRONTENDS.includes(f as (typeof REACT_WEB_FRONTENDS)[number]),
+    ["tanstack-router", "react-router", "tanstack-start", "next"].includes(f),
   );
+  const hasNuxtWeb = config.frontend.includes("nuxt");
+  const hasSvelteWeb = config.frontend.includes("svelte");
+  const hasSolidWeb = config.frontend.includes("solid");
+  const hasAstroWeb = config.frontend.includes("astro");
   const hasNativeBare = config.frontend.includes("native-bare");
   const hasUniwind = config.frontend.includes("native-uniwind");
   const hasUnistyles = config.frontend.includes("native-unistyles");
   const hasNative = hasNativeBare || hasUniwind || hasUnistyles;
 
-  if (config.backend !== "none") {
+  const authProvider = config.auth;
+
+  if (config.backend === "convex" && authProvider === "clerk") {
+    processTemplatesFromPrefix(
+      vfs,
+      templates,
+      "auth/clerk/convex/backend",
+      "packages/backend",
+      config,
+    );
+
+    if (hasReactWeb) {
+      const reactFramework = config.frontend.find((f) =>
+        ["tanstack-router", "react-router", "tanstack-start", "next"].includes(f),
+      );
+      if (reactFramework) {
+        processTemplatesFromPrefix(
+          vfs,
+          templates,
+          `auth/clerk/convex/web/react/${reactFramework}`,
+          "apps/web",
+          config,
+        );
+      }
+    }
+
+    if (hasNative) {
+      processTemplatesFromPrefix(
+        vfs,
+        templates,
+        "auth/clerk/convex/native/base",
+        "apps/native",
+        config,
+      );
+
+      let nativeFramework = "";
+      if (hasNativeBare) nativeFramework = "bare";
+      else if (hasUniwind) nativeFramework = "uniwind";
+      else if (hasUnistyles) nativeFramework = "unistyles";
+
+      if (nativeFramework) {
+        processTemplatesFromPrefix(
+          vfs,
+          templates,
+          `auth/clerk/convex/native/${nativeFramework}`,
+          "apps/native",
+          config,
+        );
+      }
+    }
+    return;
+  }
+
+  if (config.backend === "convex" && authProvider === "better-auth") {
+    processTemplatesFromPrefix(
+      vfs,
+      templates,
+      "auth/better-auth/convex/backend",
+      "packages/backend",
+      config,
+    );
+
+    if (hasReactWeb) {
+      processTemplatesFromPrefix(
+        vfs,
+        templates,
+        "auth/better-auth/convex/web/react/base",
+        "apps/web",
+        config,
+      );
+
+      const reactFramework = config.frontend.find((f) =>
+        ["tanstack-router", "react-router", "tanstack-start", "next"].includes(f),
+      );
+      if (reactFramework) {
+        processTemplatesFromPrefix(
+          vfs,
+          templates,
+          `auth/better-auth/convex/web/react/${reactFramework}`,
+          "apps/web",
+          config,
+        );
+      }
+    }
+
+    if (hasNative) {
+      processTemplatesFromPrefix(
+        vfs,
+        templates,
+        "auth/better-auth/convex/native/base",
+        "apps/native",
+        config,
+      );
+
+      let nativeFramework = "";
+      if (hasNativeBare) nativeFramework = "bare";
+      else if (hasUniwind) nativeFramework = "uniwind";
+      else if (hasUnistyles) nativeFramework = "unistyles";
+
+      if (nativeFramework) {
+        processTemplatesFromPrefix(
+          vfs,
+          templates,
+          `auth/better-auth/convex/native/${nativeFramework}`,
+          "apps/native",
+          config,
+        );
+      }
+    }
+    return;
+  }
+
+  if (config.backend !== "convex" && config.backend !== "none") {
     processTemplatesFromPrefix(
       vfs,
       templates,
@@ -39,6 +152,16 @@ export async function processAuthTemplates(
         config,
       );
     }
+
+    if (hasSolidWeb && authProvider === "better-auth") {
+      processTemplatesFromPrefix(
+        vfs,
+        templates,
+        "auth/better-auth/client/solid",
+        "packages/auth",
+        config,
+      );
+    }
   }
 
   if (hasReactWeb) {
@@ -51,7 +174,7 @@ export async function processAuthTemplates(
     );
 
     const reactFramework = config.frontend.find((f) =>
-      REACT_WEB_FRONTENDS.includes(f as (typeof REACT_WEB_FRONTENDS)[number]),
+      ["tanstack-router", "react-router", "tanstack-start", "next"].includes(f),
     );
     if (reactFramework) {
       processTemplatesFromPrefix(
@@ -75,6 +198,68 @@ export async function processAuthTemplates(
         );
       }
     }
+  } else if (hasNuxtWeb) {
+    if (config.backend === "self") {
+      processTemplatesFromPrefix(
+        vfs,
+        templates,
+        `auth/${authProvider}/fullstack/nuxt`,
+        "apps/web",
+        config,
+      );
+    }
+    processTemplatesFromPrefix(vfs, templates, `auth/${authProvider}/web/nuxt`, "apps/web", config);
+  } else if (hasSvelteWeb) {
+    if (config.backend === "self" && authProvider === "better-auth") {
+      processTemplatesFromPrefix(
+        vfs,
+        templates,
+        `auth/${authProvider}/fullstack/svelte`,
+        "apps/web",
+        config,
+      );
+    }
+    processTemplatesFromPrefix(
+      vfs,
+      templates,
+      `auth/${authProvider}/web/svelte`,
+      "apps/web",
+      config,
+    );
+  } else if (hasSolidWeb) {
+    if (config.backend === "self" && authProvider === "better-auth") {
+      processTemplatesFromPrefix(
+        vfs,
+        templates,
+        `auth/${authProvider}/fullstack/solid`,
+        "apps/web",
+        config,
+      );
+    }
+    processTemplatesFromPrefix(
+      vfs,
+      templates,
+      `auth/${authProvider}/web/solid`,
+      "apps/web",
+      config,
+    );
+  } else if (hasAstroWeb) {
+    if (config.backend === "self" && authProvider === "better-auth") {
+      processTemplatesFromPrefix(
+        vfs,
+        templates,
+        `auth/${authProvider}/fullstack/astro`,
+        "apps/web",
+        config,
+      );
+    }
+    processTemplatesFromPrefix(
+      vfs,
+      templates,
+      `auth/${authProvider}/web/astro`,
+      "apps/web",
+      config,
+    );
   }
 
   if (hasNative) {

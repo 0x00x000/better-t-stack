@@ -46,7 +46,7 @@ function expectParseableTypeScript(content: string) {
   ).toEqual([]);
 }
 
-function expectDocsShapedEvlogAuth(content: string) {
+function expectDocsWithEvlogAuth(content: string) {
   expect(content).not.toContain("createEvlogAuth");
   expect(content).not.toContain("toHeaders");
   expect(content).not.toContain("GetSessionInput");
@@ -1040,7 +1040,7 @@ describe("Addon Configurations", () => {
       expect(compatibleAddons).toContain("mcp");
     });
 
-    const backendSnippets: Record<Backend, string> = {
+    const backendSnippets = {
       hono: 'import { evlog, type EvlogVariables } from "evlog/hono";',
       express: 'import { evlog } from "evlog/express";',
       fastify: 'import { evlog } from "evlog/fastify";',
@@ -1048,7 +1048,7 @@ describe("Addon Configurations", () => {
       convex: "",
       self: "",
       none: "",
-    };
+    } satisfies Record<Backend, string>;
 
     for (const backend of ["hono", "express", "fastify", "elysia"] as const) {
       it(`should wire evlog middleware for ${backend}`, async () => {
@@ -1299,7 +1299,7 @@ describe("Addon Configurations", () => {
         "await identify(event.context.log, event.headers, event.path);",
       );
       expect(authMiddleware).not.toContain("createAuthIdentifier(");
-      expectDocsShapedEvlogAuth(authMiddleware);
+      expectDocsWithEvlogAuth(authMiddleware);
       expectParseableTypeScript(authMiddleware);
 
       expect(authClient).not.toContain("baseURL:");
@@ -1380,7 +1380,7 @@ describe("Addon Configurations", () => {
         expect(authFile).toContain(webCase.expected);
         expect(authFile).toContain('exclude: ["/api/auth/**"]');
         expect(authFile).toContain("maskEmail: true");
-        expectDocsShapedEvlogAuth(authFile);
+        expectDocsWithEvlogAuth(authFile);
         expectParseableTypeScript(authFile);
       });
     }
@@ -1453,7 +1453,7 @@ describe("Addon Configurations", () => {
         );
         expect(authFile).toContain('exclude: ["/api/auth/**"]');
         expect(authFile).toContain("maskEmail: true");
-        expectDocsShapedEvlogAuth(authFile);
+        expectDocsWithEvlogAuth(authFile);
         expectParseableTypeScript(authFile);
       });
     }
@@ -1512,7 +1512,7 @@ describe("Addon Configurations", () => {
       expect(serverIndex).toContain(
         'await identifyUser(c.get("log"), c.req.raw.headers, c.req.path);',
       );
-      expectDocsShapedEvlogAuth(serverIndex);
+      expectDocsWithEvlogAuth(serverIndex);
       expect(serverIndex).toContain(
         'import { createAILogger, createEvlogIntegration } from "evlog/ai";',
       );
@@ -1680,7 +1680,7 @@ describe("Addon Configurations", () => {
         'import { createAuthMiddleware, type BetterAuthInstance } from "evlog/better-auth";',
       );
       expect(evlogAuth).toContain("createAuthMiddleware(auth as BetterAuthInstance");
-      expectDocsShapedEvlogAuth(evlogAuth);
+      expectDocsWithEvlogAuth(evlogAuth);
       expect(trpcRoute).toContain("withEvlog(handler)");
       expect(trpcRoute).toContain("await identifyEvlogUser(req);");
       expect(aiRoute).toContain("withEvlog(async (req: Request)");
@@ -1731,7 +1731,7 @@ describe("Addon Configurations", () => {
           'import { createAuthMiddleware, type BetterAuthInstance } from "evlog/better-auth";',
         );
         expect(serverIndex).toContain("createAuthMiddleware(auth as BetterAuthInstance");
-        expectDocsShapedEvlogAuth(serverIndex);
+        expectDocsWithEvlogAuth(serverIndex);
         expect(serverIndex).toContain("maskEmail: true");
         expect(webPackageJson).not.toContain(`"@${projectName}/auth"`);
         expect(webPackageJson).not.toContain('"@libsql/client"');

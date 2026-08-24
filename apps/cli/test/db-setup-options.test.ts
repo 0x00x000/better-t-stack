@@ -76,6 +76,7 @@ describe("Database setup options", () => {
     if (result.isErr()) return;
 
     expect(result.value.reproducibleCommand).toContain("--db-setup neon");
+    expect(result.value.reproducibleCommand).toContain(`--db-setup-options '{"mode":"auto"}'`);
     expect(result.value.reproducibleCommand).not.toContain("create-json --input");
     expect(result.value.reproducibleCommand).not.toContain("--manual-db");
   });
@@ -112,6 +113,7 @@ describe("Database setup options", () => {
     if (result.isErr()) return;
 
     expect(result.value.reproducibleCommand).toContain("--db-setup neon");
+    expect(result.value.reproducibleCommand).toContain(`--db-setup-options '{"mode":"auto"}'`);
     expect(result.value.reproducibleCommand).not.toContain("create-json --input");
   });
 
@@ -133,6 +135,7 @@ describe("Database setup options", () => {
       dbSetup: "d1",
       webDeploy: "none",
       serverDeploy: "cloudflare",
+      packageManager: "bun",
       install: false,
     });
 

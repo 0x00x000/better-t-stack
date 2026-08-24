@@ -3,8 +3,9 @@
  * Updates package names, scripts, and workspaces after template generation
  */
 
-import { desktopWebFrontends, type ProjectConfig } from "@better-t-stack/types";
+import { getLocalD1Owner, webFrontends, type ProjectConfig } from "@better-t-stack/types";
 
+import type { JsonValue } from "../core/json-types";
 import type { VirtualFileSystem } from "../core/virtual-fs";
 import { dependencyVersionMap } from "../utils/add-deps";
 import { getDbScriptSupport } from "../utils/db-scripts";
@@ -14,10 +15,11 @@ type PackageJson = {
   scripts?: Record<string, string>;
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
+  allowScripts?: Record<string, boolean>;
   overrides?: Record<string, string>;
   workspaces?: string[] | { packages?: string[]; catalog?: Record<string, string> };
   packageManager?: string;
-  [key: string]: unknown;
+  [key: string]: JsonValue | undefined;
 };
 
 type PackageManagerConfig = {
@@ -42,10 +44,11 @@ export function processPackageConfigs(vfs: VirtualFileSystem, config: ProjectCon
   updateUiPackageJson(vfs, config);
   updateInfraPackageJson(vfs, config);
   updateDesktopPackageJson(vfs, config);
-  renameDevScriptsForAlchemy(vfs, config);
   updateVitePlusPackageScripts(vfs, config);
 
-  if (config.backend !== "none") {
+  if (config.backend === "convex") {
+    updateConvexPackageJson(vfs, config);
+  } else if (config.backend !== "none") {
     updateDbPackageJson(vfs, config);
     updateAuthPackageJson(vfs, config);
     updateApiPackageJson(vfs, config);
@@ -64,14 +67,12 @@ function updateRootPackageJson(vfs: VirtualFileSystem, config: ProjectConfig): v
 
   const scripts = pkgJson.scripts;
   const { projectName, packageManager, backend, database, orm, dbSetup, addons, frontend } = config;
-  const hasWebApp = frontend.some((item) =>
-    (desktopWebFrontends as readonly string[]).includes(item),
-  );
+  const hasWebApp = frontend.some((item) => (webFrontends as readonly string[]).includes(item));
   const hasNativeApp = frontend.some((item) =>
     ["native-bare", "native-uniwind", "native-unistyles"].includes(item),
   );
 
-  const backendPackageName = "server";
+  const backendPackageName = backend === "convex" ? `@${projectName}/backend` : "server";
   const dbPackageName = `@${projectName}/db`;
   const hasTurborepo = addons.includes("turborepo");
   const hasNx = addons.includes("nx");
@@ -133,6 +134,10 @@ function updateRootPackageJson(vfs: VirtualFileSystem, config: ProjectConfig): v
     scripts["dev:server"] = pmConfig.filter(backendPackageName, "dev");
   }
 
+  if (backend === "convex") {
+    scripts["dev:setup"] = pmConfig.filter(backendPackageName, "dev:setup");
+  }
+
   if (needsDbScripts) {
     if (dbSupport.hasDbPush) {
       scripts["db:push"] = pmConfig.filter(dbPackageName, "db:push");
@@ -174,22 +179,29 @@ function updateRootPackageJson(vfs: VirtualFileSystem, config: ProjectConfig): v
     }
   }
 
-  // Add deploy/destroy scripts when using alchemy (cloudflare deployment)
+  // Add deploy/destroy scripts when using an Alchemy deployment provider.
   const infraPackageName = `@${projectName}/infra`;
   const hasCloudflareDeploy =
     config.webDeploy === "cloudflare" || config.serverDeploy === "cloudflare";
+  const hasPrismaDeploy = config.webDeploy === "prisma" || config.serverDeploy === "prisma";
+  const hasAlchemyDeploy = hasCloudflareDeploy || hasPrismaDeploy;
   const hasVercelDeploy = config.webDeploy === "vercel" || config.serverDeploy === "vercel";
   // When web and server deploy to different cloud platforms, deploy scripts
   // are named by target (deploy:web / deploy:server); otherwise plain deploy
-  const isMixedCloud = hasCloudflareDeploy && hasVercelDeploy;
-  if (hasCloudflareDeploy) {
-    const cfDeployScript = isMixedCloud
-      ? config.webDeploy === "cloudflare"
+  const isMixedCloud = hasAlchemyDeploy && hasVercelDeploy;
+  if (hasAlchemyDeploy) {
+    const alchemyDeployScript = isMixedCloud
+      ? ["cloudflare", "prisma"].includes(config.webDeploy)
         ? "deploy:web"
         : "deploy:server"
       : "deploy";
-    scripts[cfDeployScript] = pmConfig.filter(infraPackageName, "deploy");
+    scripts[alchemyDeployScript] = pmConfig.filter(infraPackageName, "deploy");
     scripts.destroy = pmConfig.filter(infraPackageName, "destroy");
+
+    const hasWranglerLocalD1 = getLocalD1Owner(config) === "wrangler";
+    if (hasWranglerLocalD1) {
+      scripts["db:migrate:local"] = pmConfig.filter("web", "db:migrate:local");
+    }
   }
 
   if (hasVercelDeploy) {
@@ -216,6 +228,22 @@ function updateRootPackageJson(vfs: VirtualFileSystem, config: ProjectConfig): v
   // For preview purposes, we just show the configured package manager
   pkgJson.packageManager = `${packageManager}@latest`;
 
+  if (packageManager === "npm") {
+    const allowScripts = getNpmAllowedScripts(config);
+    if (Object.keys(allowScripts).length > 0) {
+      pkgJson.allowScripts = allowScripts;
+    } else {
+      delete pkgJson.allowScripts;
+    }
+  }
+
+  if (config.api === "orpc" && config.frontend.includes("nuxt")) {
+    pkgJson.overrides = {
+      ...pkgJson.overrides,
+      "@vue/devtools-api": "^8.2.1",
+    };
+  }
+
   if (hasVitePlus) {
     pkgJson.overrides = {
       ...pkgJson.overrides,
@@ -224,15 +252,85 @@ function updateRootPackageJson(vfs: VirtualFileSystem, config: ProjectConfig): v
     };
   }
 
-  if (!workspaces.includes("apps/*")) {
-    workspaces.push("apps/*");
-  }
-  if (!workspaces.includes("packages/*")) {
-    workspaces.push("packages/*");
+  if (backend === "convex") {
+    if (!workspaces.includes("packages/*")) {
+      workspaces.push("packages/*");
+    }
+    const needsAppsDir = config.frontend.length > 0 || addons.includes("starlight");
+    if (needsAppsDir && !workspaces.includes("apps/*")) {
+      workspaces.push("apps/*");
+    }
+  } else {
+    if (!workspaces.includes("apps/*")) {
+      workspaces.push("apps/*");
+    }
+    if (!workspaces.includes("packages/*")) {
+      workspaces.push("packages/*");
+    }
   }
 
   pkgJson.workspaces = getUpdatedWorkspaces(existingWorkspaces, workspaces);
   vfs.writeJson("package.json", pkgJson);
+}
+
+interface NpmAllowedScripts extends Record<string, boolean> {}
+
+function getNpmAllowedScripts(config: ProjectConfig): NpmAllowedScripts {
+  const allowed: NpmAllowedScripts = {};
+  const hasCloudflareDeploy =
+    config.webDeploy === "cloudflare" || config.serverDeploy === "cloudflare";
+  const hasPrismaDeploy = config.webDeploy === "prisma" || config.serverDeploy === "prisma";
+
+  if (
+    config.runtime === "node" ||
+    hasCloudflareDeploy ||
+    config.webDeploy === "docker" ||
+    config.serverDeploy === "docker" ||
+    config.webDeploy === "vercel" ||
+    config.serverDeploy === "vercel" ||
+    config.addons.includes("turborepo") ||
+    config.addons.includes("vite-plus") ||
+    config.frontend.includes("react-router") ||
+    config.frontend.includes("nuxt")
+  ) {
+    allowed.esbuild = true;
+  }
+
+  if (config.frontend.includes("nuxt")) {
+    allowed["@parcel/watcher"] = true;
+    allowed["vue-demi"] = true;
+  }
+
+  if (
+    hasCloudflareDeploy ||
+    hasPrismaDeploy ||
+    config.webDeploy === "docker" ||
+    config.webDeploy === "vercel" ||
+    config.addons.includes("pwa") ||
+    config.frontend.includes("next")
+  ) {
+    allowed.sharp = true;
+  }
+
+  if (hasCloudflareDeploy || hasPrismaDeploy) {
+    allowed["msgpackr-extract"] = true;
+    allowed.workerd = true;
+  }
+
+  if (config.orm === "prisma") {
+    allowed["@prisma/engines"] = true;
+    allowed.prisma = true;
+  }
+
+  if (config.addons.includes("lefthook")) {
+    allowed.lefthook = true;
+  }
+
+  if (config.addons.includes("nx")) {
+    allowed.nx = true;
+  }
+
+  return allowed;
 }
 
 function getWorkspacePackages(workspaces: PackageJson["workspaces"]): string[] {
@@ -240,7 +338,7 @@ function getWorkspacePackages(workspaces: PackageJson["workspaces"]): string[] {
     return workspaces;
   }
 
-  if (workspaces && typeof workspaces === "object" && workspaces.packages) {
+  if (workspaces && !Array.isArray(workspaces) && workspaces.packages) {
     return workspaces.packages;
   }
 
@@ -251,12 +349,7 @@ function getUpdatedWorkspaces(
   existingWorkspaces: PackageJson["workspaces"],
   packages: string[],
 ): WorkspacesConfig {
-  if (
-    existingWorkspaces &&
-    !Array.isArray(existingWorkspaces) &&
-    typeof existingWorkspaces === "object" &&
-    existingWorkspaces.catalog
-  ) {
+  if (existingWorkspaces && !Array.isArray(existingWorkspaces) && existingWorkspaces.catalog) {
     return {
       ...existingWorkspaces,
       packages,
@@ -275,7 +368,7 @@ function getPackageManagerConfig(
       dev: "turbo run dev",
       build: "turbo run build",
       checkTypes: "turbo run check-types",
-      filter: (workspace, script) => `turbo run ${script} -F ${workspace}`,
+      filter: (workspace, script) => `turbo run ${script} -F ${workspace} --`,
     };
   }
 
@@ -301,7 +394,10 @@ function getPackageManagerConfig(
     case "pnpm":
       return {
         dev: "pnpm -r dev",
-        build: "pnpm -r build",
+        // Some deployment providers own the production build and intentionally
+        // omit workspace build scripts. Match npm/Bun by treating that as a
+        // successful no-op instead of pnpm's recursive-run error.
+        build: "pnpm -r --if-present build",
         checkTypes: "pnpm -r check-types",
         filter: (workspace, script) => `pnpm --filter ${workspace} ${script}`,
       };
@@ -312,7 +408,7 @@ function getPackageManagerConfig(
         dev: "npm run dev --workspaces --if-present",
         build: "npm run build --workspaces --if-present",
         checkTypes: "npm run check-types --workspaces --if-present",
-        filter: (workspace, script) => `npm run ${script} --workspace ${workspace}`,
+        filter: (workspace, script) => `npm run ${script} --workspace ${workspace} --`,
       };
     case "bun":
     default:
@@ -392,7 +488,8 @@ function updateDesktopPackageJson(vfs: VirtualFileSystem, config: ProjectConfig)
   const hasTurborepo = addons.includes("turborepo");
   const hasNx = addons.includes("nx");
   const hasVitePlus = addons.includes("vite-plus");
-  const desktopBuildScript: DesktopWebScript = "build";
+  // Nuxt emits its static bundle via `generate`; every other frontend via `build`.
+  const desktopBuildScript: DesktopWebScript = frontend.includes("nuxt") ? "generate" : "build";
   const webBuildCommand = getDesktopWebCommand(
     packageManager,
     { hasTurborepo, hasNx, hasVitePlus },
@@ -487,6 +584,7 @@ function updateDbPackageJson(vfs: VirtualFileSystem, config: ProjectConfig): voi
       }
       scripts["db:generate"] = "prisma generate";
       scripts["db:migrate"] = "prisma migrate dev";
+      scripts["db:migrate:deploy"] = "prisma migrate deploy";
       scripts.postinstall ??= "prisma generate";
       if (!isD1Alchemy) {
         scripts["db:studio"] = "prisma studio";
@@ -496,6 +594,7 @@ function updateDbPackageJson(vfs: VirtualFileSystem, config: ProjectConfig): voi
         scripts["db:push"] = "drizzle-kit push";
       }
       scripts["db:generate"] = "drizzle-kit generate";
+      scripts["db:migrate:deploy"] = "drizzle-kit migrate";
       if (!isD1Alchemy) {
         scripts["db:studio"] = "drizzle-kit studio";
         scripts["db:migrate"] = "drizzle-kit migrate";
@@ -546,12 +645,12 @@ function updateEnvPackageJson(vfs: VirtualFileSystem, config: ProjectConfig): vo
 
   // Set exports based on which env files exist
   const hasWebFrontend = config.frontend.some((f: string) =>
-    (desktopWebFrontends as readonly string[]).includes(f),
+    (webFrontends as readonly string[]).includes(f),
   );
   const hasNative = config.frontend.some((f: string) =>
     ["native-bare", "native-uniwind", "native-unistyles"].includes(f),
   );
-  const needsServerEnv = config.backend !== "none";
+  const needsServerEnv = config.backend !== "none" && config.backend !== "convex";
 
   const exports: Record<string, string> = {};
 
@@ -586,11 +685,22 @@ function updateInfraPackageJson(vfs: VirtualFileSystem, config: ProjectConfig): 
   vfs.writeJson("packages/infra/package.json", pkgJson);
 }
 
-function renameDevScriptsForAlchemy(vfs: VirtualFileSystem, config: ProjectConfig): void {
-  const { serverDeploy, webDeploy, backend } = config;
+function updateConvexPackageJson(vfs: VirtualFileSystem, config: ProjectConfig): void {
+  const pkgJson = vfs.readJson<PackageJson>("packages/backend/package.json");
+  if (!pkgJson) return;
 
-  // Rename server dev script to dev:bare when serverDeploy is cloudflare
-  if (serverDeploy === "cloudflare" && backend !== "self") {
+  pkgJson.name = `@${config.projectName}/backend`;
+  pkgJson.scripts = pkgJson.scripts || {};
+  vfs.writeJson("packages/backend/package.json", pkgJson);
+}
+
+export function finalizeAlchemyDevScripts(vfs: VirtualFileSystem, config: ProjectConfig): void {
+  const { serverDeploy, webDeploy, backend } = config;
+  const rootPkgPath = "package.json";
+  const rootPkg = vfs.readJson<PackageJson>(rootPkgPath);
+
+  // Alchemy owns the selected app's development process.
+  if (["cloudflare", "prisma"].includes(serverDeploy) && backend !== "self") {
     const serverPkgPath = "apps/server/package.json";
     const serverPkg = vfs.readJson<PackageJson>(serverPkgPath);
     if (serverPkg?.scripts?.dev) {
@@ -598,10 +708,12 @@ function renameDevScriptsForAlchemy(vfs: VirtualFileSystem, config: ProjectConfi
       delete serverPkg.scripts.dev;
       vfs.writeJson(serverPkgPath, serverPkg);
     }
+    if (rootPkg?.scripts?.["dev:server"]) {
+      rootPkg.scripts["dev:server"] = rootPkg.scripts["dev:server"].replace(/\bdev$/, "dev:bare");
+    }
   }
 
-  // Rename web dev script to dev:bare when webDeploy is cloudflare
-  if (webDeploy === "cloudflare") {
+  if (["cloudflare", "prisma"].includes(webDeploy)) {
     const webPkgPath = "apps/web/package.json";
     const webPkg = vfs.readJson<PackageJson>(webPkgPath);
     if (webPkg?.scripts?.dev) {
@@ -609,6 +721,13 @@ function renameDevScriptsForAlchemy(vfs: VirtualFileSystem, config: ProjectConfi
       delete webPkg.scripts.dev;
       vfs.writeJson(webPkgPath, webPkg);
     }
+    if (rootPkg?.scripts?.["dev:web"]) {
+      rootPkg.scripts["dev:web"] = rootPkg.scripts["dev:web"].replace(/\bdev$/, "dev:bare");
+    }
+  }
+
+  if (rootPkg) {
+    vfs.writeJson(rootPkgPath, rootPkg);
   }
 }
 
@@ -623,17 +742,20 @@ function updateVitePlusPackageScripts(vfs: VirtualFileSystem, config: ProjectCon
     return;
   }
 
-  const viteScriptReplacements: Record<string, string> = {
+  const viteScriptReplacements = {
     vite: "vp dev",
     "vite dev": "vp dev",
     "vite build": "vp build",
     "vite preview": "vp preview",
     "vitest run": "vp test",
     "vite build && tsc --noEmit": "vp build && tsc --noEmit",
-  };
+  } satisfies Record<string, string>;
 
   for (const [scriptName, command] of Object.entries(webPkg.scripts)) {
-    webPkg.scripts[scriptName] = viteScriptReplacements[command] ?? command;
+    const replacement = Object.entries(viteScriptReplacements).find(
+      ([viteCommand]) => viteCommand === command,
+    )?.[1];
+    webPkg.scripts[scriptName] = replacement ?? command;
   }
 
   vfs.writeJson(webPkgPath, webPkg);

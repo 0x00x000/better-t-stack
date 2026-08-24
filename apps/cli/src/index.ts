@@ -1,7 +1,7 @@
 import { getAllJsonSchemas } from "@better-t-stack/types/json-schema";
 import { initTRPC } from "@trpc/server";
 import { Result } from "better-result";
-import { createCli, type TrpcCliMeta } from "trpc-cli";
+import { createCli, type TrpcCli, type TrpcCliMeta } from "trpc-cli";
 import z from "zod";
 
 import { historyHandler } from "./commands/history";
@@ -23,7 +23,6 @@ import {
   type Backend,
   BackendSchema,
   type BetterTStackConfig,
-  type CLIInput,
   type CreateInput,
   CreateInputSchema,
   type Database,
@@ -62,7 +61,8 @@ import {
   UserCancelledError,
 } from "./utils/errors";
 import { getLatestCLIVersion } from "./utils/get-latest-cli-version";
-import { validateConfigCompatibility } from "./validation";
+import { type ProjectLauncher, ProjectLauncherSchema } from "./utils/project-launcher";
+import { validateResolvedConfigCompatibility } from "./validation";
 
 export const SchemaNameSchema = z
   .enum([
@@ -114,7 +114,7 @@ function getCliSchemaJson(): unknown {
   }).toJSON();
 }
 
-export function getSchemaResult(name: SchemaName): unknown {
+export function getSchemaResult(name: SchemaName) {
   const schemas = getAllJsonSchemas();
   if (name === "all") {
     return {
@@ -161,6 +161,7 @@ export const router = t.router({
           git: z.boolean().optional(),
           packageManager: PackageManagerSchema.optional(),
           install: z.boolean().optional(),
+          open: ProjectLauncherSchema.optional(),
           dbSetup: DatabaseSetupSchema.optional(),
           backend: BackendSchema.optional(),
           runtime: RuntimeSchema.optional(),
@@ -278,7 +279,7 @@ export const router = t.router({
     }),
 });
 
-export function createBtsCli(): ReturnType<typeof createCli> {
+export function createBtsCli(): TrpcCli {
   return createCli({
     router,
     name: "create-better-t-stack",
@@ -338,10 +339,7 @@ export async function create(
   projectName?: string,
   options?: Partial<CreateInput>,
 ): Promise<Result<InitResult, CreateError>> {
-  const rawInput =
-    options === undefined || (typeof options === "object" && options !== null)
-      ? { ...options, projectName }
-      : options;
+  const rawInput = { ...options, projectName };
   const parsedInput = CreateInputSchema.safeParse(rawInput);
 
   if (!parsedInput.success) {
@@ -368,14 +366,14 @@ export async function create(
       }
       return result.value as InitResult;
     },
-    catch: (e: unknown) => {
-      if (UserCancelledError.is(e)) return e;
-      if (CLIError.is(e)) return e;
-      if (DirectoryConflictError.is(e)) return e;
-      if (ProjectCreationError.is(e)) return e;
+    catch: (cause: unknown) => {
+      if (UserCancelledError.is(cause)) return cause;
+      if (CLIError.is(cause)) return cause;
+      if (DirectoryConflictError.is(cause)) return cause;
+      if (ProjectCreationError.is(cause)) return cause;
       return new CLIError({
-        message: e instanceof Error ? e.message : String(e),
-        cause: e,
+        message: cause instanceof Error ? cause.message : String(cause),
+        cause: cause,
       });
     },
   });
@@ -473,26 +471,7 @@ export async function createVirtual(
     serverDeploy: virtualOptions.serverDeploy || "none",
   };
 
-  const providedFlags = new Set([
-    "database",
-    "orm",
-    "backend",
-    "runtime",
-    "frontend",
-    "addons",
-    "examples",
-    "auth",
-    "dbSetup",
-    "payments",
-    "api",
-    "webDeploy",
-    "serverDeploy",
-  ]);
-  const validationResult = validateConfigCompatibility(
-    config,
-    providedFlags,
-    config as unknown as CLIInput,
-  );
+  const validationResult = validateResolvedConfigCompatibility(config);
   if (validationResult.isErr()) {
     return Result.err(
       new GeneratorError({
@@ -532,7 +511,10 @@ export type {
   ServerDeploy,
   Template,
   DirectoryConflict,
+  ProjectLauncher,
 };
+
+export { ProjectLauncherSchema };
 
 export type { AddResult };
 

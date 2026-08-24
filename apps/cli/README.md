@@ -21,12 +21,23 @@ npx create-better-t-stack@latest
 
 Follow the prompts to configure your project or use the `--yes` flag for defaults.
 
+## Requirements
+
+- Node.js 22 or newer to run the CLI with Node.js. The selected framework may require a newer release; the CLI checks the exact stack before writing files.
+- Bun 1.3 or newer is recommended. Bun 1.2.14 remains the minimum because generated workspaces use dependency catalogs.
+- pnpm 10.26.0 or newer when using pnpm (catalogs and `allowBuilds`).
+- npm 11.16.0 or newer when using npm (`allowScripts`).
+
+Docker Compose 2.24 or newer is required by generated Docker stacks. Git, Rust, Docker,
+and platform SDKs otherwise remain optional and are only needed when you use their corresponding
+generated commands.
+
 ## Features
 
 | Category                 | Options                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **TypeScript**           | End-to-end type safety across all parts of your application                                                                                                                                                                                                                                                                                                                                                                               |
-| **Frontend**             | • React with TanStack Router<br>• React with React Router<br>• React with TanStack Start (SSR)<br>• Next.js<br>• SvelteKit<br>• Nuxt (Vue)<br>• SolidJS<br>• Astro<br>• React Native bare Expo<br>• React Native with NativeWind (via Expo)<br>• React Native with Unistyles (via Expo)<br>• None                                                                                                                                         |
+| **Frontend**             | • React with TanStack Router<br>• React with React Router<br>• React with TanStack Start (SSR)<br>• Next.js<br>• SvelteKit<br>• Nuxt (Vue)<br>• Solid (SSR)<br>• Astro<br>• React Native bare Expo<br>• React Native with NativeWind (via Expo)<br>• React Native with Unistyles (via Expo)<br>• None                                                                                                                                     |
 | **Backend**              | • Hono<br>• Express<br>• Elysia<br>• Fastify<br>• Self (fullstack inside the web app)<br>• Convex<br>• None                                                                                                                                                                                                                                                                                                                               |
 | **API Layer**            | • tRPC (type-safe APIs)<br>• oRPC (OpenAPI-compatible type-safe APIs)<br>• None                                                                                                                                                                                                                                                                                                                                                           |
 | **Runtime**              | • Bun<br>• Node.js<br>• Cloudflare Workers<br>• None                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -61,6 +72,7 @@ Options:
   --package-manager <pm>          Package manager (npm, pnpm, bun)
   --install                       Install dependencies
   --no-install                    Skip installing dependencies
+  --open <target>                 Open in an editor, IDE, or coding agent after creation
   --db-setup <setup>              Database setup (turso, d1, neon, supabase, prisma-postgres, planetscale, mongodb-atlas, docker, none)
   --web-deploy <setup>            Web deployment (cloudflare, docker, vercel, none)
   --server-deploy <setup>         Server deployment (cloudflare, docker, vercel, none)
@@ -216,13 +228,13 @@ npx create-better-t-stack --frontend none --backend hono --api trpc --database n
 - **ORM 'none'**: Can be used when you want to handle database operations manually or use a different ORM.
 - **Runtime 'none'**: Only available with Convex backend, backend `none`, or backend `self`.
 - **Cloudflare Workers runtime**: Only compatible with Hono backend. If a database is used, MongoDB is not supported.
-- **Cloudflare D1 setup**: Requires `sqlite` and either `--runtime workers --server-deploy cloudflare` or `--backend self --web-deploy cloudflare`. For `backend self`, D1 is supported on `next`, `tanstack-start`, `nuxt`, `svelte`, and `astro`.
+- **Cloudflare D1 setup**: Requires `sqlite` and either `--runtime workers --server-deploy cloudflare` or `--backend self --web-deploy cloudflare`. For `backend self`, D1 is supported on `next`, `tanstack-start`, `nuxt`, `svelte`, `solid`, and `astro`.
 - **Addons 'none'**: Skips all addons.
 - **Examples 'none'**: Skips all example implementations (todo, AI chat).
-- **Nuxt, Svelte, SolidJS, and Astro** frontends are only compatible with oRPC API layer
-- **PWA support** requires TanStack Router, React Router, Next.js, or SolidJS
-- **Tauri desktop app** requires TanStack Router, React Router, TanStack Start, Next.js, Nuxt, SvelteKit, SolidJS, or Astro
-- **Electrobun desktop app** requires TanStack Router, React Router, TanStack Start, Next.js, Nuxt, SvelteKit, SolidJS, or Astro. Desktop packaging uses static web assets, so SSR-first frontends need a static/export build before desktop builds will work.
+- **Nuxt, Svelte, Solid, and Astro** frontends are only compatible with the oRPC API layer
+- **PWA support** requires TanStack Router, React Router, Next.js, or Solid
+- **Tauri desktop app** requires TanStack Router, React Router, TanStack Start, Next.js, Nuxt, SvelteKit, or Astro
+- **Electrobun desktop app** requires TanStack Router, React Router, TanStack Start, Next.js, Nuxt, SvelteKit, or Astro. Desktop packaging uses static web assets, so SSR-first frontends need a static/export build before desktop builds will work.
 - **AI example** is not compatible with Solid or Astro. With Convex backend, it also excludes Nuxt and Svelte.
 
 ## Project Structure

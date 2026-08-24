@@ -2,29 +2,31 @@
  * Add dependencies to a package.json in the virtual filesystem
  */
 
+import type { JsonValue } from "../core/json-types";
 import type { VirtualFileSystem } from "../core/virtual-fs";
 
 type PackageJson = {
   name?: string;
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
-  [key: string]: unknown;
+  [key: string]: JsonValue | undefined;
 };
 
 export const dependencyVersionMap = {
   typescript: "^6.0.3",
 
-  "better-auth": "1.6.25",
-  "@better-auth/expo": "1.6.25",
+  "better-auth": "1.6.30",
+  "@better-auth/expo": "1.6.30",
 
-  "@clerk/backend": "^3.13.2",
-  "@clerk/express": "^2.1.47",
-  "@clerk/fastify": "^3.1.57",
-  "@clerk/nextjs": "^7.6.2",
-  "@clerk/react": "^6.12.8",
-  "@clerk/react-router": "^3.6.1",
-  "@clerk/tanstack-react-start": "^1.4.24",
-  "@clerk/expo": "^4.1.0",
+  "@clerk/backend": "^3.16.10",
+  "@clerk/express": "^2.1.61",
+  "@clerk/fastify": "^3.1.71",
+  "@clerk/nextjs": "^7.8.0",
+  "@clerk/react": "^6.14.5",
+  "@clerk/react-router": "^3.6.15",
+  "@react-router/express": "^8.3.0",
+  "@clerk/tanstack-react-start": "^1.5.6",
+  "@clerk/expo": "^4.5.2",
 
   "drizzle-orm": "^0.45.2",
   "drizzle-kit": "^0.31.10",
@@ -35,6 +37,7 @@ export const dependencyVersionMap = {
 
   "@neondatabase/serverless": "^1.1.0",
   pg: "^8.22.0",
+  postgres: "^3.4.9",
   "@types/pg": "^8.20.0",
   "@types/ws": "^8.18.1",
   ws: "^8.21.1",
@@ -49,6 +52,7 @@ export const dependencyVersionMap = {
   "@prisma/adapter-libsql": "^7.9.1",
   "@prisma/adapter-better-sqlite3": "^7.9.1",
   "@prisma/adapter-pg": "^7.9.1",
+  "@prisma/adapter-ppg": "^7.9.1",
   "@prisma/adapter-planetscale": "^7.9.1",
 
   mongoose: "^9.8.1",
@@ -61,15 +65,15 @@ export const dependencyVersionMap = {
 
   "@biomejs/biome": "^2.5.6",
 
-  oxlint: "^1.76.0",
-  oxfmt: "^0.61.0",
+  oxlint: "^1.78.0",
+  oxfmt: "^0.63.0",
 
   husky: "^9.1.7",
   lefthook: "^2.1.10",
   "lint-staged": "^17.2.0",
 
   tsx: "^4.23.1",
-  "@types/node": "^22.20.1",
+  "@types/node": "^26.2.0",
 
   "@types/bun": "^1.3.14",
 
@@ -97,6 +101,7 @@ export const dependencyVersionMap = {
   nx: "^23.1.0",
   "vite-plus": "0.2.6",
   rolldown: "1.2.0",
+  unwasm: "^0.6.0",
 
   ai: "^7.0.41",
   "@ai-sdk/google": "^4.0.27",
@@ -120,7 +125,7 @@ export const dependencyVersionMap = {
   next: "^16.3.0",
   nitro: "^3.0.260610-beta",
 
-  convex: "^1.42.3",
+  convex: "^1.45.0",
   "@convex-dev/react-query": "^0.1.0",
   "@convex-dev/agent": "^0.6.4",
   "@convex-dev/polar": "^0.9.2",
@@ -139,26 +144,28 @@ export const dependencyVersionMap = {
   "@tanstack/react-query": "^5.101.4",
   "@tanstack/react-form": "^1.33.2",
   "@tanstack/react-router-ssr-query": "^1.167.1",
-  "@tanstack/solid-form": "^1.33.2",
   "@tanstack/svelte-form": "^1.33.2",
 
-  "@tanstack/solid-query": "^5.101.4",
-  "@tanstack/solid-query-devtools": "^5.101.4",
-  "@tanstack/solid-router-devtools": "^1.167.0",
+  "@tanstack/solid-query": "^6.0.0-rc.0",
+  "@tanstack/solid-query-devtools": "^6.0.0-rc.0",
+  "@tanstack/query-core": "5.101.0",
 
   wrangler: "^4.115.0",
   "@cloudflare/vite-plugin": "1.48.0",
   "@opennextjs/cloudflare": "^1.20.2",
-  "nitro-cloudflare-dev": "^0.2.2",
   "@sveltejs/adapter-cloudflare": "^7.2.9",
   "@sveltejs/adapter-node": "^5.5.7",
   "@sveltejs/adapter-vercel": "^6.3.4",
   "@cloudflare/workers-types": "^5.20260728.1",
-  "@astrojs/cloudflare": "^14.1.6",
+  "@alchemy.run/cloudflare-frameworks": "2.0.0-beta.72",
   "@astrojs/node": "^11.0.3",
   "@astrojs/vercel": "^11.0.4",
 
-  alchemy: "^0.93.12",
+  // exact pins: caret ranges on prereleases can resolve to stray npm test tags
+  alchemy: "2.0.0-beta.72",
+  effect: "4.0.0-rc.108",
+  "@effect/platform-node": "4.0.0-rc.108",
+  "@effect/platform-bun": "4.0.0-rc.108",
   vercel: "^58.1.0",
 
   dotenv: "^17.4.2",
@@ -170,7 +177,7 @@ export const dependencyVersionMap = {
 
   "@polar-sh/better-auth": "^1.8.4",
   "@polar-sh/checkout": "^0.4.0",
-  "@polar-sh/sdk": "^0.49.0",
+  "@polar-sh/sdk": "^0.47.0",
   "@stripe/react-stripe-js": "^6.8.0",
   "@stripe/stripe-js": "^9.12.1",
 

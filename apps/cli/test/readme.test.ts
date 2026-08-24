@@ -64,4 +64,34 @@ describe("README generation", () => {
     expect(readme).not.toContain("Optional native Vite+ hooks");
     expect(readme).toContain("Initialize hooks: `bun run prepare`");
   });
+
+  it("documents the production origin handshake for split Alchemy deployments", async () => {
+    const readme = await generateReadme({
+      webDeploy: "cloudflare",
+      serverDeploy: "prisma",
+      auth: "better-auth",
+    });
+
+    expect(readme).toContain(
+      "Required after the first deploy: set `CORS_ORIGIN` in `apps/server/.env`",
+    );
+    expect(readme).toContain(
+      "set `BETTER_AUTH_URL` in `apps/server/.env` to the returned server URL",
+    );
+  });
+
+  it("does not request a separate CORS origin for self deployments", async () => {
+    const readme = await generateReadme({
+      frontend: ["solid"],
+      backend: "self",
+      runtime: "none",
+      webDeploy: "prisma",
+      serverDeploy: "none",
+      api: "orpc",
+      auth: "better-auth",
+    });
+
+    expect(readme).not.toContain("`CORS_ORIGIN`");
+    expect(readme).toContain("set `BETTER_AUTH_URL` in `apps/web/.env` to the returned web URL");
+  });
 });

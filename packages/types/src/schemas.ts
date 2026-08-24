@@ -75,11 +75,11 @@ export const AuthSchema = z.enum(["better-auth", "none"]).describe("Authenticati
 export const PaymentsSchema = z.enum(["none"]).describe("Payments provider");
 
 export const WebDeploySchema = z
-  .enum(["cloudflare", "docker", "vercel", "none"])
+  .enum(["cloudflare", "prisma", "docker", "vercel", "none"])
   .describe("Web deployment");
 
 export const ServerDeploySchema = z
-  .enum(["cloudflare", "docker", "vercel", "none"])
+  .enum(["cloudflare", "prisma", "docker", "vercel", "none"])
   .describe("Server deployment");
 
 export const DirectoryConflictSchema = z
@@ -332,7 +332,9 @@ export const UltraciteHookSchema = z
   .enum(["cursor", "windsurf", "codebuddy", "claude", "copilot"])
   .describe("Ultracite hook integration");
 
-export const DbSetupModeSchema = z.enum(["manual", "auto"]).describe("Database setup mode");
+export const DbSetupModeSchema = z
+  .enum(["manual", "auto", "alchemy"])
+  .describe("Database setup mode");
 
 export const NeonSetupMethodSchema = z
   .enum(["neon-new", "neon", "neondb", "neonctl"])
@@ -525,11 +527,9 @@ export const BetterTStackConfigSchema = z.object({
   serverDeploy: ServerDeploySchema,
 });
 
-export const BetterTStackConfigFileSchema = z
-  .object({
-    $schema: z.string().optional().describe("JSON Schema reference for validation"),
-  })
-  .extend(BetterTStackConfigSchema.shape)
+export const BetterTStackConfigFileSchema = BetterTStackConfigSchema.safeExtend({
+  $schema: z.string().optional().describe("JSON Schema reference for validation"),
+})
   .strict()
   .meta({
     id: "https://r2.better-t-stack.dev/schema.json",

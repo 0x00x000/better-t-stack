@@ -7,6 +7,64 @@ import { expectError, expectSuccess, runTRPCTest, type TestConfig } from "./test
 
 describe("API Configurations", () => {
   describe("oRPC API", () => {
+    it("should wire Solid 2 self-hosted oRPC routes and optimized SSR", async () => {
+      const config = {
+        projectName: "orpc-solid-self",
+        api: "orpc",
+        frontend: ["solid"],
+        backend: "self",
+        runtime: "none",
+        database: "sqlite",
+        orm: "drizzle",
+        auth: "better-auth",
+        addons: ["turborepo"],
+        examples: ["todo"],
+        dbSetup: "none",
+        webDeploy: "none",
+        serverDeploy: "none",
+        install: false,
+        git: false,
+        packageManager: "bun",
+        payments: "none",
+      } satisfies TestConfig;
+
+      const result = await createVirtual(config);
+      expect(result.isOk()).toBe(true);
+      if (result.isErr()) {
+        throw result.error;
+      }
+
+      const files = collectFiles(result.value.root, result.value.root.path);
+      const rpcRoute = files.get("apps/web/src/routes/rpc/[...rest].ts");
+      const rpcIndex = files.get("apps/web/src/routes/rpc/index.ts");
+      const appFile = files.get("apps/web/src/App.tsx");
+      const homeRoute = files.get("apps/web/src/routes/index.tsx");
+      const orpcClient = files.get("apps/web/src/utils/orpc.ts");
+      const orpcServer = files.get("apps/web/src/utils/orpc.server.ts");
+
+      expect(appFile).toBeDefined();
+      if (!appFile) throw new Error("Expected Solid app template");
+
+      expect(rpcRoute).toContain('import type { APIHandler } from "filesystem-routing/api";');
+      expect(rpcRoute).toContain('prefix: "/rpc"');
+      expect(rpcRoute).toContain("createContext({ headers: request.headers })");
+      expect(rpcIndex).toContain('from "./[...rest]"');
+      expect(orpcClient).toContain("if (import.meta.env.SSR)");
+      expect(orpcClient).toContain('await import("./orpc.server")');
+      expect(orpcClient).toContain("globalThis.$client ?? createORPCClient(link)");
+      expect(orpcServer).toContain("createRouterClient(appRouter");
+      expect(orpcServer).toContain("globalThis.$client");
+      expect(orpcServer).toContain("getRequestEvent()?.request.headers");
+      expect(homeRoute).toContain('healthCheck.data === "OK"');
+      expect(homeRoute).toContain("healthCheck.isPending");
+      expect(homeRoute).toContain("deferStream: true");
+      const queryClientProviderIndex = appFile.indexOf("<QueryClientProvider");
+      const routerIndex = appFile.indexOf("<Router>");
+      expect(queryClientProviderIndex).toBeGreaterThanOrEqual(0);
+      expect(routerIndex).toBeGreaterThanOrEqual(0);
+      expect(queryClientProviderIndex).toBeLessThan(routerIndex);
+    });
+
     const frontends = [
       "tanstack-router",
       "react-router",

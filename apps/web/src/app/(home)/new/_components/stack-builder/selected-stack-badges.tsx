@@ -53,10 +53,15 @@ export function SelectedStackBadges({ stack, onRemove, onJump }: SelectedStackBa
               <TechIcon
                 icon={tech.icon}
                 name={tech.name}
-                className={cn("h-3 w-3", tech.className)}
+                className={cn("h-3 w-3", "className" in tech ? tech.className : undefined)}
               />
             )}
             {tech.name}
+            {"experimental" in tech && tech.experimental && (
+              <span className="rounded-[3px] bg-amber-500/10 px-1 py-0.5 text-[9px] text-amber-700 uppercase leading-none tracking-[0.08em] dark:text-amber-300">
+                Experimental
+              </span>
+            )}
           </>
         );
 

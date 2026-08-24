@@ -1,6 +1,13 @@
 import { Result } from "better-result";
 
-import type { CLIInput, Database, DatabaseSetup, ProjectConfig, Runtime } from "../types";
+import {
+  supportsAlchemyManagedDatabase,
+  type CLIInput,
+  type Database,
+  type DatabaseSetup,
+  type ProjectConfig,
+  type Runtime,
+} from "../types";
 import {
   ensureSingleWebAndNative,
   isWebFrontend,
@@ -13,6 +20,10 @@ import {
   validateDockerWebDeployDesktopAddons,
   validateServerDeployRequiresBackend,
   validateVercelServerDeploy,
+  validatePrismaServerDeploy,
+  validatePrismaWebDeploy,
+  validatePrismaWebDeployDesktopAddons,
+  validateCloudflareWebDeployKnownIssues,
   validateWebDeployRequiresWebFrontend,
   validateWorkersCompatibility,
 } from "./compatibility-rules";
@@ -124,10 +135,12 @@ export function validateDatabaseSetup(
     );
   }
 
-  const setupValidations: Record<
-    DatabaseSetup,
-    { database?: Database; runtime?: Runtime; errorMessage: string }
-  > = {
+  const setupValidations = {
+    turso: {
+      database: "sqlite",
+      errorMessage:
+        "Turso setup requires SQLite database. Please use '--database sqlite' or choose a different setup.",
+    },
     neon: {
       database: "postgres",
       errorMessage:
@@ -157,16 +170,27 @@ export function validateDatabaseSetup(
         "Docker setup is not compatible with SQLite database or Cloudflare Workers runtime.",
     },
     none: { errorMessage: "" },
-  };
+  } satisfies Record<
+    DatabaseSetup,
+    { database?: Database; runtime?: Runtime; errorMessage: string }
+  >;
 
   if (dbSetup && dbSetup !== "none") {
     const validation = setupValidations[dbSetup];
 
-    if (validation.database && database !== validation.database) {
+    if (dbSetup === "planetscale") {
+      if (database !== "postgres" && database !== "mysql") {
+        return validationErr(validation.errorMessage);
+      }
+    } else if (
+      "database" in validation &&
+      validation.database &&
+      database !== validation.database
+    ) {
       return validationErr(validation.errorMessage);
     }
 
-    if (validation.runtime && runtime !== validation.runtime) {
+    if ("runtime" in validation && validation.runtime && runtime !== validation.runtime) {
       return validationErr(validation.errorMessage);
     }
 
@@ -200,6 +224,35 @@ export function validateDatabaseSetup(
         );
       }
     }
+  }
+
+  return Result.ok(undefined);
+}
+
+export function validateDatabaseProvisioningMode(config: Partial<ProjectConfig>): ValidationResult {
+  if (config.dbSetup === "planetscale" && config.dbSetupOptions?.mode === "auto") {
+    return validationErr(
+      "PlanetScale does not support automatic database setup. Use dbSetupOptions.mode 'alchemy' or 'manual'.",
+    );
+  }
+
+  if (config.dbSetupOptions?.mode !== "alchemy") return Result.ok(undefined);
+
+  const { backend, dbSetup, webDeploy, serverDeploy } = config;
+  if (!backend || !dbSetup || !webDeploy || !serverDeploy) return Result.ok(undefined);
+
+  if (
+    !supportsAlchemyManagedDatabase({
+      backend,
+      dbSetup,
+      webDeploy,
+      serverDeploy,
+      dbSetupOptions: config.dbSetupOptions,
+    })
+  ) {
+    return validationErr(
+      "Alchemy database provisioning requires Neon, PlanetScale, or Prisma Postgres and an Alchemy deployment target for the app that consumes the database.",
+    );
   }
 
   return Result.ok(undefined);
@@ -369,6 +422,7 @@ export function validateFullConfig(
   return Result.gen(function* () {
     yield* validateDatabaseOrmAuth(config, providedFlags);
     yield* validateDatabaseSetup(config, providedFlags);
+    yield* validateDatabaseProvisioningMode(config);
 
     yield* validateConvexConstraints(config, providedFlags);
     yield* validateBackendNoneConstraints(config, providedFlags);
@@ -382,6 +436,9 @@ export function validateFullConfig(
     yield* validateServerDeployRequiresBackend(config.serverDeploy, config.backend);
     yield* validateDockerServerDeploy(config.serverDeploy, config.backend, config.runtime);
     yield* validateVercelServerDeploy(config.serverDeploy, config.backend, config.runtime);
+    yield* validatePrismaServerDeploy(config.serverDeploy, config.backend, config.runtime);
+    yield* validatePrismaWebDeploy(config.webDeploy, config.frontend);
+    yield* validateCloudflareWebDeployKnownIssues(config);
     yield* validateDockerWebDeployDesktopAddons(
       config.webDeploy,
       config.addons,
@@ -389,6 +446,7 @@ export function validateFullConfig(
       config.backend,
       config.auth,
     );
+    yield* validatePrismaWebDeployDesktopAddons(config.webDeploy, config.addons, config.frontend);
 
     yield* validateSelfBackendCompatibility(providedFlags, options, config);
     yield* validateWorkersCompatibility(providedFlags, options, config);

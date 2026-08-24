@@ -3,7 +3,7 @@
  * Replaces the previous Handlebars template with type-safe TypeScript generation
  */
 
-import type { ProjectConfig } from "@better-t-stack/types";
+import { getLocalD1Owner, isAlchemyDeployTarget, type ProjectConfig } from "@better-t-stack/types";
 
 import type { VirtualFileSystem } from "../core/virtual-fs";
 import { getDbScriptSupport, type DbScriptSupport } from "../utils/db-scripts";
@@ -14,12 +14,15 @@ interface TurboTask {
   outputs?: string[];
   cache?: boolean;
   persistent?: boolean;
+  interactive?: boolean;
 }
+
+interface TurboTasks extends Record<string, TurboTask> {}
 
 interface TurboConfig {
   $schema: string;
   ui: string;
-  tasks: Record<string, TurboTask>;
+  tasks: TurboTasks;
 }
 
 export function processTurboConfig(vfs: VirtualFileSystem, config: ProjectConfig): void {
@@ -29,23 +32,26 @@ export function processTurboConfig(vfs: VirtualFileSystem, config: ProjectConfig
   vfs.writeFile("turbo.json", JSON.stringify(turboConfig, null, "\t"));
 }
 
-function generateTurboConfig(config: ProjectConfig): TurboConfig {
+export function generateTurboConfig(config: ProjectConfig): TurboConfig {
   const { backend, database, dbSetup, webDeploy, serverDeploy, frontend } = config;
 
+  const isConvex = backend === "convex";
   const dbSupport = getDbScriptSupport(config);
   const hasDatabase = dbSupport.hasDbScripts;
   const isDocker = dbSetup === "docker";
   const isSqliteLocal = database === "sqlite" && dbSetup !== "d1" && hasDatabase;
-  const hasCloudflare = webDeploy === "cloudflare" || serverDeploy === "cloudflare";
+  const hasAlchemy = isAlchemyDeployTarget(webDeploy) || isAlchemyDeployTarget(serverDeploy);
+  const hasLocalD1 = getLocalD1Owner(config) === "wrangler";
 
-  const tasks: Record<string, TurboTask> = {
-    ...getBaseTasks(frontend, config.addons),
-    ...(config.addons.includes("electrobun") ? getElectrobunTasks() : {}),
-    ...(hasDatabase ? getDatabaseTasks(dbSupport) : {}),
-    ...(isDocker ? getDockerTasks() : {}),
-    ...(isSqliteLocal ? getSqliteLocalTask() : {}),
-    ...(hasCloudflare ? getDeployTasks() : {}),
-  };
+  const tasks: TurboTasks = getBaseTasks(frontend, config.addons);
+
+  if (config.addons.includes("electrobun")) Object.assign(tasks, getElectrobunTasks());
+  if (isConvex) Object.assign(tasks, getConvexTasks());
+  if (!isConvex && hasDatabase) Object.assign(tasks, getDatabaseTasks(dbSupport));
+  if (isDocker) Object.assign(tasks, getDockerTasks());
+  if (isSqliteLocal) Object.assign(tasks, getSqliteLocalTask());
+  if (hasLocalD1) Object.assign(tasks, getLocalD1Task());
+  if (hasAlchemy) Object.assign(tasks, getDeployTasks());
 
   return {
     $schema: "https://turbo.build/schema.json",
@@ -54,15 +60,33 @@ function generateTurboConfig(config: ProjectConfig): TurboConfig {
   };
 }
 
-function getBaseTasks(frontend: string[], addons: string[]): Record<string, TurboTask> {
+function getBaseTasks(frontend: string[], addons: string[]): TurboTasks {
   // Build outputs per framework:
-  // - Vite-based (tanstack-router, react-router, tanstack-start, solid, svelte): dist/**
+  // - Vite-based client apps: dist/**
   // - Next.js: .next/** excluding .next/cache/**
   // - Nuxt: .nuxt/**, .output/**
   const buildOutputs = ["dist/**"];
 
   if (frontend.includes("next")) {
     buildOutputs.push(".next/**", "!.next/cache/**");
+  }
+
+  if (frontend.includes("nuxt")) {
+    buildOutputs.push(".nuxt/**", ".output/**");
+  }
+
+  if (frontend.includes("solid")) {
+    buildOutputs.push(".output/**");
+  }
+
+  // SvelteKit outputs to .svelte-kit/** in addition to build/
+  if (frontend.includes("svelte")) {
+    buildOutputs.push(".svelte-kit/**", "build/**");
+  }
+
+  // Astro outputs to dist/**
+  if (frontend.includes("astro")) {
+    buildOutputs.push(".astro/**");
   }
 
   if (addons.includes("electrobun")) {
@@ -88,7 +112,7 @@ function getBaseTasks(frontend: string[], addons: string[]): Record<string, Turb
   };
 }
 
-function getElectrobunTasks(): Record<string, TurboTask> {
+function getElectrobunTasks(): TurboTasks {
   return {
     "dev:hmr": {
       cache: false,
@@ -107,19 +131,28 @@ function getElectrobunTasks(): Record<string, TurboTask> {
   };
 }
 
-function getDatabaseTasks(dbSupport: DbScriptSupport): Record<string, TurboTask> {
-  const tasks: Record<string, TurboTask> = {};
+function getConvexTasks(): TurboTasks {
+  return {
+    "dev:setup": {
+      cache: false,
+      interactive: true,
+    },
+  };
+}
+
+function getDatabaseTasks(dbSupport: DbScriptSupport): TurboTasks {
+  const tasks: TurboTasks = {};
 
   if (dbSupport.hasDbPush) {
-    tasks["db:push"] = { cache: false };
+    tasks["db:push"] = { cache: false, interactive: true };
   }
 
   if (dbSupport.hasDbGenerate) {
-    tasks["db:generate"] = { cache: false };
+    tasks["db:generate"] = { cache: false, interactive: true };
   }
 
   if (dbSupport.hasDbMigrate) {
-    tasks["db:migrate"] = { cache: false, persistent: true };
+    tasks["db:migrate"] = { cache: false, interactive: true };
   }
 
   if (dbSupport.hasDbStudio) {
@@ -129,11 +162,10 @@ function getDatabaseTasks(dbSupport: DbScriptSupport): Record<string, TurboTask>
   return tasks;
 }
 
-function getDockerTasks(): Record<string, TurboTask> {
+function getDockerTasks(): TurboTasks {
   return {
     "db:start": {
       cache: false,
-      persistent: true,
     },
     "db:stop": {
       cache: false,
@@ -148,21 +180,33 @@ function getDockerTasks(): Record<string, TurboTask> {
   };
 }
 
-function getSqliteLocalTask(): Record<string, TurboTask> {
+function getSqliteLocalTask(): TurboTasks {
   return {
     "db:local": {
       cache: false,
+      persistent: true,
     },
   };
 }
 
-function getDeployTasks(): Record<string, TurboTask> {
+function getLocalD1Task(): TurboTasks {
+  return {
+    "db:migrate:local": {
+      cache: false,
+      interactive: true,
+    },
+  };
+}
+
+function getDeployTasks(): TurboTasks {
   return {
     deploy: {
       cache: false,
+      interactive: true,
     },
     destroy: {
       cache: false,
+      interactive: true,
     },
   };
 }
