@@ -27,7 +27,8 @@ const PAGES = {
 
 export async function GET(_req: Request, { params }: RouteContext<"/og/site/[page]">) {
   const { page: pageParam } = await params;
-  const page = PAGES[pageParam.replace(/\.png$/, "")];
+  const pageKey = pageParam.replace(/\.png$/, "");
+  const page = pageKey in PAGES ? PAGES[pageKey as keyof typeof PAGES] : undefined;
   if (!page) notFound();
 
   return new ImageResponse(

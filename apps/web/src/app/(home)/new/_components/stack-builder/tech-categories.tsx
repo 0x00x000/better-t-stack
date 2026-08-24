@@ -92,7 +92,9 @@ export function TechCategories({
                 const category = categoryKey as keyof StackState;
                 const isSelected = getIsSelected(stack, category, tech.id);
                 const isDisabled = !isOptionCompatible(stack, categoryKey as TechCategory, tech.id);
-                const isExperimental = "experimental" in tech && tech.experimental;
+                const isExperimental =
+                  "experimental" in tech &&
+                  (tech as { experimental?: boolean }).experimental === true;
                 const disabledReason = getDisabledReason(
                   stack,
                   categoryKey as TechCategory,

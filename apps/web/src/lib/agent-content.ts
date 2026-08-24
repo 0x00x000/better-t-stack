@@ -114,7 +114,6 @@ const stackCategoryLabels = {
   nativeFrontend: "Native frontend",
   orm: "ORM",
   packageManager: "Package manager",
-  payments: "Payments",
   runtime: "Runtime",
   serverDeploy: "Server deployment",
   webDeploy: "Web deployment",

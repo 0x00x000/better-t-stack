@@ -136,11 +136,6 @@ export function validateDatabaseSetup(
   }
 
   const setupValidations = {
-    turso: {
-      database: "sqlite",
-      errorMessage:
-        "Turso setup requires SQLite database. Please use '--database sqlite' or choose a different setup.",
-    },
     neon: {
       database: "postgres",
       errorMessage:
@@ -178,15 +173,7 @@ export function validateDatabaseSetup(
   if (dbSetup && dbSetup !== "none") {
     const validation = setupValidations[dbSetup];
 
-    if (dbSetup === "planetscale") {
-      if (database !== "postgres" && database !== "mysql") {
-        return validationErr(validation.errorMessage);
-      }
-    } else if (
-      "database" in validation &&
-      validation.database &&
-      database !== validation.database
-    ) {
+    if ("database" in validation && validation.database && database !== validation.database) {
       return validationErr(validation.errorMessage);
     }
 
@@ -230,12 +217,6 @@ export function validateDatabaseSetup(
 }
 
 export function validateDatabaseProvisioningMode(config: Partial<ProjectConfig>): ValidationResult {
-  if (config.dbSetup === "planetscale" && config.dbSetupOptions?.mode === "auto") {
-    return validationErr(
-      "PlanetScale does not support automatic database setup. Use dbSetupOptions.mode 'alchemy' or 'manual'.",
-    );
-  }
-
   if (config.dbSetupOptions?.mode !== "alchemy") return Result.ok(undefined);
 
   const { backend, dbSetup, webDeploy, serverDeploy } = config;
@@ -251,7 +232,7 @@ export function validateDatabaseProvisioningMode(config: Partial<ProjectConfig>)
     })
   ) {
     return validationErr(
-      "Alchemy database provisioning requires Neon, PlanetScale, or Prisma Postgres and an Alchemy deployment target for the app that consumes the database.",
+      "Alchemy database provisioning requires Neon or Prisma Postgres and an Alchemy deployment target for the app that consumes the database.",
     );
   }
 

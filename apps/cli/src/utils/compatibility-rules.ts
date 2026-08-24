@@ -63,9 +63,6 @@ export function ensureSingleWebAndNative(frontends: Frontend[]): ValidationResul
 
 const FULLSTACK_FRONTENDS: readonly Frontend[] = ["next", "tanstack-start"] as const;
 
-const _EVLOG_SERVER_BACKENDS: readonly Backend[] = ["hono", "express", "fastify", "elysia"];
-const _EVLOG_FULLSTACK_FRONTENDS: readonly Frontend[] = ["next", "tanstack-start"];
-
 const evlogCompatibilityMessage =
   "evlog addon supports Hono or backend self with Next.js or TanStack Start. Backend none is not supported yet.";
 
@@ -284,9 +281,9 @@ export function validatePrismaServerDeploy(
 ): ValidationResult {
   if (serverDeploy !== "prisma") return Result.ok(undefined);
 
-  if (backend === "convex" || backend === "self") {
+  if (backend === "self") {
     return validationErr(
-      "'--server-deploy prisma' requires a separate server backend (hono, express, fastify, elysia). For a fullstack 'self' backend, use '--web-deploy prisma' instead.",
+      "'--server-deploy prisma' requires a separate server backend (hono). For a fullstack 'self' backend, use '--web-deploy prisma' instead.",
     );
   }
 
